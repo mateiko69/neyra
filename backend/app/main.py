@@ -35,6 +35,39 @@ def _is_production_env() -> bool:
     return (settings.ENV or "").strip().lower() in ("production", "prod")
 
 
+_DEFAULT_PRODUCTION_CORS_ORIGINS: tuple[str, ...] = (
+    "https://getneyra.app",
+    "https://www.getneyra.app",
+)
+
+
+def _cors_allow_origins() -> list[str]:
+    fe = (settings.FRONTEND_URL or "").strip().rstrip("/")
+    if not _is_production_env():
+        out = {fe, "http://localhost:3000", "http://localhost:8081"}
+        return sorted(x for x in out if x)
+
+    raw = (getattr(settings, "CORS_ORIGINS", "") or "").strip()
+    extras = [p.strip().rstrip("/") for p in raw.split(",") if p.strip()]
+    merged: dict[str, None] = {}
+    for d in _DEFAULT_PRODUCTION_CORS_ORIGINS:
+        merged.setdefault(d, None)
+    for p in extras:
+        merged.setdefault(p, None)
+    if fe:
+        merged.setdefault(fe, None)
+    return list(merged.keys())
+
+
+def _cors_allow_origin_regex() -> str | None:
+    if not _is_production_env():
+        return None
+    if not getattr(settings, "CORS_ALLOW_VERCEL_PREVIEWS", True):
+        return None
+    # Vercel preview deployments: https://<project>-<branch>-<org>.vercel.app
+    return r"^https://[a-zA-Z0-9][a-zA-Z0-9-]{0,100}\.vercel\.app$"
+
+
 app = FastAPI(title=settings.APP_NAME)
 # Standardize on no trailing slashes. We register explicit aliases where needed.
 # Disabling redirect_slashes removes Starlette's automatic 307 redirects.
@@ -108,9 +141,8 @@ async def _system_doctor_error_capture(request: Request, call_next):
         raise
 app.add_middleware(
     CORSMiddleware,
-    # Production: restrict to configured frontend origin only.
-    # Dev: allow local origins for mobile/web preview.
-    allow_origins=[settings.FRONTEND_URL] if _is_production_env() else [settings.FRONTEND_URL, "http://localhost:3000", "http://localhost:8081"],
+    allow_origins=_cors_allow_origins(),
+    allow_origin_regex=_cors_allow_origin_regex(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

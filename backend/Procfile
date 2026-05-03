@@ -1,0 +1,7 @@
+# Reference start commands for Railway (set per service — do not duplicate "web" in one Procfile deployment).
+# Web API (default service)
+web: sh /app/scripts/start_web_production.sh
+# Background queue worker (separate Railway service → override start command to this line)
+worker: python worker.py
+# Telegram admin bot (long‑running; separate Railway service)
+telegram-worker: python scripts/telegram_admin_bot.py

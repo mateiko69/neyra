@@ -4,6 +4,7 @@ node_modules/
 dist/
 build/
 coverage/
+*.tsbuildinfo
 
 ### Env / secrets (never commit)
 .env
@@ -11,8 +12,10 @@ coverage/
 .env.local
 backend/.env
 backend/.env.*
+!backend/.env.example
 frontend/.env
 frontend/.env.*
+!frontend/.env.production.example
 frontend/.env.local
 mobile/.env
 mobile/.env.*

@@ -18,11 +18,10 @@ import requests
 # -----------------------------
 
 TELEGRAM_BOT_TOKEN = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
-ADMIN_TELEGRAM_IDS = {
-    int(x.strip())
-    for x in (os.getenv("ADMIN_TELEGRAM_IDS") or "").split(",")
-    if x.strip().isdigit()
-}
+_IDS_RAW = (
+    (os.getenv("ADMIN_TELEGRAM_IDS") or os.getenv("TELEGRAM_ADMIN_IDS") or "").strip()
+)
+ADMIN_TELEGRAM_IDS = {int(x.strip()) for x in _IDS_RAW.split(",") if x.strip().isdigit()}
 
 BACKEND_BASE_URL = (os.getenv("BACKEND_BASE_URL") or "http://localhost:8000").strip().rstrip("/")
 ADMIN_BOT_SERVICE_TOKEN = (os.getenv("ADMIN_BOT_SERVICE_TOKEN") or "").strip()
@@ -117,7 +116,7 @@ def _must_configure() -> None:
     if not TELEGRAM_BOT_TOKEN:
         missing.append("TELEGRAM_BOT_TOKEN")
     if not ADMIN_TELEGRAM_IDS:
-        missing.append("ADMIN_TELEGRAM_IDS")
+        missing.append("ADMIN_TELEGRAM_IDS (or TELEGRAM_ADMIN_IDS)")
     if not ADMIN_BOT_SERVICE_TOKEN:
         missing.append("ADMIN_BOT_SERVICE_TOKEN")
     if missing:

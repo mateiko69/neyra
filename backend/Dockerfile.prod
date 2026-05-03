@@ -15,6 +15,7 @@ ENV ENV=production
 
 EXPOSE 8000
 
-# Production: no auto-seed, no reload.
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# Production: no auto-seed, no reload. Railway sets PORT; default 8000 for local image runs.
+RUN chmod +x /app/scripts/start_web_production.sh
+CMD ["sh", "-c", "/app/scripts/start_web_production.sh"]
 

@@ -1,0 +1,12 @@
+# Railway “config as code” when the service **Root Directory** is set to `backend/`.
+# In the Railway dashboard: New Project → Deploy from GitHub → set root directory to `backend`,
+# Dockerfile path `Dockerfile.prod`, or attach this repo and configure the service root.
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile.prod"
+
+[deploy]
+healthcheckPath = "/health/ready"
+healthcheckTimeout = 120
+restartPolicyType = "on_failure"

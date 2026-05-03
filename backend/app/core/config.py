@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -109,6 +109,13 @@ class Settings(BaseSettings):
     # Browser-facing frontend URL (used for OAuth redirects). Must never be a Docker-internal hostname.
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_FRONTEND_URL: str = "http://localhost:3000"
+    # Optional production alias (Railway/Vercel): when set, overrides FRONTEND_URL + PUBLIC_FRONTEND_URL to this origin.
+    APP_PUBLIC_URL: str = ""
+    # Comma-separated allowed browser origins for CORS (production). Must include https://your-web-app (no path).
+    # If empty in production, defaults to FRONTEND_URL plus built-in getneyra.app hosts (see app.main CORS builder).
+    CORS_ORIGINS: str = ""
+    # When true, also allow any https://*.vercel.app origin (preview deployments).
+    CORS_ALLOW_VERCEL_PREVIEWS: bool = True
     # Docker/internal frontend URL (used for in-container checks like Deep QA).
     INTERNAL_FRONTEND_URL: str = "http://neyra-web:3000"
     ADMIN_EMAILS: str = "admin@example.com"
@@ -257,6 +264,14 @@ class Settings(BaseSettings):
 
     # Telegram Admin Bot internal auth (service token for admin endpoints only).
     ADMIN_BOT_SERVICE_TOKEN: str = ""
+
+    @model_validator(mode="after")
+    def _apply_app_public_url(self):
+        pub = (self.APP_PUBLIC_URL or "").strip().rstrip("/")
+        if pub:
+            object.__setattr__(self, "FRONTEND_URL", pub)
+            object.__setattr__(self, "PUBLIC_FRONTEND_URL", pub)
+        return self
 
     @field_validator("PUBLIC_BACKEND_URL", mode="before")
     @classmethod
