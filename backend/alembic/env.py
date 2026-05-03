@@ -1,10 +1,44 @@
+import sys
 from logging.config import fileConfig
-from sqlalchemy import Column, MetaData, PrimaryKeyConstraint, String, Table, engine_from_config, pool, text
+
 from alembic import context
 from alembic.ddl.impl import DefaultImpl
-from app.core.config import settings
-from app.db.base import Base
-from app.models import (
+from pydantic import ValidationError
+from sqlalchemy import Column, MetaData, PrimaryKeyConstraint, String, Table, engine_from_config, pool, text
+from sqlalchemy.engine.url import make_url
+
+config = context.config
+
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)
+
+try:
+    from app.core.config import settings
+except ValidationError as exc:
+    sys.stderr.write("[alembic] Failed to load application settings.\n")
+    for err in exc.errors():
+        loc = err.get("loc") or ()
+        if "DATABASE_URL" in loc:
+            sys.stderr.write(f"[alembic] DATABASE_URL: {err.get('msg')}\n")
+    sys.stderr.write(
+        "[alembic] Set DATABASE_URL (name only referenced here — never logged) to your Railway PostgreSQL URL.\n"
+    )
+    raise SystemExit(1)
+
+db_url = settings.DATABASE_URL
+try:
+    make_url(db_url)
+except Exception:
+    sys.stderr.write(
+        "[alembic] DATABASE_URL could not be parsed as a SQLAlchemy URL. "
+        "Fix the DATABASE_URL variable (secret value never printed).\n"
+    )
+    raise SystemExit(1)
+
+config.set_main_option("sqlalchemy.url", db_url)
+
+from app.db.base import Base  # noqa: E402 — load after DATABASE_URL is validated
+from app.models import (  # noqa: E402
     analytics_event,
     ai_trial_usage,
     app_setting,
@@ -21,11 +55,6 @@ from app.models import (
     user_ignore,
     user_report,
 )
-
-config = context.config
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
 

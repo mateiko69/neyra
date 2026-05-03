@@ -3,8 +3,9 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
-from pydantic import field_validator, model_validator
+from pydantic import ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine.url import make_url
 
 
 def _running_in_container() -> bool:
@@ -63,9 +64,26 @@ def _warn_if_weak_prod_secrets(secret_key: str, admin_token: str) -> None:
     print("\n".join(msg), file=sys.stderr)
 
 def _default_database_url() -> str:
-    # Ensure local test runs don't require a running Postgres.
-    if _running_tests() and not os.environ.get("DATABASE_URL"):
+    """
+    Fallback when DATABASE_URL is absent from env.
+    Tests: SQLite test DB unless DATABASE_URL explicitly set (non-empty).
+    Production (ENV production/prod): no default — must supply DATABASE_URL in env.
+    Development: SQLite at ./local.db when DATABASE_URL absent or blank.
+    Otherwise: local Docker Compose Postgres wiring (host dev default).
+    """
+    raw_present = os.environ.get("DATABASE_URL")
+    explicit = raw_present is not None and bool(str(raw_present).strip())
+
+    if _running_tests() and not explicit:
         return "sqlite:///./neyra_test.db"
+
+    env_tag = str(os.environ.get("ENV", "") or "").strip().lower()
+    if env_tag in {"production", "prod"}:
+        return ""
+
+    if not explicit:
+        return "sqlite:///./local.db"
+
     return "postgresql://postgres:postgres@localhost:5434/neyra"
 
 def _default_redis_url() -> str:
@@ -284,10 +302,44 @@ class Settings(BaseSettings):
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
-    def database_url_fallback(cls, v):
+    def database_url_prepare(cls, v):
+        if v is None:
+            return ""
         if not isinstance(v, str):
             return v
-        return _rewrite_local_service_url(v, service_host="db", localhost_port=5434)
+        s = str(v).strip().strip('"').strip("'")
+        if s.startswith("postgres://"):
+            s = "postgresql://" + s[len("postgres://") :]
+        return _rewrite_local_service_url(s, service_host="db", localhost_port=5434)
+
+    @field_validator("DATABASE_URL", mode="after")
+    @classmethod
+    def database_url_normalize(cls, v: object, info: ValidationInfo) -> str:
+        if isinstance(v, str):
+            v_str = v.strip()
+        else:
+            v_str = ""
+
+        env_val = (info.data.get("ENV") if info.data else None) or "development"
+        production = str(env_val).strip().lower() in {"production", "prod"}
+
+        if not v_str:
+            if production:
+                raise ValueError(
+                    "DATABASE_URL is unset or empty. In production, set DATABASE_URL to your PostgreSQL "
+                    "connection string (Railway Postgres provides this)."
+                )
+            return "sqlite:///./local.db"
+
+        try:
+            make_url(v_str)
+        except Exception:
+            raise ValueError(
+                "DATABASE_URL could not be parsed as a SQLAlchemy database URL "
+                "(check scheme and formatting; secrets are never logged)."
+            ) from None
+
+        return v_str
 
     @field_validator("REDIS_URL", mode="before")
     @classmethod

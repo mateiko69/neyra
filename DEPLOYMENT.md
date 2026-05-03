@@ -11,11 +11,16 @@ Do **not** commit `.env`, tokens, API keys, or database URLs. Examples live in [
 
 ---
 
-## 1. Railway — PostgreSQL
+## 1. Railway — PostgreSQL (required for the backend API)
+
+The NEYRA **backend API and Alembic migrations require PostgreSQL**. Railway’s web service alone is not sufficient: provision the **PostgreSQL** add-on or service and expose its connection URL to your API.
 
 1. In Railway → **New** → **Database** → **PostgreSQL**.
-2. Copy **`DATABASE_URL`** from the Postgres service variables.
-3. Attach the DB to your API service (Railway prompts to add `DATABASE_URL`).
+2. Open the Postgres service → **Variables** → find **`DATABASE_URL`** (Railway sets this automatically; it normally looks like `postgresql://...@...railway.internal:5432/railway` or a pooled URL).
+3. **Link/reference** Postgres to your backend service so **`DATABASE_URL`** is present on the API service environment. If `DATABASE_URL` is missing, empty, or malformed, the container will refuse to boot (startup and Alembic print clear messages; values are never logged).
+4. Optional: older tools emit `postgres://` — the app accepts that and converts it to `postgresql://` for SQLAlchemy.
+
+Do **not** rely on SQLite in production: with `ENV=production`, SQLite is **not** used unless you deliberately set **`DATABASE_URL`** to a SQLite URL (not recommended).
 
 ---
 
@@ -31,7 +36,8 @@ If the app relies on **`REDIS_URL`**, provision **Redis** on Railway and copy `R
 2. Service settings:
    - **Root Directory:** `backend`
    - **Dockerfile:** `Dockerfile.prod` (see [`backend/railway.toml`](backend/railway.toml))
-   - Railway injects **`PORT`**; [`backend/scripts/start_web_production.sh`](backend/scripts/start_web_production.sh) binds **`0.0.0.0`** and uses **`$PORT`**.
+   - Railway injects **`PORT`**; [`backend/scripts/start_web_production.sh`](backend/scripts/start_web_production.sh) binds **`0.0.0.0`** and uses **`${PORT:-8000}`**.
+   - **PostgreSQL**: add the Railway Postgres service (or compatible provider) and ensure **`DATABASE_URL`** on **this** service points at it (typically by referencing Railway’s Postgres `DATABASE_URL` variable).
 3. Required environment variables (names only):
 
 | Variable | Notes |
@@ -50,7 +56,7 @@ If the app relies on **`REDIS_URL`**, provision **Redis** on Railway and copy `R
 | `ENABLE_GOOGLE_OAUTH` | `true` in prod if using Google |
 | `PADDLE_WEBHOOK_SECRET` | Paddle notifications HMAC |
 
-4. Deploy and confirm **`GET https://<your-api>/health/ready`** returns **200**.
+4. Deploy and confirm **`GET https://<your-api>/health`** returns **200** with `{"status":"ok"}` and **`GET …/health/ready`** returns **200** with `{"status":"ready"}`.
 5. Your **canonical API URL** becomes the Railway-generated domain or custom domain attached to this service — use that for Vercel `NEXT_PUBLIC_API_BASE_URL` below.
 
 ### Start-command reference (`backend/Procfile`)
