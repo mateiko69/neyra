@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import time
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
@@ -149,6 +150,16 @@ app.add_middleware(
 )
 app.add_middleware(RateLimitMiddleware)
 app.include_router(api_router, prefix="/api/v1")
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
+@app.get("/health/ready")
+def ready():
+    return {"status": "ready"}
+
 
 # User uploads: public read via GET (no auth — browsers do not send Bearer on <img src>).
 # POST remains on /api/v1/uploads/* with authentication.
@@ -594,10 +605,9 @@ async def _startup_ab_engine_worker() -> None:
 def root():
     return {"status": "ok", "app": settings.APP_NAME}
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
 
-@app.get("/health/ready")
-def ready():
-    return {"status": "ready"}
+if __name__ == "__main__":
+    import uvicorn
+
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port)
