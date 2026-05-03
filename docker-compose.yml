@@ -1,0 +1,119 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: neyra
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports:
+      - "6381:6379"
+
+  api:
+    build: ./backend
+    env_file:
+      - ./backend/.env
+    environment:
+      FRONTEND_DIR: /app/frontend
+      PUBLIC_FRONTEND_URL: http://localhost:3000
+      FRONTEND_URL: http://localhost:3000
+      INTERNAL_FRONTEND_URL: http://neyra-web:3000
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    # Host port must match NEXT_PUBLIC_BACKEND_URL in frontend/.env.local (browser calls this, not Docker service names).
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./frontend:/app/frontend
+      - ./backend/uploads:/app/uploads
+      - ./backups:/app/backups
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=3).read(); print('ok')"]
+      # Keep interval >=20s to avoid noisy /health/ready in logs (Docker-only; frontend must not poll this).
+      interval: 25s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    build: ./backend
+    env_file:
+      - ./backend/.env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: ["python", "worker.py"]
+    volumes:
+      - ./backend:/app
+      - ./frontend:/app/frontend
+      - ./backend/uploads:/app/uploads
+      - ./backups:/app/backups
+
+  telegram-bot:
+    build: ./backend
+    command: ["python", "scripts/telegram_admin_bot.py"]
+    env_file:
+      - ./backend/.env
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      ADMIN_TELEGRAM_IDS: ${ADMIN_TELEGRAM_IDS}
+      ADMIN_BOT_SERVICE_TOKEN: ${ADMIN_BOT_SERVICE_TOKEN}
+      BACKEND_BASE_URL: http://api:8000
+      ENV: ${ENV}
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  neyra-web:
+    build: ./frontend
+    env_file:
+      - ./frontend/.env.local
+    # NEXT_PUBLIC_* is baked for the browser: use the host-published API URL (e.g. http://localhost:8000), not http://neyra-api:8000.
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+
+  qa-runner:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.qa-runner
+    command: ["node", "scripts/deep-qa-runner.mjs"]
+    environment:
+      NEYRA_DOCKER: "1"
+      FRONTEND_URL: http://neyra-web:3000
+      API_URL: http://api:8000
+      QA_RUNNER_PORT: "3999"
+      PLAYWRIGHT_BROWSERS_PATH: /root/.cache/ms-playwright
+    depends_on:
+      api:
+        condition: service_healthy
+      neyra-web:
+        condition: service_started
+    # Intentionally no bind mount: use image-installed browsers + code.
+
+volumes:
+  postgres_data:

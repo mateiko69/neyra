@@ -1,0 +1,92 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: neyra
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports:
+      - "6381:6379"
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    env_file:
+      - ./backend/.env.production
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/uploads:/app/uploads
+      # Catalog + demo photos for seed_demo_profiles / generate_demo_profiles_json (host checkout).
+      - ./frontend:/app/frontend:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=3).read(); print('ok')"]
+      interval: 25s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    env_file:
+      - ./backend/.env.production
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: ["python", "worker.py"]
+    volumes:
+      - ./frontend:/app/frontend:ro
+
+  telegram-bot:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    command: ["python", "scripts/telegram_admin_bot.py"]
+    env_file:
+      - ./backend/.env.production
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      ADMIN_TELEGRAM_IDS: ${ADMIN_TELEGRAM_IDS}
+      ADMIN_BOT_SERVICE_TOKEN: ${ADMIN_BOT_SERVICE_TOKEN}
+      BACKEND_BASE_URL: http://api:8000
+      ENV: ${ENV}
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  neyra-web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    env_file:
+      - ./frontend/.env.production
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
+

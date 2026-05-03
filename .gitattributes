@@ -1,0 +1,20 @@
+# Exclude local-only files from `git archive` / release zips.
+.env export-ignore
+.env.* export-ignore
+backend/.env export-ignore
+backend/.env.* export-ignore
+frontend/.env export-ignore
+frontend/.env.* export-ignore
+frontend/.env.local export-ignore
+reports/ export-ignore
+backups/ export-ignore
+uploads/ export-ignore
+backend/uploads/ export-ignore
+node_modules/ export-ignore
+frontend/node_modules/ export-ignore
+mobile/node_modules/ export-ignore
+frontend/.next/ export-ignore
+backend/.pytest_cache/ export-ignore
+**/__pycache__/ export-ignore
+**/*.pyc export-ignore
+**/*.db export-ignore

@@ -1,0 +1,24 @@
+{
+  "name": "neyra-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "eas:dev": "eas build -p android --profile development",
+    "eas:preview": "eas build -p android --profile preview",
+    "eas:prod": "eas build -p android --profile production"
+  },
+  "dependencies": {
+    "expo": "~53.0.0",
+    "expo-constants": "~17.1.7",
+    "expo-status-bar": "~2.2.3",
+    "react": "19.0.0",
+    "react-native": "^0.79.6"
+  },
+  "devDependencies": {
+    "dotenv": "^16.6.1"
+  }
+}

@@ -1,0 +1,392 @@
+/* Paddle public marketing shell — imported from root layout so dev/HMR always loads these rules. */
+
+.public-marketing-root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+}
+
+.public-marketing-skip {
+  position: absolute;
+  left: -9999px;
+  z-index: 100;
+  padding: 8px 12px;
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+}
+.public-marketing-skip:focus {
+  left: 12px;
+  top: 12px;
+}
+
+.public-marketing-top {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(9, 11, 16, 0.97) 0%, rgba(9, 11, 16, 0.9) 100%);
+  backdrop-filter: blur(16px) saturate(140%);
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.4);
+}
+
+.public-marketing-top-inner {
+  max-width: min(var(--content-max), 100%);
+  margin: 0 auto;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+  flex-wrap: wrap;
+}
+
+.public-marketing-brand {
+  font-weight: 950;
+  font-size: 1.15rem;
+  letter-spacing: 0.06em;
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  flex-shrink: 0;
+}
+
+.public-marketing-nav {
+  flex: 1;
+  min-width: min(100%, 280px);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.public-marketing-nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  column-gap: 20px;
+  row-gap: 10px;
+}
+
+.public-marketing-nav-list > li {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+.public-marketing-nav-cta {
+  margin-left: 0;
+}
+
+.public-marketing-pipe {
+  color: rgba(255, 255, 255, 0.28);
+  font-weight: 400;
+  font-size: 14px;
+  padding: 0 2px;
+  user-select: none;
+}
+
+.public-marketing-nav-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 750;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.15s var(--ease), background 0.15s var(--ease);
+  white-space: nowrap;
+}
+
+.public-marketing-nav-link:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.public-marketing-nav-link--muted {
+  opacity: 0.92;
+}
+
+.public-marketing-signup.btn {
+  padding: 10px 16px;
+  min-height: 40px;
+  font-size: 14px;
+}
+
+.public-marketing-main {
+  flex: 1;
+  width: 100%;
+  padding: 28px 20px 52px;
+  box-sizing: border-box;
+}
+
+.public-marketing-inner {
+  width: 100%;
+  max-width: min(980px, 100%);
+  margin: 0 auto;
+}
+
+.public-marketing-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-section);
+}
+
+.public-marketing-landing .page-shell {
+  max-width: 100%;
+}
+
+.public-marketing-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 10, 16, 0.92);
+  margin-top: auto;
+}
+
+.public-marketing-footer-inner {
+  max-width: min(var(--content-max), 100%);
+  margin: 0 auto;
+  padding: 32px 20px 40px;
+  display: grid;
+  gap: 22px;
+}
+
+.public-marketing-footer-name {
+  font-weight: 950;
+  letter-spacing: 0.05em;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.public-marketing-footer-tag {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+  max-width: 46ch;
+}
+
+.public-marketing-footer-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 18px;
+  row-gap: 10px;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.public-marketing-footer-links > li {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+.public-marketing-footer-links a {
+  display: inline-flex;
+  padding: 6px 4px;
+  color: var(--muted);
+  text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 1px solid transparent;
+  transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+
+.public-marketing-footer-links a:hover {
+  color: var(--accent);
+  border-bottom-color: rgba(34, 243, 255, 0.35);
+}
+
+.public-marketing-footer-pipe {
+  color: rgba(255, 255, 255, 0.28);
+  font-weight: 400;
+  font-size: 14px;
+  user-select: none;
+}
+
+.public-marketing-footer-copy {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted2);
+}
+
+.public-marketing-hero {
+  text-align: center;
+  padding: 4px 0 12px;
+}
+
+.public-marketing-hero h1 {
+  margin: 0 0 12px;
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  font-weight: 950;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.public-marketing-lede {
+  margin: 0 auto;
+  max-width: 56ch;
+  color: var(--muted);
+  font-size: clamp(15px, 2.5vw, 17px);
+  line-height: 1.6;
+}
+
+.public-marketing-section-label {
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted2);
+  margin: 0 0 10px;
+}
+
+.public-plan-grid {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+}
+
+.public-plan-card {
+  border-radius: var(--r-lg);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(165deg, rgba(22, 26, 40, 0.92), rgba(14, 16, 24, 0.85));
+  padding: 22px 20px;
+  box-shadow: var(--shadow);
+}
+
+.public-plan-card--featured {
+  border-color: rgba(124, 92, 255, 0.45);
+  box-shadow:
+    0 18px 48px rgba(124, 92, 255, 0.2),
+    0 0 0 1px rgba(124, 92, 255, 0.28);
+}
+
+.public-plan-price {
+  font-size: 1.35rem;
+  font-weight: 950;
+  margin: 8px 0 14px;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.public-plan-card ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.legal-prose {
+  max-width: min(900px, 100%);
+  margin: 0 auto;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 15px;
+  line-height: 1.68;
+}
+
+.legal-prose h1 {
+  margin: 0 0 12px;
+  font-size: clamp(1.6rem, 3vw, 2rem);
+  font-weight: 950;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.legal-prose .legal-effective {
+  font-size: 13px;
+  color: var(--muted2);
+  margin: 0 0 28px;
+}
+
+.legal-prose h2 {
+  margin: 2rem 0 0.65rem;
+  font-size: 1.08rem;
+  font-weight: 850;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.legal-prose h2:first-of-type {
+  margin-top: 1.25rem;
+}
+
+.legal-prose p {
+  margin: 0 0 1rem;
+}
+
+.legal-prose .legal-prose-lead {
+  margin: 0 0 0.5rem;
+}
+
+.legal-prose ul {
+  margin: 0 0 1.15rem;
+  padding-left: 1.25rem;
+}
+
+.legal-prose li {
+  margin-bottom: 0.5rem;
+}
+
+.legal-prose li:last-child {
+  margin-bottom: 0;
+}
+
+.legal-prose a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.grid-3 {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+}
+
+@media (max-width: 640px) {
+  .public-marketing-top-inner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .public-marketing-nav {
+    justify-content: flex-start;
+    min-width: 100%;
+  }
+
+  .public-marketing-nav-list {
+    justify-content: flex-start;
+    column-gap: 12px;
+  }
+
+  .public-marketing-nav-cta {
+    width: 100%;
+  }
+
+  .public-marketing-signup.btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .public-marketing-pipe {
+    display: none;
+  }
+
+  .public-marketing-footer-pipe {
+    display: none;
+  }
+
+  .public-marketing-footer-links {
+    flex-direction: column;
+    align-items: flex-start;
+    row-gap: 8px;
+  }
+}

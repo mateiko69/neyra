@@ -1,0 +1,17 @@
+FROM mcr.microsoft.com/playwright:v1.59.1-jammy
+
+WORKDIR /app
+
+# Install JS deps
+COPY package.json package-lock.json* ./
+RUN npm install
+
+# Install browsers (Chromium) inside the image
+ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
+RUN npx playwright install chromium
+
+COPY . .
+
+EXPOSE 3999
+CMD ["node", "scripts/deep-qa-runner.mjs"]
+

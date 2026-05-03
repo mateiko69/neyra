@@ -1,0 +1,16 @@
+.env
+.env.*
+*.db
+uploads
+reports
+backups
+.pytest_cache
+__pycache__
+**/__pycache__
+**/*.pyc
+node_modules
+.next
+dist
+build
+coverage
+frontend
