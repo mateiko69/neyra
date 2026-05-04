@@ -9,7 +9,7 @@ import { pickDiscoverReasons } from "../../../lib/aiSurfaceCopy";
 import { photosFromList } from "../../../lib/media";
 import { getAiOpeners, type AiOpenerMatchContext } from "../../../lib/chat/api";
 import { discoverSwipeFeedback } from "../../../lib/discoverSwipeFeedback";
-import { acquireDiscoverSwipe, releaseDiscoverSwipe } from "../../../lib/discoverSwipeGuard";
+import { acquireDiscoverSwipe, releaseDiscoverSwipe, type DiscoverSwipeAction } from "../../../lib/discoverSwipeGuard";
 import { PageShell } from "../../components/PageShell";
 import { SafeImg } from "../../components/SafeImg";
 import { VerifiedBadge } from "../../components/trust/VerifiedBadge";
@@ -48,6 +48,16 @@ type DiscoverCard = {
 function clamp(n: number, a: number, b: number) {
   return Math.max(a, Math.min(b, n));
 }
+
+/** Exit animation duration — buttons stay disabled until slice completes (~same window). */
+const DISCOVER_SWIPE_EXIT_MS = 520;
+
+type DiscoverSwipeExitState = {
+  liked: boolean;
+  startX: number;
+  startY: number;
+  fly: boolean;
+};
 
 function toInterestsList(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 6);
@@ -379,6 +389,11 @@ export default function DiscoverPage() {
   const [drag, setDrag] = useState({ x: 0, y: 0, active: false });
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const rafRef = useRef<number | null>(null);
+  const [swipeExit, setSwipeExit] = useState<DiscoverSwipeExitState | null>(null);
+  const [isNarrowSwipe, setIsNarrowSwipe] = useState(false);
+  const pendingSwipeReleaseRef = useRef<{ targetId: number; action: DiscoverSwipeAction } | null>(null);
+  const exitFinishHandledRef = useRef(false);
+  const exitFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const preloadQueue = useMemo(() => {
     const out: string[] = [];
@@ -392,6 +407,15 @@ export default function DiscoverPage() {
   useEffect(() => {
     preloadImages(preloadQueue);
   }, [preloadQueue]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(max-width: 640px)");
+    const apply = () => setIsNarrowSwipe(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
 
   const loadFeed = useCallback(
     async (reason: string, opts?: { manual?: boolean }) => {
@@ -417,8 +441,9 @@ export default function DiscoverPage() {
         }
         setOnboardingGate(false);
         const arr = Array.isArray(data) ? data : Array.isArray(data?.feed) ? data.feed : Array.isArray(data?.cards) ? data.cards : [];
-        setCards(arr as DiscoverCard[]);
-        if (arr.length > 0) setEmptyFeedDebug(null);
+        const clean = (arr as DiscoverCard[]).filter((c) => c && Number(c.user_id) > 0);
+        setCards(clean);
+        if (clean.length > 0) setEmptyFeedDebug(null);
       } catch (e) {
         if (e instanceof ApiThrottleSkipError) {
           // Defensive: fetchDiscoverFeed already returns lastOk/[] on THROTTLE_SKIP,
@@ -547,16 +572,15 @@ export default function DiscoverPage() {
     | { new?: boolean; active_now?: boolean; verified?: boolean }
     | null;
 
-  async function swipe(liked: boolean) {
-    const card = topCard;
-    if (!card) return;
-    const action = liked ? "like" : "pass";
-    if (!acquireDiscoverSwipe(Number(card.user_id), action)) return;
+  const swipeInteractionLocked = Boolean(swipeExit);
 
-    const targetId = Number(card.user_id);
-    const snapshot = card;
-
-    discoverSwipeFeedback(liked ? "like" : "pass");
+  const finalizeSwipeExitOnce = useCallback(() => {
+    if (exitFinishHandledRef.current) return;
+    exitFinishHandledRef.current = true;
+    if (exitFallbackTimerRef.current) {
+      clearTimeout(exitFallbackTimerRef.current);
+      exitFallbackTimerRef.current = null;
+    }
     setCards((prev) => {
       const next = prev.slice(1);
       if (!swipeRefreshPaused && next.length <= 4) {
@@ -564,138 +588,207 @@ export default function DiscoverPage() {
       }
       return next;
     });
+    setSwipeExit(null);
+    const rel = pendingSwipeReleaseRef.current;
+    pendingSwipeReleaseRef.current = null;
+    if (rel) releaseDiscoverSwipe(rel.targetId, rel.action);
+  }, [loadFeed, swipeRefreshPaused]);
+
+  function cancelSwipeExitForError() {
+    setSwipeExit(null);
     setDrag({ x: 0, y: 0, active: false });
-
-    const swipeSignal =
-      typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(14_000) : undefined;
-
-    void (async () => {
-      try {
-        const res = await apiFetch("/swipes", {
-          method: "POST",
-          metaReason: liked ? "discover-like" : "discover-pass",
-          body: JSON.stringify({ target_user_id: targetId, liked }),
-          signal: swipeSignal,
-        });
-
-        lastSwipeRef.current = { card: snapshot, liked };
-        swipeSessionCountRef.current += 1;
-
-        if (liked) {
-          void trackAnalyticsEvent("like_sent", { source: "discover", target_user_id: snapshot.user_id });
-        }
-
-        if (res && typeof res === "object" && (res as any).matched) {
-          void trackAnalyticsEvent("match_created", { source: "discover", partner_user_id: snapshot.user_id });
-          recordMatchMoment();
-          const photos = photosFromList(snapshot.photo_urls);
-          const bioTrim = String(snapshot.bio || "").trim();
-          const snapVibe = String(snapshot.vibe || "").trim();
-          const rawLt = snapshot.lifestyle_tags;
-          const ltList = Array.isArray(rawLt) ? rawLt : [];
-          const tagList: string[] = [];
-          if (snapVibe) tagList.push(snapVibe);
-          for (const x of ltList) {
-            const s = String(x || "").trim();
-            if (!s || tagList.some((tg) => tg.toLowerCase() === s.toLowerCase())) continue;
-            tagList.push(s);
-          }
-          const matchContext: AiOpenerMatchContext = {
-            matchName: String(snapshot.display_name || t("discover.card.profileFallback")),
-            city: snapshot.city ? String(snapshot.city) : null,
-            bio: bioTrim || null,
-            interests: toInterestsList(snapshot.interests),
-            tags: tagList.length ? tagList : null,
-          };
-          setMatch({
-            userId: Number(snapshot.user_id),
-            name: String(snapshot.display_name || t("discover.card.profileFallback")),
-            photoUrl: photos[0] || null,
-            chatUrl: typeof (res as any).chat_url === "string" ? (res as any).chat_url : null,
-            matchContext,
-          });
-          setToast(t("retention.match.dontLose"));
-          void trackAnalyticsEvent("retention_signal_shown", {
-            kind: "match_dont_lose",
-            surface: "discover_match_modal",
-            partner_user_id: Number(snapshot.user_id),
-          });
-        }
-
-        if (liked) {
-          recordOutboundLikeMoment();
-          void (async () => {
-            try {
-              invalidateApiGetCache("/nav/badges");
-              invalidateApiGetCache("/likes/incoming");
-              invalidateApiGetCache("/matches");
-              const [badges] = await Promise.all([
-                apiFetch("/nav/badges", {
-                  metaReason: "discover-like-refresh-badges",
-                  skipCache: true,
-                  skipThrottle: true,
-                  softFail: true,
-                }),
-                apiFetch("/likes/incoming?limit=1", {
-                  metaReason: "discover-like-refresh-likes",
-                  skipCache: true,
-                  skipThrottle: true,
-                }).catch(() => null),
-                apiFetch("/matches", {
-                  metaReason: "discover-like-refresh-matches",
-                  skipCache: true,
-                  skipThrottle: true,
-                }).catch(() => null),
-                apiFetch("/messages/conversations", {
-                  metaReason: "discover-like-refresh-conversations",
-                  skipCache: true,
-                  skipThrottle: true,
-                }).catch(() => null),
-              ]);
-              if (badges !== undefined) setNavBadgesFromServer(badges as any, "discover-like-refresh");
-            } catch (e) {
-              if (!(e instanceof ApiThrottleSkipError)) {
-                /* ignore */
-              }
-            }
-          })();
-        }
-      } catch (e) {
-        const errName = e instanceof Error ? e.name : "";
-        const isAbort = errName === "AbortError" || (e instanceof Error && /abort/i.test(e.message));
-
-        if (e instanceof RateLimitError) {
-          setSwipeRefreshPaused(true);
-          setCards((prev) => [snapshot, ...prev]);
-          setToast(t("errors.api.rateLimited"));
-          return;
-        }
-
-        const msg = e instanceof Error ? e.message : String(e);
-        if (liked && msg === "paywall.likes_limit") {
-          setCards((prev) => [snapshot, ...prev]);
-          if (!hasValueMoment()) {
-            void trackAnalyticsEvent("paywall_deferred", { surface: "discover_likes_limit", reason: "no_value_moment" });
-            setToast(t("discover.paywall.deferredToast"));
-          } else {
-            void trackAnalyticsEvent("paywall_shown", { surface: "discover_toast_soft", source: "discover_likes_limit" });
-            setToast(t("monetization.discover.softHint"));
-          }
-          return;
-        }
-
-        if (isAbort) {
-          setToast(t("discover.swipe.timeoutToast"));
-        } else {
-          setToast(t("discover.swipe.syncFailed"));
-        }
-      } finally {
-        releaseDiscoverSwipe(targetId, action);
-      }
-    })();
+    const rel = pendingSwipeReleaseRef.current;
+    pendingSwipeReleaseRef.current = null;
+    if (rel) releaseDiscoverSwipe(rel.targetId, rel.action);
   }
 
+  useEffect(() => {
+    if (!swipeExit || swipeExit.fly) return;
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setSwipeExit((s) => (s && !s.fly ? { ...s, fly: true } : s));
+      });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [swipeExit]);
+
+  useEffect(() => {
+    if (!swipeExit?.fly) return;
+    exitFallbackTimerRef.current = setTimeout(() => {
+      finalizeSwipeExitOnce();
+    }, DISCOVER_SWIPE_EXIT_MS + 80);
+    return () => {
+      if (exitFallbackTimerRef.current) {
+        clearTimeout(exitFallbackTimerRef.current);
+        exitFallbackTimerRef.current = null;
+      }
+    };
+  }, [swipeExit?.fly, finalizeSwipeExitOnce]);
+
+  function onSwipeExitTransitionEnd(e: React.TransitionEvent<HTMLDivElement>) {
+    if (!swipeExit?.fly) return;
+    if (e.propertyName !== "transform" && e.propertyName !== "opacity") return;
+    finalizeSwipeExitOnce();
+  }
+
+  const commitSwipe = useCallback(
+    (liked: boolean, fromDrag?: { x: number; y: number }) => {
+      if (swipeExit) return;
+      const card = cards[0];
+      if (!card) return;
+      const targetId = Number(card.user_id);
+      if (!targetId) return;
+      const action: DiscoverSwipeAction = liked ? "like" : "pass";
+      if (!acquireDiscoverSwipe(targetId, action)) return;
+
+      const snapshot = card;
+      exitFinishHandledRef.current = false;
+      pendingSwipeReleaseRef.current = { targetId, action };
+
+      discoverSwipeFeedback(liked ? "like" : "pass");
+      setSwipeExit({
+        liked,
+        startX: fromDrag?.x ?? 0,
+        startY: fromDrag?.y ?? 0,
+        fly: false,
+      });
+      setDrag({ x: 0, y: 0, active: false });
+
+      requestAnimationFrame(() => {
+        const swipeSignal =
+          typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(14_000) : undefined;
+
+        void (async () => {
+          try {
+            const res = await apiFetch("/swipes", {
+              method: "POST",
+              metaReason: liked ? "discover-like" : "discover-pass",
+              body: JSON.stringify({ target_user_id: targetId, liked }),
+              signal: swipeSignal,
+            });
+
+            lastSwipeRef.current = { card: snapshot, liked };
+            swipeSessionCountRef.current += 1;
+
+            if (liked) {
+              void trackAnalyticsEvent("like_sent", { source: "discover", target_user_id: snapshot.user_id });
+            }
+
+            if (res && typeof res === "object" && (res as any).matched) {
+              void trackAnalyticsEvent("match_created", { source: "discover", partner_user_id: snapshot.user_id });
+              recordMatchMoment();
+              const photos = photosFromList(snapshot.photo_urls);
+              const bioTrim = String(snapshot.bio || "").trim();
+              const snapVibe = String(snapshot.vibe || "").trim();
+              const rawLt = snapshot.lifestyle_tags;
+              const ltList = Array.isArray(rawLt) ? rawLt : [];
+              const tagList: string[] = [];
+              if (snapVibe) tagList.push(snapVibe);
+              for (const x of ltList) {
+                const s = String(x || "").trim();
+                if (!s || tagList.some((tg) => tg.toLowerCase() === s.toLowerCase())) continue;
+                tagList.push(s);
+              }
+              const matchContext: AiOpenerMatchContext = {
+                matchName: String(snapshot.display_name || t("discover.card.profileFallback")),
+                city: snapshot.city ? String(snapshot.city) : null,
+                bio: bioTrim || null,
+                interests: toInterestsList(snapshot.interests),
+                tags: tagList.length ? tagList : null,
+              };
+              setMatch({
+                userId: Number(snapshot.user_id),
+                name: String(snapshot.display_name || t("discover.card.profileFallback")),
+                photoUrl: photos[0] || null,
+                chatUrl: typeof (res as any).chat_url === "string" ? (res as any).chat_url : null,
+                matchContext,
+              });
+              setToast(t("retention.match.dontLose"));
+              void trackAnalyticsEvent("retention_signal_shown", {
+                kind: "match_dont_lose",
+                surface: "discover_match_modal",
+                partner_user_id: Number(snapshot.user_id),
+              });
+            }
+
+            if (liked) {
+              recordOutboundLikeMoment();
+              void (async () => {
+                try {
+                  invalidateApiGetCache("/nav/badges");
+                  invalidateApiGetCache("/likes/incoming");
+                  invalidateApiGetCache("/matches");
+                  const [badges] = await Promise.all([
+                    apiFetch("/nav/badges", {
+                      metaReason: "discover-like-refresh-badges",
+                      skipCache: true,
+                      skipThrottle: true,
+                      softFail: true,
+                    }),
+                    apiFetch("/likes/incoming?limit=1", {
+                      metaReason: "discover-like-refresh-likes",
+                      skipCache: true,
+                      skipThrottle: true,
+                    }).catch(() => null),
+                    apiFetch("/matches", {
+                      metaReason: "discover-like-refresh-matches",
+                      skipCache: true,
+                      skipThrottle: true,
+                    }).catch(() => null),
+                    apiFetch("/messages/conversations", {
+                      metaReason: "discover-like-refresh-conversations",
+                      skipCache: true,
+                      skipThrottle: true,
+                    }).catch(() => null),
+                  ]);
+                  if (badges !== undefined) setNavBadgesFromServer(badges as any, "discover-like-refresh");
+                } catch (e) {
+                  if (!(e instanceof ApiThrottleSkipError)) {
+                    /* ignore */
+                  }
+                }
+              })();
+            }
+          } catch (e) {
+            const errName = e instanceof Error ? e.name : "";
+            const isAbort = errName === "AbortError" || (e instanceof Error && /abort/i.test(e.message));
+
+            if (e instanceof RateLimitError) {
+              setSwipeRefreshPaused(true);
+              cancelSwipeExitForError();
+              setCards((prev) => (prev[0]?.user_id === snapshot.user_id ? prev : [snapshot, ...prev]));
+              setToast(t("errors.api.rateLimited"));
+              return;
+            }
+
+            const msg = e instanceof Error ? e.message : String(e);
+            if (liked && msg === "paywall.likes_limit") {
+              cancelSwipeExitForError();
+              setCards((prev) => (prev[0]?.user_id === snapshot.user_id ? prev : [snapshot, ...prev]));
+              if (!hasValueMoment()) {
+                void trackAnalyticsEvent("paywall_deferred", { surface: "discover_likes_limit", reason: "no_value_moment" });
+                setToast(t("discover.paywall.deferredToast"));
+              } else {
+                void trackAnalyticsEvent("paywall_shown", { surface: "discover_toast_soft", source: "discover_likes_limit" });
+                setToast(t("monetization.discover.softHint"));
+              }
+              return;
+            }
+
+            if (isAbort) {
+              setToast(t("discover.swipe.timeoutToast"));
+            } else {
+              setToast(t("discover.swipe.syncFailed"));
+            }
+          }
+        })();
+      });
+    },
+    [cards, swipeExit, swipeRefreshPaused, t],
+  );
+
   async function undoSwipe() {
+    if (swipeExit) return;
     const last = lastSwipeRef.current;
     if (!last || undoBusy || undoUsed) return;
     setUndoBusy(true);
@@ -739,14 +832,14 @@ export default function DiscoverPage() {
   }
 
   function onPointerDown(e: React.PointerEvent) {
-    if (!topCard) return;
+    if (!topCard || swipeInteractionLocked) return;
     pointerStartRef.current = { x: e.clientX, y: e.clientY };
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     setDrag({ x: 0, y: 0, active: true });
   }
 
   function onPointerMove(e: React.PointerEvent) {
-    if (!pointerStartRef.current || !drag.active) return;
+    if (!pointerStartRef.current || !drag.active || swipeInteractionLocked) return;
     const dx = e.clientX - pointerStartRef.current.x;
     const dy = e.clientY - pointerStartRef.current.y;
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
@@ -754,16 +847,21 @@ export default function DiscoverPage() {
   }
 
   function onPointerUp() {
+    if (swipeInteractionLocked) {
+      pointerStartRef.current = null;
+      return;
+    }
     if (!pointerStartRef.current) return;
     const dx = drag.x;
+    const dy = drag.y;
     pointerStartRef.current = null;
     const threshold = 120;
     if (dx > threshold) {
-      void swipe(true);
+      void commitSwipe(true, { x: dx, y: dy });
       return;
     }
     if (dx < -threshold) {
-      void swipe(false);
+      void commitSwipe(false, { x: dx, y: dy });
       return;
     }
     setDrag({ x: 0, y: 0, active: false });
@@ -771,9 +869,39 @@ export default function DiscoverPage() {
 
   const photoList = useMemo(() => (topCard ? photosFromList(String(topCard.photo_urls || "")) : []), [topCard]);
   const mainPhoto = photoList[0] || "";
-  const rotation = clamp(drag.x / 18, -12, 12);
-  const likeOpacity = clamp((drag.x - 40) / 140, 0, 1);
-  const passOpacity = clamp((-drag.x - 40) / 140, 0, 1);
+  const maxRot = isNarrowSwipe ? 4 : 12;
+  const rotDiv = isNarrowSwipe ? 42 : 18;
+  const exiting = Boolean(swipeExit);
+  const exitFly = Boolean(swipeExit?.fly);
+  let cardTransform: string;
+  let cardOpacity = 1;
+  if (exiting && swipeExit) {
+    if (!exitFly) {
+      const sx = swipeExit.startX;
+      const sy = swipeExit.startY;
+      const r = clamp(sx / rotDiv, -maxRot, maxRot);
+      cardTransform = `translate3d(${sx}px, ${sy}px, 0) rotate(${r}deg)`;
+    } else {
+      const xw = swipeExit.liked ? "120vw" : "-120vw";
+      const yfly = swipeExit.startY * 0.12;
+      const endRot = swipeExit.liked ? 3.5 : -3.5;
+      cardTransform = `translate3d(${xw}, ${yfly}px, 0) rotate(${endRot}deg)`;
+      cardOpacity = 0;
+    }
+  } else {
+    const r = clamp(drag.x / rotDiv, -maxRot, maxRot);
+    cardTransform = `translate3d(${drag.x}px, ${drag.y}px, 0) rotate(${r}deg)`;
+  }
+  const cardTransition =
+    exiting && exitFly
+      ? `transform ${DISCOVER_SWIPE_EXIT_MS}ms cubic-bezier(0.22, 1, 0.36, 1), opacity ${DISCOVER_SWIPE_EXIT_MS}ms ease`
+      : exiting && !exitFly
+        ? "none"
+        : drag.active
+          ? "none"
+          : "transform 340ms cubic-bezier(0.22, 1, 0.36, 1)";
+  const likeOpacity = exiting ? 0 : clamp((drag.x - 40) / 140, 0, 1);
+  const passOpacity = exiting ? 0 : clamp((-drag.x - 40) / 140, 0, 1);
   const lowDeckCandidates = Boolean(
     !loading &&
       topCard != null &&
@@ -907,8 +1035,10 @@ export default function DiscoverPage() {
         </div>
       ) : null}
 
-      <div style={{ maxWidth: 520, margin: "10px auto 0", padding: "0 14px", width: "100%" }}>
-        <div style={{ position: "relative", width: "100%", aspectRatio: "3 / 4", borderRadius: 22 }}>
+      <div className="discover-swipe-column">
+        {/* Stage clips translated cards; column keeps actions visually below the deck (not under it). */}
+        <div className="discover-swipe-stage">
+          <div className="discover-swipe-viewport">
           {loading ? (
             <div className="surface" style={{ width: "100%", height: "100%", borderRadius: 22, background: "rgba(255,255,255,0.06)" }} />
           ) : onboardingGate ? (
@@ -1049,15 +1179,18 @@ export default function DiscoverPage() {
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
                 onPointerCancel={onPointerUp}
+                onTransitionEnd={onSwipeExitTransitionEnd}
                 style={{
                   position: "absolute",
                   inset: 0,
                   borderRadius: 22,
                   overflow: "hidden",
-                  touchAction: "pan-y",
-                  transform: `translate3d(${drag.x}px, ${drag.y}px, 0) rotate(${rotation}deg)`,
-                  transition: drag.active ? "none" : "transform 340ms cubic-bezier(0.22, 1, 0.36, 1)",
-                  willChange: "transform",
+                  touchAction: swipeInteractionLocked ? "none" : "pan-y",
+                  transform: cardTransform,
+                  opacity: cardOpacity,
+                  transition: cardTransition,
+                  willChange: exiting ? "transform, opacity" : "transform",
+                  pointerEvents: swipeInteractionLocked ? "none" : "auto",
                   background: "rgba(255,255,255,0.05)",
                   border: "1px solid rgba(255,255,255,0.12)",
                 }}
@@ -1094,7 +1227,18 @@ export default function DiscoverPage() {
                   }}
                 />
 
-                <div style={{ position: "absolute", left: 14, right: 14, bottom: 14 }}>
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 14,
+                    right: 14,
+                    bottom: 14,
+                    maxHeight: "48%",
+                    overflowY: "auto",
+                    paddingBottom: 4,
+                    boxSizing: "border-box",
+                  }}
+                >
                   <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                     <div className="h2" style={{ fontSize: 26, fontWeight: 950, letterSpacing: "-0.04em", margin: 0, lineHeight: 1.15 }}>
                       {String(topCard.display_name || t("discover.card.profileFallback"))}
@@ -1159,6 +1303,7 @@ export default function DiscoverPage() {
               </div>
             </>
           )}
+          </div>
         </div>
 
         {!loading && topCard ? (
@@ -1167,17 +1312,22 @@ export default function DiscoverPage() {
           </div>
         ) : null}
 
-        <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", gap: 12 }}>
-          <Button type="button" variant="secondary" disabled={undoUsed || undoBusy || !lastSwipeRef.current} onClick={() => void undoSwipe()}>
+        <div className="discover-swipe-actions" style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={undoUsed || undoBusy || !lastSwipeRef.current || swipeInteractionLocked}
+            onClick={() => void undoSwipe()}
+          >
             ↩ {t("discover.actions.undo")}
           </Button>
-          <Button type="button" variant="secondary" disabled={!topCard} onClick={() => void swipe(false)}>
+          <Button type="button" variant="secondary" disabled={!topCard || swipeInteractionLocked} onClick={() => void commitSwipe(false)}>
             ❌ {t("discover.actions.pass")}
           </Button>
-          <Button type="button" variant="secondary" disabled={busy} onClick={() => void activateBoost()}>
+          <Button type="button" variant="secondary" disabled={busy || swipeInteractionLocked} onClick={() => void activateBoost()}>
             ⭐ {t("discover.actions.boostProfile")}
           </Button>
-          <Button type="button" disabled={!topCard} onClick={() => void swipe(true)}>
+          <Button type="button" disabled={!topCard || swipeInteractionLocked} onClick={() => void commitSwipe(true)}>
             ❤️ {t("discover.actions.like")}
           </Button>
         </div>

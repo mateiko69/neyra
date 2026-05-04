@@ -5477,6 +5477,80 @@ html[data-i18n-debug="true"] {
   margin: 0 auto;
 }
 
+/* Discover /swipe: mobile deck sits between header + bottom nav; clip so dragged cards never paint outside. */
+.page-shell.discover-swipe-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.discover-swipe-column {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: min(520px, 92vw);
+  margin: 0 auto;
+  padding: 0 14px;
+  box-sizing: border-box;
+  min-height: 0;
+}
+
+.discover-swipe-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-width: min(520px, 92vw);
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 22px;
+}
+
+.discover-swipe-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 22px;
+}
+
+.discover-swipe-actions {
+  flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  margin-top: 12px;
+  padding-top: 10px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  background: linear-gradient(
+    to top,
+    rgba(10, 12, 18, 0.97) 40%,
+    rgba(10, 12, 18, 0.72) 72%,
+    rgba(10, 12, 18, 0) 100%
+  );
+}
+
+/* Mobile: cap card stack height so it never sits under the bottom nav + action row (shell-main already pads bottom). */
+@media (max-width: 720px) {
+  .discover-swipe-stage {
+    width: min(92vw, 520px);
+    aspect-ratio: 3 / 4;
+    max-height: min(68dvh, calc(100dvh - 288px));
+    height: auto;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+@media (min-width: 721px) {
+  .discover-swipe-stage {
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    max-height: min(78vh, 720px);
+    height: auto;
+  }
+}
+
 .discover-deck__viewport {
   position: relative;
   width: 100%;
