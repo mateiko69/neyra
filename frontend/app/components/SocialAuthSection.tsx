@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { BACKEND_PUBLIC_URL } from "../../lib/apiBase";
 import { i18nKey, resolveI18nText, type I18nText } from "../../lib/i18n/message";
 import { PAGE_SECONDARY_FETCH_DELAY_MS, schedulePageLoad } from "../../lib/pageLoad";
-import { loadSocialProviders, type SocialProvidersState } from "../../lib/socialProviders";
+import {
+  isGoogleLoginAvailable,
+  loadSocialProviders,
+  type SocialProvidersState,
+} from "../../lib/socialProviders";
 import { useT } from "./i18n/I18nProvider";
 import { Button, Skeleton } from "./ui";
 
@@ -60,7 +64,7 @@ export function SocialAuthSection({ onError, disabled = false }: Props) {
           return;
         }
         const p = result.providers;
-        if (!p?.google || !p.google_client_id) {
+        if (!isGoogleLoginAvailable(p)) {
           setInlineError(i18nKey("auth.googleUnavailable"));
         }
       })();
@@ -73,7 +77,7 @@ export function SocialAuthSection({ onError, disabled = false }: Props) {
 
   const isLoading = providerState == null;
   const providers = providerState?.providers ?? null;
-  const googleConfigured = Boolean(providers?.google && providers.google_client_id);
+  const googleConfigured = isGoogleLoginAvailable(providers);
   const commonDisabled = disabled || busy;
 
   function startGoogle() {
