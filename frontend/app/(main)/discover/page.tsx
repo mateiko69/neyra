@@ -595,6 +595,10 @@ export default function DiscoverPage() {
   }, [loadFeed, swipeRefreshPaused]);
 
   function cancelSwipeExitForError() {
+    if (exitFallbackTimerRef.current) {
+      clearTimeout(exitFallbackTimerRef.current);
+      exitFallbackTimerRef.current = null;
+    }
     setSwipeExit(null);
     setDrag({ x: 0, y: 0, active: false });
     const rel = pendingSwipeReleaseRef.current;
