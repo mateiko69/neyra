@@ -31,6 +31,7 @@ from app.db.session import SessionLocal  # noqa: E402
 from app.services.demo_mode import (  # noqa: E402
     demo_profiles_json_path,
     purge_all_demo_users,
+    repair_demo_profile_photos,
     sync_demo_profiles_from_catalog,
 )
 
@@ -64,6 +65,12 @@ def main() -> None:
         stats = sync_demo_profiles_from_catalog(db)
         if not stats.get("ok"):
             sys.exit(2)
+        repaired = repair_demo_profile_photos(db)
+        print(
+            "Repair demo photos:",
+            f"updated={repaired.get('updated', 0)}",
+            f"total_demo_profiles={repaired.get('total_demo_profiles', 0)}",
+        )
         for g in stats.get("gender_assigned") or []:
             print(f"  gender: {g}")
     finally:

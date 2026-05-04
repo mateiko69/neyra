@@ -207,9 +207,18 @@ def _apply_catalog_demo_row(db: Session, entry: dict, index: int, now: datetime,
     profile.preferred_language = str(entry.get("preferred_language") or "en").strip() or "en"
     parts = [p.strip() for p in (profile.photo_urls or "").split(",") if p.strip()]
     if parts:
-        profile.photo_urls = ",".join(
-            normalize_photo_url(p, demo_profile_gender=profile.gender) for p in parts
-        )
+        normalized_parts = [normalize_photo_url(p, demo_profile_gender=profile.gender) for p in parts]
+        has_unstable_upload = any(p.startswith("/uploads/") for p in normalized_parts)
+        has_missing = not any(normalized_parts)
+        if has_unstable_upload or has_missing:
+            profile.photo_urls = _photo_urls_for_spec(
+                {
+                    "display_name": str(entry.get("display_name") or profile.display_name or "Demo"),
+                    "colors": _DEMO_CATALOG_AVATAR_COLORS[index % len(_DEMO_CATALOG_AVATAR_COLORS)],
+                }
+            )
+        else:
+            profile.photo_urls = ",".join(normalized_parts)
     else:
         profile.photo_urls = _photo_urls_for_spec(
             {
@@ -242,6 +251,36 @@ def sync_demo_profiles_from_catalog(db: Session, *, limit: int | None = None) ->
     )
     print(f"Done: created={stats['created']} updated={stats['updated']} skipped={stats['skipped']} total_demo={stats['total_demo_profiles']}")
     return stats
+
+
+def repair_demo_profile_photos(db: Session) -> dict:
+    """
+    Idempotent repair for existing demo profiles with missing or unstable photo URLs.
+    Replaces empty or /uploads/* values with deterministic built-in SVG avatars.
+    """
+    rows = (
+        db.query(Profile)
+        .join(User, User.id == Profile.user_id)
+        .filter(User.is_demo == True, Profile.is_demo_profile == True)  # noqa: E712
+        .all()
+    )
+    updated = 0
+    for index, profile in enumerate(rows):
+        current_parts = [normalize_photo_url(p.strip(), demo_profile_gender=profile.gender) for p in str(profile.photo_urls or "").split(",") if p.strip()]
+        has_unstable_upload = any(p.startswith("/uploads/") for p in current_parts)
+        if current_parts and not has_unstable_upload:
+            continue
+        profile.photo_urls = _photo_urls_for_spec(
+            {
+                "display_name": str(profile.display_name or "Demo"),
+                "colors": _DEMO_CATALOG_AVATAR_COLORS[index % len(_DEMO_CATALOG_AVATAR_COLORS)],
+            }
+        )
+        db.add(profile)
+        updated += 1
+    if updated:
+        db.commit()
+    return {"ok": True, "updated": updated, "total_demo_profiles": len(rows)}
 
 
 DEMO_PROFILE_SPECS: list[dict[str, object]] = [

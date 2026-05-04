@@ -8,11 +8,14 @@ import { BACKEND_PUBLIC_URL } from "./apiBase";
 const PLACEHOLDER_SVG = encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000" viewBox="0 0 800 1000">
     <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#1a1d26"/><stop offset="100%" stop-color="#141826"/>
+      <stop offset="0%" stop-color="#6f5cff"/><stop offset="55%" stop-color="#2b1c66"/><stop offset="100%" stop-color="#131827"/>
     </linearGradient></defs>
     <rect width="800" height="1000" fill="url(#g)"/>
-    <circle cx="400" cy="382" r="86" fill="rgba(255,255,255,0.14)"/>
-    <path d="M240 776c44-110 132-166 160-166s116 56 160 166" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="48" stroke-linecap="round"/>
+    <circle cx="650" cy="166" r="72" fill="rgba(255,208,92,0.92)"/>
+    <path d="M650 108l16 34 36 5-26 26 7 36-33-18-33 18 7-36-26-26 36-5z" fill="rgba(95,66,6,0.8)"/>
+    <circle cx="400" cy="382" r="86" fill="rgba(255,255,255,0.22)"/>
+    <path d="M240 776c44-110 132-166 160-166s116 56 160 166" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="48" stroke-linecap="round"/>
+    <text x="400" y="924" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="30" font-weight="700" fill="rgba(255,255,255,0.86)">NEYRA PREMIUM</text>
   </svg>`,
 );
 

@@ -18,13 +18,12 @@ function initialForName(name: string): string {
 export function ChatAvatar({ name, src, className = "", alt = "" }: ChatAvatarProps) {
   const raw = src?.trim() || "";
   const resolved = raw ? resolveMediaUrl(raw) : "";
-  if (resolved) {
-    return <SafeImg className={className} src={resolved} alt={alt} loading="lazy" />;
-  }
-
   return (
-    <div className={`${className} chat-avatar chat-avatar--fallback`.trim()} aria-hidden>
-      <span>{initialForName(name)}</span>
-    </div>
+    <SafeImg
+      className={resolved ? className : `${className} chat-avatar chat-avatar--fallback`.trim()}
+      src={resolved || null}
+      alt={alt || initialForName(name)}
+      loading="lazy"
+    />
   );
 }
