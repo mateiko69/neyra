@@ -549,130 +549,155 @@ export default function DiscoverPage() {
 
   async function swipe(liked: boolean) {
     const card = topCard;
-    if (!card || busy) return;
+    if (!card) return;
     const action = liked ? "like" : "pass";
     if (!acquireDiscoverSwipe(Number(card.user_id), action)) return;
-    setBusy(true);
-    try {
-      const res = await apiFetch("/swipes", {
-        method: "POST",
-        metaReason: liked ? "discover-like" : "discover-pass",
-        body: JSON.stringify({ target_user_id: card.user_id, liked }),
-      });
 
-      lastSwipeRef.current = { card, liked };
-      swipeSessionCountRef.current += 1;
-      discoverSwipeFeedback(liked ? "like" : "pass");
-      setCards((prev) => prev.slice(1));
+    const targetId = Number(card.user_id);
+    const snapshot = card;
 
-      if (liked) {
-        void trackAnalyticsEvent("like_sent", { source: "discover", target_user_id: card.user_id });
+    discoverSwipeFeedback(liked ? "like" : "pass");
+    setCards((prev) => {
+      const next = prev.slice(1);
+      if (!swipeRefreshPaused && next.length <= 4) {
+        queueMicrotask(() => void loadFeed("discover-swipe-refill"));
       }
+      return next;
+    });
+    setDrag({ x: 0, y: 0, active: false });
 
-      if (res && typeof res === "object" && (res as any).matched) {
-        void trackAnalyticsEvent("match_created", { source: "discover", partner_user_id: card.user_id });
-        recordMatchMoment();
-        const photos = photosFromList(card.photo_urls);
-        const bioTrim = String(card.bio || "").trim();
-        const tagList = vibeTags.length ? vibeTags : card.vibe ? [String(card.vibe)] : [];
-        const matchContext: AiOpenerMatchContext = {
-          matchName: String(card.display_name || t("discover.card.profileFallback")),
-          city: card.city ? String(card.city) : null,
-          bio: bioTrim || null,
-          interests: toInterestsList(card.interests),
-          tags: tagList.length ? tagList : null,
-        };
-        setMatch({
-          userId: Number(card.user_id),
-          name: String(card.display_name || t("discover.card.profileFallback")),
-          photoUrl: photos[0] || null,
-          chatUrl: typeof (res as any).chat_url === "string" ? (res as any).chat_url : null,
-          matchContext,
+    const swipeSignal =
+      typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(14_000) : undefined;
+
+    void (async () => {
+      try {
+        const res = await apiFetch("/swipes", {
+          method: "POST",
+          metaReason: liked ? "discover-like" : "discover-pass",
+          body: JSON.stringify({ target_user_id: targetId, liked }),
+          signal: swipeSignal,
         });
-        setToast(t("retention.match.dontLose"));
-        void trackAnalyticsEvent("retention_signal_shown", {
-          kind: "match_dont_lose",
-          surface: "discover_match_modal",
-          partner_user_id: Number(card.user_id),
-        });
-      }
 
-      if (liked) {
-        recordOutboundLikeMoment();
-      }
+        lastSwipeRef.current = { card: snapshot, liked };
+        swipeSessionCountRef.current += 1;
 
-      // After a like, reconcile badges + likes + matches immediately (no polling reliance).
-      if (liked) {
-        try {
-          invalidateApiGetCache("/nav/badges");
-          invalidateApiGetCache("/likes/incoming");
-          invalidateApiGetCache("/matches");
-          const [badges] = await Promise.all([
-            apiFetch("/nav/badges", {
-              metaReason: "discover-like-refresh-badges",
-              skipCache: true,
-              skipThrottle: true,
-              softFail: true,
-            }),
-            apiFetch("/likes/incoming?limit=1", {
-              metaReason: "discover-like-refresh-likes",
-              skipCache: true,
-              skipThrottle: true,
-            }).catch(() => null),
-            apiFetch("/matches", {
-              metaReason: "discover-like-refresh-matches",
-              skipCache: true,
-              skipThrottle: true,
-            }).catch(() => null),
-            apiFetch("/messages/conversations", {
-              metaReason: "discover-like-refresh-conversations",
-              skipCache: true,
-              skipThrottle: true,
-            }).catch(() => null),
-          ]);
-          if (badges !== undefined) setNavBadgesFromServer(badges as any, "discover-like-refresh");
-        } catch (e) {
-          if (!(e instanceof ApiThrottleSkipError)) {
-            // ignore (best-effort)
-          }
+        if (liked) {
+          void trackAnalyticsEvent("like_sent", { source: "discover", target_user_id: snapshot.user_id });
         }
-      }
 
-      if (!swipeRefreshPaused && cards.length <= 4) {
-        void loadFeed("discover-swipe-refill");
-      }
-    } catch (e) {
-      if (e instanceof RateLimitError) {
-        setSwipeRefreshPaused(true);
-        setToast(t("errors.api.rateLimited"));
-        return;
-      }
-      const msg = e instanceof Error ? e.message : String(e);
-      if (liked && msg === "paywall.likes_limit") {
-        if (!hasValueMoment()) {
-          void trackAnalyticsEvent("paywall_deferred", { surface: "discover_likes_limit", reason: "no_value_moment" });
-          setToast(t("discover.paywall.deferredToast"));
+        if (res && typeof res === "object" && (res as any).matched) {
+          void trackAnalyticsEvent("match_created", { source: "discover", partner_user_id: snapshot.user_id });
+          recordMatchMoment();
+          const photos = photosFromList(snapshot.photo_urls);
+          const bioTrim = String(snapshot.bio || "").trim();
+          const snapVibe = String(snapshot.vibe || "").trim();
+          const rawLt = snapshot.lifestyle_tags;
+          const ltList = Array.isArray(rawLt) ? rawLt : [];
+          const tagList: string[] = [];
+          if (snapVibe) tagList.push(snapVibe);
+          for (const x of ltList) {
+            const s = String(x || "").trim();
+            if (!s || tagList.some((tg) => tg.toLowerCase() === s.toLowerCase())) continue;
+            tagList.push(s);
+          }
+          const matchContext: AiOpenerMatchContext = {
+            matchName: String(snapshot.display_name || t("discover.card.profileFallback")),
+            city: snapshot.city ? String(snapshot.city) : null,
+            bio: bioTrim || null,
+            interests: toInterestsList(snapshot.interests),
+            tags: tagList.length ? tagList : null,
+          };
+          setMatch({
+            userId: Number(snapshot.user_id),
+            name: String(snapshot.display_name || t("discover.card.profileFallback")),
+            photoUrl: photos[0] || null,
+            chatUrl: typeof (res as any).chat_url === "string" ? (res as any).chat_url : null,
+            matchContext,
+          });
+          setToast(t("retention.match.dontLose"));
+          void trackAnalyticsEvent("retention_signal_shown", {
+            kind: "match_dont_lose",
+            surface: "discover_match_modal",
+            partner_user_id: Number(snapshot.user_id),
+          });
+        }
+
+        if (liked) {
+          recordOutboundLikeMoment();
+          void (async () => {
+            try {
+              invalidateApiGetCache("/nav/badges");
+              invalidateApiGetCache("/likes/incoming");
+              invalidateApiGetCache("/matches");
+              const [badges] = await Promise.all([
+                apiFetch("/nav/badges", {
+                  metaReason: "discover-like-refresh-badges",
+                  skipCache: true,
+                  skipThrottle: true,
+                  softFail: true,
+                }),
+                apiFetch("/likes/incoming?limit=1", {
+                  metaReason: "discover-like-refresh-likes",
+                  skipCache: true,
+                  skipThrottle: true,
+                }).catch(() => null),
+                apiFetch("/matches", {
+                  metaReason: "discover-like-refresh-matches",
+                  skipCache: true,
+                  skipThrottle: true,
+                }).catch(() => null),
+                apiFetch("/messages/conversations", {
+                  metaReason: "discover-like-refresh-conversations",
+                  skipCache: true,
+                  skipThrottle: true,
+                }).catch(() => null),
+              ]);
+              if (badges !== undefined) setNavBadgesFromServer(badges as any, "discover-like-refresh");
+            } catch (e) {
+              if (!(e instanceof ApiThrottleSkipError)) {
+                /* ignore */
+              }
+            }
+          })();
+        }
+      } catch (e) {
+        const errName = e instanceof Error ? e.name : "";
+        const isAbort = errName === "AbortError" || (e instanceof Error && /abort/i.test(e.message));
+
+        if (e instanceof RateLimitError) {
+          setSwipeRefreshPaused(true);
+          setCards((prev) => [snapshot, ...prev]);
+          setToast(t("errors.api.rateLimited"));
           return;
         }
-        void trackAnalyticsEvent("paywall_shown", { surface: "discover_toast_soft", source: "discover_likes_limit" });
-        setToast(t("monetization.discover.softHint"));
-        return;
+
+        const msg = e instanceof Error ? e.message : String(e);
+        if (liked && msg === "paywall.likes_limit") {
+          setCards((prev) => [snapshot, ...prev]);
+          if (!hasValueMoment()) {
+            void trackAnalyticsEvent("paywall_deferred", { surface: "discover_likes_limit", reason: "no_value_moment" });
+            setToast(t("discover.paywall.deferredToast"));
+          } else {
+            void trackAnalyticsEvent("paywall_shown", { surface: "discover_toast_soft", source: "discover_likes_limit" });
+            setToast(t("monetization.discover.softHint"));
+          }
+          return;
+        }
+
+        if (isAbort) {
+          setToast(t("discover.swipe.timeoutToast"));
+        } else {
+          setToast(t("discover.swipe.syncFailed"));
+        }
+      } finally {
+        releaseDiscoverSwipe(targetId, action);
       }
-      // Keep UX moving even if the request fails (non-paywall).
-      lastSwipeRef.current = { card, liked };
-      swipeSessionCountRef.current += 1;
-      discoverSwipeFeedback(liked ? "like" : "pass");
-      setCards((prev) => prev.slice(1));
-    } finally {
-      releaseDiscoverSwipe(Number(card.user_id), action);
-      setBusy(false);
-      setDrag({ x: 0, y: 0, active: false });
-    }
+    })();
   }
 
   async function undoSwipe() {
     const last = lastSwipeRef.current;
-    if (!last || undoBusy || undoUsed || busy) return;
+    if (!last || undoBusy || undoUsed) return;
     setUndoBusy(true);
     try {
       await apiFetch("/swipes/undo", { method: "POST", metaReason: "discover-undo" });
@@ -714,7 +739,7 @@ export default function DiscoverPage() {
   }
 
   function onPointerDown(e: React.PointerEvent) {
-    if (!topCard || busy) return;
+    if (!topCard) return;
     pointerStartRef.current = { x: e.clientX, y: e.clientY };
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     setDrag({ x: 0, y: 0, active: true });
@@ -1143,16 +1168,16 @@ export default function DiscoverPage() {
         ) : null}
 
         <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", gap: 12 }}>
-          <Button type="button" variant="secondary" disabled={undoUsed || undoBusy || busy || !lastSwipeRef.current} onClick={() => void undoSwipe()}>
+          <Button type="button" variant="secondary" disabled={undoUsed || undoBusy || !lastSwipeRef.current} onClick={() => void undoSwipe()}>
             ↩ {t("discover.actions.undo")}
           </Button>
-          <Button type="button" variant="secondary" disabled={!topCard || busy} onClick={() => void swipe(false)}>
+          <Button type="button" variant="secondary" disabled={!topCard} onClick={() => void swipe(false)}>
             ❌ {t("discover.actions.pass")}
           </Button>
           <Button type="button" variant="secondary" disabled={busy} onClick={() => void activateBoost()}>
             ⭐ {t("discover.actions.boostProfile")}
           </Button>
-          <Button type="button" disabled={!topCard || busy} onClick={() => void swipe(true)}>
+          <Button type="button" disabled={!topCard} onClick={() => void swipe(true)}>
             ❤️ {t("discover.actions.like")}
           </Button>
         </div>

@@ -1,6 +1,7 @@
 export type DiscoverSwipeAction = "like" | "pass";
 
-export const DISCOVER_SWIPE_DEDUPE_MS = 1500;
+/** Short per-card lock to block double-submit; does not block the rest of the deck. */
+export const DISCOVER_SWIPE_DEDUPE_MS = 650;
 
 const pending = new Set<string>();
 const recent = new Map<string, number>();

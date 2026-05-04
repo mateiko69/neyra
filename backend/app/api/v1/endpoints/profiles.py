@@ -22,7 +22,6 @@ from app.core.config import settings
 from app.services.demo_mode import DEMO_PROFILE_DISCLAIMER, DEMO_PROFILE_LABEL, is_demo_profile
 from app.services.safety import is_blocked
 from app.services.storage.upload_utils import persist_verification_selfie, read_validate_image
-from app.services.verification.service import get_selfie_verification_provider
 from app.services.visual_embeddings import (
     VisualEmbedding,
     compute_visual_embedding_from_bytes,
@@ -698,6 +697,17 @@ def verify_my_profile(
     return {"verified": verified, "similarity": round(sim, 4)}
 
 
+def _verification_degraded_response() -> dict:
+    return {
+        "ok": True,
+        "status": "pending",
+        "message": "Verification received. Your profile will show as pending until review completes.",
+        "verification_status": "pending",
+        "similarity": 0.0,
+        "degraded": True,
+    }
+
+
 @router.post("/verification/selfie")
 async def verification_selfie(
     frames: list[UploadFile] | None = File(default=None),
@@ -708,178 +718,143 @@ async def verification_selfie(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    profile = db.query(Profile).filter(Profile.user_id == current_user.id).first()
-    if not profile:
-        raise HTTPException(status_code=404, detail=api_error("profile.not_found"))
-
-    pc = (pose_challenge or "").strip().lower()
-    if pc and pc not in VERIFICATION_POSE_CHALLENGES:
-        raise HTTPException(status_code=400, detail=api_error("profile.verify.invalid_pose"))
-
-    if str(verification_source or "").strip().lower() != "camera":
-        raise HTTPException(status_code=400, detail=api_error("profile.verify.live_camera_required"))
-
-    # Attempt limits (UTC day).
-    day = datetime.now(UTC).strftime("%Y%m%d")
-    max_per_day = int(getattr(settings, "VERIFICATION_ATTEMPTS_PER_DAY", 5) or 5)
-    attempt = _get_or_create_verification_attempt(db, user_id=int(current_user.id), day=day)
-    if int(attempt.count or 0) >= max_per_day:
-        raise HTTPException(status_code=429, detail=api_error("profile.verify.rate_limited"))
-
-    # Camera-only: reject single-image upload fallback.
-    if selfie is not None:
-        raise HTTPException(status_code=400, detail=api_error("profile.verify.live_camera_required"))
-
-    normalized_frames: list[UploadFile] = []
-    if frames:
-        normalized_frames.extend([f for f in frames if f is not None])
-
-    if not normalized_frames:
-        raise HTTPException(status_code=400, detail=api_error("profile.verify.missing_frames"))
-
-    # Require multiple frames for liveness (camera-only).
-    if len(normalized_frames) < 3:
-        raise HTTPException(status_code=400, detail=api_error("profile.verify.live_camera_required"))
-    logger.info("verification_request_received user_id=%s frames_count=%s mode=multi captured_at=%s", int(current_user.id), len(normalized_frames), str(captured_at or ""))
-
-    stored_urls: list[str] = []
-    blobs: list[bytes] = []
+    """Single-photo verification (one clear selfie). Multi-frame / liveness capture removed."""
     try:
-        for f in normalized_frames[:12]:
-            if not getattr(f, "filename", ""):
+        profile = db.query(Profile).filter(Profile.user_id == current_user.id).first()
+        if not profile:
+            raise HTTPException(status_code=404, detail=api_error("profile.not_found"))
+
+        src = str(verification_source or "").strip().lower() or "camera"
+        if src not in {"camera", "upload"}:
+            raise HTTPException(status_code=400, detail=api_error("validation.invalid_payload"))
+
+        pc = (pose_challenge or "").strip().lower()
+        if pc and pc not in VERIFICATION_POSE_CHALLENGES:
+            raise HTTPException(status_code=400, detail=api_error("profile.verify.invalid_pose"))
+
+        day = datetime.now(UTC).strftime("%Y%m%d")
+        max_per_day = int(getattr(settings, "VERIFICATION_ATTEMPTS_PER_DAY", 5) or 5)
+        attempt = _get_or_create_verification_attempt(db, user_id=int(current_user.id), day=day)
+        if int(attempt.count or 0) >= max_per_day:
+            raise HTTPException(status_code=429, detail=api_error("profile.verify.rate_limited"))
+
+        inputs: list[UploadFile] = []
+        if selfie is not None:
+            inputs.append(selfie)
+        if frames:
+            inputs.extend([f for f in frames if f is not None])
+        # Exactly one image (first wins if client sends extras).
+        one: UploadFile | None = inputs[0] if inputs else None
+        if one is None:
+            raise HTTPException(status_code=400, detail=api_error("profile.verify.missing_frames"))
+
+        logger.info(
+            "verification_request_received user_id=%s mode=single source=%s captured_at=%s",
+            int(current_user.id),
+            src,
+            str(captured_at or ""),
+        )
+
+        stored_url = ""
+        content: bytes | None = None
+        ext = "jpg"
+        try:
+            if not getattr(one, "filename", ""):
                 raise HTTPException(status_code=400, detail=api_error("profile.verify.missing_filename"))
-            content, ext = await read_validate_image(f)
-            url = persist_verification_selfie(int(current_user.id), ext, content)
-            stored_urls.append(url)
-            blobs.append(content)
-    except HTTPException as e:
-        detail = getattr(e, "detail", None)
-        code = detail.get("code") if isinstance(detail, dict) else None
-        logger.warning(
-            "verification_frames_validation_failed user_id=%s frames_count=%s code=%s",
-            int(current_user.id),
-            len(normalized_frames),
-            code,
-        )
-        raise HTTPException(status_code=400, detail=api_error("profile.verify.invalid_frame")) from e
-    except Exception as e:
-        logger.exception(
-            "verification_frames_upload_failed user_id=%s frames_count=%s",
-            int(current_user.id),
-            len(normalized_frames),
-        )
-        raise HTTPException(status_code=400, detail=api_error("profile.verify.frames_process_failed")) from e
+            content, ext = await read_validate_image(one)
+            stored_url = persist_verification_selfie(int(current_user.id), ext, content)
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception("verification_single_image_read_failed user_id=%s", int(current_user.id))
+            return _verification_degraded_response()
 
-    # Increment attempts.
-    attempt.count = int(attempt.count or 0) + 1
-    attempt.updated_at = datetime.now(UTC)
-    db.add(attempt)
+        if not content:
+            return _verification_degraded_response()
 
-    # Tolerant verification logic:
-    # - Basic liveness: require some motion between first/last embeddings (if multi-frame).
-    # - Soft match: similarity thresholds allow lighting/angle/glasses variance.
-    embeddings: list[VisualEmbedding] = []
-    for blob in blobs[:14]:
-        emb = compute_visual_embedding_from_bytes(blob)
-        if emb:
-            embeddings.append(emb)
+        attempt.count = int(attempt.count or 0) + 1
+        attempt.updated_at = datetime.now(UTC)
+        db.add(attempt)
 
-    if len(embeddings) < 2:
-        raise HTTPException(
-            status_code=400,
-            detail=api_error("profile.verify.frames_unreadable"),
-        )
-
-    if len(embeddings) >= 3:
-        first = embeddings[0].vector
-        last = embeddings[-1].vector
-        motion = 1.0 - max(0.0, min(1.0, cosine_similarity(first, last)))
-        if motion < 0.003:
-            raise HTTPException(
-                status_code=400,
-                detail=api_error("profile.verify.liveness_failed"),
-            )
-
-    dim = len(embeddings[0].vector)
-    avg = [0.0] * dim
-    used = 0
-    for e in embeddings:
-        if len(e.vector) != dim:
-            continue
-        for i, x in enumerate(e.vector):
-            avg[i] += x
-        used += 1
-    if used <= 0:
-        raise HTTPException(status_code=400, detail=api_error("profile.verify.frames_unreadable"))
-    avg = [x / float(used) for x in avg]
-    verification_emb = VisualEmbedding(avg)
-
-    photo_emb = VisualEmbedding.deserialize(getattr(profile, "visual_embedding", "") or "")
-    if not photo_emb:
-        parts = [p.strip() for p in (profile.photo_urls or "").split(",") if p.strip()]
-        primary = normalize_photo_url(parts[0], demo_profile_gender=getattr(profile, "gender", None)) if parts else ""
-        photo_emb = compute_visual_embedding_from_url(primary) if primary else None
-        profile.visual_embedding = photo_emb.serialize() if photo_emb else ""
-
-    if not photo_emb:
-        raise HTTPException(
-            status_code=400,
-            detail=api_error("profile.verify.needs_profile_photo"),
-        )
-
-    sim = max(0.0, min(1.0, cosine_similarity(verification_emb.vector, photo_emb.vector)))
-
-    # Soft thresholds. Avoid “stupid rejects” (glasses/lighting/angle) by routing medium confidence to review.
-    if sim >= 0.78:
-        status = "verified"
-    elif sim >= 0.66:
         status = "pending"
-    else:
-        status = "rejected"
+        sim = 0.0
+        verification_emb: VisualEmbedding | None = None
+        try:
+            verification_emb = compute_visual_embedding_from_bytes(content)
+            photo_emb = VisualEmbedding.deserialize(getattr(profile, "visual_embedding", "") or "")
+            if not photo_emb:
+                parts = [p.strip() for p in (profile.photo_urls or "").split(",") if p.strip()]
+                primary = normalize_photo_url(parts[0], demo_profile_gender=getattr(profile, "gender", None)) if parts else ""
+                photo_emb = compute_visual_embedding_from_url(primary) if primary else None
+                if photo_emb:
+                    profile.visual_embedding = photo_emb.serialize()
 
-    logger.info(
-        "verification_result user_id=%s profile_id=%s frames_count=%s similarity=%s status=%s",
-        int(current_user.id),
-        int(profile.id),
-        len(normalized_frames),
-        round(float(sim), 4),
-        status,
-    )
+            if verification_emb and photo_emb:
+                sim = max(0.0, min(1.0, cosine_similarity(verification_emb.vector, photo_emb.vector)))
+                if sim >= 0.78:
+                    status = "verified"
+                elif sim >= 0.66:
+                    status = "pending"
+                else:
+                    status = "rejected"
+            else:
+                status = "pending"
+        except Exception:
+            logger.exception("verification_embedding_failed user_id=%s", int(current_user.id))
+            status = "pending"
+            sim = 0.0
 
-    profile.verification_embedding = verification_emb.serialize()
-    profile.verification_type = "selfie"
-    profile.verification_selfie_url = stored_urls[0] if stored_urls else ""
-    profile.verification_status = status
-    profile.verification_level = "photo" if status == "verified" else "none"
-    profile.verification_updated_at = datetime.now(UTC)
-    profile.verified = status == "verified"
-    profile.verified_at = datetime.now(UTC) if profile.verified else None
-
-    db.add(profile)
-    try:
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        logger.exception("verification_selfie_db_commit_failed user_id=%s profile_id=%s", int(current_user.id), int(profile.id))
-        raise HTTPException(status_code=400, detail=api_error("profile.verify.persist_failed")) from e
-
-    try:
-        track_event(
-            db,
-            "verification_selfie_submitted",
-            user_id=current_user.id,
-            payload={"status": status, "similarity": round(float(sim), 4), "frames_count": len(normalized_frames)},
+        logger.info(
+            "verification_result user_id=%s profile_id=%s mode=single similarity=%s status=%s",
+            int(current_user.id),
+            int(profile.id),
+            round(float(sim), 4),
+            status,
         )
+
+        if verification_emb:
+            profile.verification_embedding = verification_emb.serialize()
+        profile.verification_type = "selfie"
+        profile.verification_selfie_url = stored_url or ""
+        profile.verification_status = status
+        profile.verification_level = "photo" if status == "verified" else "none"
+        profile.verification_updated_at = datetime.now(UTC)
+        profile.verified = status == "verified"
+        profile.verified_at = datetime.now(UTC) if profile.verified else None
+
+        db.add(profile)
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("verification_selfie_db_commit_failed user_id=%s profile_id=%s", int(current_user.id), int(profile.id))
+            return _verification_degraded_response()
+
+        try:
+            track_event(
+                db,
+                "verification_selfie_submitted",
+                user_id=current_user.id,
+                payload={"status": status, "similarity": round(float(sim), 4), "frames_count": 1},
+            )
+        except Exception:
+            logger.exception("verification_selfie_track_event_failed user_id=%s", int(current_user.id))
+
+        api_status = "approved" if status == "verified" else ("pending" if status == "pending" else "rejected")
+        return {
+            "ok": status in ("verified", "pending"),
+            "status": api_status,
+            "message": "Verification submitted for review."
+            if status == "pending"
+            else ("Profile verified" if status == "verified" else "Could not verify against profile photo"),
+            "verification_status": api_status,
+            "similarity": round(float(sim), 4),
+        }
+    except HTTPException:
+        raise
     except Exception:
-        logger.exception("verification_selfie_track_event_failed user_id=%s", int(current_user.id))
-    api_status = "approved" if status == "verified" else ("pending" if status == "pending" else "rejected")
-    return {
-        "ok": status in ("verified", "pending"),
-        "status": api_status,
-        "message": "Селфі надіслано на перевірку" if status == "pending" else ("Профіль підтверджено" if status == "verified" else "Не вдалося підтвердити"),
-        "verification_status": api_status,
-        "similarity": round(float(sim), 4),
-    }
+        logger.exception("verification_selfie_unhandled user_id=%s", int(getattr(current_user, "id", 0) or 0))
+        return _verification_degraded_response()
 
 
 @router.post("/verification/start")

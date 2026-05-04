@@ -9,6 +9,12 @@ This repo is wired for:
 
 Do **not** commit `.env`, tokens, API keys, or database URLs. Examples live in [`backend/.env.example`](backend/.env.example) and [`frontend/.env.production.example`](frontend/.env.production.example).
 
+### Uploads: local storage is ephemeral on Railway
+
+The default app configuration uses **local disk** under **`UPLOAD_DIR`** (see [`backend/app/services/storage/local_provider.py`](backend/app/services/storage/local_provider.py)). On Railway, container filesystems are **not durable**: every **deploy or restart** can wipe files that were never stored in object storage. Older profile or verification image URLs may then return **404**; the API serves missing files as 404 (no crash), and the Next.js app uses **`SafeImg`** to fall back to a **placeholder** instead of a broken image icon when a URL fails.
+
+For production durability, set **`STORAGE_PROVIDER=s3`** (or equivalent) and configure **`S3_BUCKET`**, **`S3_REGION`**, **`S3_ACCESS_KEY_ID`**, **`S3_SECRET_ACCESS_KEY`** so uploads live in **S3-compatible** storage (AWS S3, Cloudflare R2, etc.).
+
 ---
 
 ## 1. Railway — PostgreSQL (required for the backend API)

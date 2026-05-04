@@ -18,20 +18,7 @@ type Props = {
   onComplete: () => void;
 };
 
-function poseLabelKey(pose: string): string {
-  switch ((pose || "").trim().toLowerCase()) {
-    case "turn_head_left":
-      return "verification.flow.pose.turnHeadLeft";
-    case "smile":
-      return "verification.flow.pose.smile";
-    case "raise_hand":
-      return "verification.flow.pose.raiseHand";
-    default:
-      return "verification.flow.pose.smile";
-  }
-}
-
-async function captureBurst(video: HTMLVideoElement, count: number, gapMs: number): Promise<Blob[]> {
+async function captureOneFrame(video: HTMLVideoElement): Promise<Blob> {
   const w = video.videoWidth;
   const h = video.videoHeight;
   if (w < 2 || h < 2) throw new Error("video-not-ready");
@@ -40,32 +27,23 @@ async function captureBurst(video: HTMLVideoElement, count: number, gapMs: numbe
   canvas.height = h;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("no-ctx");
-  const out: Blob[] = [];
-  for (let i = 0; i < count; i++) {
-    if (i > 0) await new Promise((r) => setTimeout(r, gapMs));
-    ctx.drawImage(video, 0, 0, w, h);
-    const blob = await new Promise<Blob>((res, rej) => {
-      canvas.toBlob((b) => (b ? res(b) : rej(new Error("blob"))), "image/jpeg", 0.85);
-    });
-    out.push(blob);
-  }
-  return out;
+  ctx.drawImage(video, 0, 0, w, h);
+  return await new Promise<Blob>((res, rej) => {
+    canvas.toBlob((b) => (b ? res(b) : rej(new Error("blob"))), "image/jpeg", 0.88);
+  });
 }
 
 export function VerificationFlowModal({ open, onClose, onComplete }: Props) {
   const { t } = useT("VerificationFlowModal");
-  const [step, setStep] = useState(1);
-  const [poseChallenge, setPoseChallenge] = useState("smile");
-  const [startError, setStartError] = useState("");
-  const [camError, setCamError] = useState("");
+  const [cameraError, setCameraError] = useState("");
   const [busy, setBusy] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [phase, setPhase] = useState<"flow" | "uploading" | "success" | "pending" | "rejected">("flow");
-  const [baselineFrames, setBaselineFrames] = useState<Blob[]>([]);
   const [streamReady, setStreamReady] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const stopStream = useCallback(() => {
     const s = streamRef.current;
@@ -88,39 +66,27 @@ export function VerificationFlowModal({ open, onClose, onComplete }: Props) {
   useEffect(() => {
     if (!open) {
       stopStream();
-      setStep(1);
-      setBaselineFrames([]);
-      setStartError("");
-      setCamError("");
       setSubmitError("");
       setPhase("flow");
       setBusy(false);
+      setCameraError("");
       setStreamReady(false);
       return;
     }
-    setStartError("");
     void apiFetch("/verify/start", {
       method: "POST",
       body: JSON.stringify({}),
       metaReason: "verify-start",
       skipThrottle: true,
       skipCache: true,
-    })
-      .then((r) => {
-        const o = r as VerifyStartResponse;
-        const p = String(o.pose_challenge || "").trim();
-        setPoseChallenge(p || "smile");
-      })
-      .catch((e: unknown) => {
-        setStartError(resolveI18nText(apiFailureToI18nText(e, t, "verification.flow.errors.startFailed", formatApiError), t));
-      });
+    }).catch(() => {});
     return () => stopStream();
-  }, [open, stopStream, t]);
+  }, [open, stopStream]);
 
   const startCamera = useCallback(async () => {
-    setCamError("");
+    setCameraError("");
     if (!navigator.mediaDevices?.getUserMedia) {
-      setCamError(t("profile.verify.errors.browserNoCamera"));
+      setCameraError(t("profile.verify.errors.browserNoCamera"));
       return;
     }
     try {
@@ -137,81 +103,80 @@ export function VerificationFlowModal({ open, onClose, onComplete }: Props) {
       }
       setStreamReady(true);
     } catch {
-      setCamError(t("profile.verify.errors.cameraDenied"));
+      setCameraError(t("profile.verify.errors.cameraDenied"));
       setStreamReady(false);
     }
   }, [stopStream, t]);
 
-  const onCaptureBaseline = useCallback(async () => {
+  const submitBlob = useCallback(
+    async (blob: Blob, source: "camera" | "upload") => {
+      setBusy(true);
+      setSubmitError("");
+      setPhase("uploading");
+      const signal =
+        typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+          ? AbortSignal.timeout(60_000)
+          : undefined;
+      try {
+        const fd = new FormData();
+        fd.append("verification_source", source);
+        fd.append("pose_challenge", "");
+        fd.append("captured_at", new Date().toISOString());
+        fd.append("frames", blob, "selfie.jpg");
+        const raw = await apiUpload("/verify/submit", fd, { metaReason: "verify-submit", signal });
+        const res = raw as SubmitResponse;
+        const st = String(res.status || res.verification_status || "").toLowerCase();
+        if (st === "approved") {
+          setPhase("success");
+          stopStream();
+          window.setTimeout(() => {
+            onComplete();
+            onClose();
+          }, 2200);
+          return;
+        }
+        if (st === "pending") {
+          setPhase("pending");
+          stopStream();
+          window.setTimeout(() => {
+            onComplete();
+            onClose();
+          }, 2000);
+          return;
+        }
+        setPhase("rejected");
+        setSubmitError(t("verification.flow.rejectedHint"));
+      } catch (e: unknown) {
+        setPhase("flow");
+        setSubmitError(resolveI18nText(apiFailureToI18nText(e, t, "profile.verify.errors.tryAgainGeneric", formatApiError), t));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [onClose, onComplete, stopStream, t],
+  );
+
+  const onCaptureCamera = useCallback(async () => {
     const v = videoRef.current;
     if (!v) return;
-    setBusy(true);
-    setSubmitError("");
     try {
-      const blobs = await captureBurst(v, 6, 160);
-      setBaselineFrames(blobs);
-      setStep(2);
+      const blob = await captureOneFrame(v);
+      await submitBlob(blob, "camera");
     } catch {
       setSubmitError(t("profile.verify.errors.notEnoughFrames"));
-    } finally {
-      setBusy(false);
     }
-  }, [t]);
+  }, [submitBlob, t]);
 
-  const onCapturePose = useCallback(async () => {
-    const v = videoRef.current;
-    if (!v) return;
-    setBusy(true);
-    setSubmitError("");
-    try {
-      const poseBlobs = await captureBurst(v, 6, 160);
-      const all = [...baselineFrames, ...poseBlobs];
-      if (all.length < 6) {
-        setSubmitError(t("profile.verify.errors.notEnoughFrames"));
-        return;
-      }
-      setPhase("uploading");
-      const fd = new FormData();
-      fd.append("verification_source", "camera");
-      fd.append("pose_challenge", poseChallenge);
-      fd.append("captured_at", new Date().toISOString());
-      all.forEach((b, i) => {
-        fd.append("frames", b, `frame_${i}.jpg`);
-      });
-      const raw = await apiUpload("/verify/submit", fd, { metaReason: "verify-submit" });
-      const res = raw as SubmitResponse;
-      const st = String(res.status || res.verification_status || "").toLowerCase();
-      if (st === "approved") {
-        setPhase("success");
-        stopStream();
-        window.setTimeout(() => {
-          onComplete();
-          onClose();
-        }, 2200);
-        return;
-      }
-      if (st === "pending") {
-        setPhase("pending");
-        stopStream();
-        window.setTimeout(() => {
-          onComplete();
-          onClose();
-        }, 2000);
-        return;
-      }
-      setPhase("rejected");
-      setSubmitError(t("verification.flow.rejectedHint"));
-    } catch (e: unknown) {
-      setPhase("flow");
-      setSubmitError(resolveI18nText(apiFailureToI18nText(e, t, "profile.verify.errors.tryAgainGeneric", formatApiError), t));
-    } finally {
-      setBusy(false);
-    }
-  }, [baselineFrames, onClose, onComplete, poseChallenge, stopStream, t]);
+  const onPickFile = useCallback(
+    async (list: FileList | null) => {
+      const f = list?.[0];
+      if (!f) return;
+      await submitBlob(f, "upload");
+    },
+    [submitBlob],
+  );
 
   if (!open || typeof document === "undefined") return null;
-
-  const progressLabel = t("verification.flow.progress", { current: Math.min(step, 3), total: 3 });
 
   return createPortal(
     <div className="verify-flow-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && phase === "flow" && !busy && onClose()}>
@@ -220,17 +185,9 @@ export function VerificationFlowModal({ open, onClose, onComplete }: Props) {
           <button type="button" className="verify-flow-close" onClick={() => !busy && onClose()} aria-label={t("verification.flow.close")}>
             ×
           </button>
-          <div className="verify-flow-progress">{progressLabel}</div>
         </div>
 
-        {startError ? (
-          <div className="verify-flow-body">
-            <p className="verify-flow-error">{startError}</p>
-            <Button type="button" variant="primary" onClick={() => onClose()}>
-              {t("common.close")}
-            </Button>
-          </div>
-        ) : phase === "success" ? (
+        {phase === "success" ? (
           <div className="verify-flow-body verify-flow-body--center">
             <div className="verify-flow-check" aria-hidden>
               <svg viewBox="0 0 52 52" width="72" height="72">
@@ -269,22 +226,8 @@ export function VerificationFlowModal({ open, onClose, onComplete }: Props) {
               variant="primary"
               onClick={() => {
                 setPhase("flow");
-                setStep(1);
-                setBaselineFrames([]);
                 setSubmitError("");
                 stopStream();
-                void apiFetch("/verify/start", {
-                  method: "POST",
-                  body: JSON.stringify({}),
-                  metaReason: "verify-restart",
-                  skipThrottle: true,
-                  skipCache: true,
-                })
-                  .then((r) => {
-                    const o = r as VerifyStartResponse;
-                    setPoseChallenge(String(o.pose_challenge || "smile"));
-                  })
-                  .catch(() => {});
               }}
             >
               {t("profile.verify.tryAgain")}
@@ -292,55 +235,42 @@ export function VerificationFlowModal({ open, onClose, onComplete }: Props) {
           </div>
         ) : (
           <div className="verify-flow-body">
-            {step === 1 ? (
-              <>
-                <h2 id="verify-flow-title" className="verify-flow-title">
-                  {t("verification.flow.step1Title")}
-                </h2>
-                <p className="verify-flow-sub">{t("verification.flow.step1Sub")}</p>
-              </>
-            ) : null}
-            {step === 2 ? (
-              <>
-                <h2 id="verify-flow-title" className="verify-flow-title">
-                  {t("verification.flow.step2Title")}
-                </h2>
-                <p className="verify-flow-pose">{t(poseLabelKey(poseChallenge))}</p>
-                <p className="verify-flow-sub">{t("verification.flow.step2Sub")}</p>
-              </>
-            ) : null}
+            <h2 id="verify-flow-title" className="verify-flow-title">
+              {t("verification.flow.onePhotoTitle")}
+            </h2>
+            <p className="verify-flow-sub">{t("verification.flow.onePhotoSub")}</p>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none", overflow: "hidden", clip: "rect(0,0,0,0)" }}
+              tabIndex={-1}
+              aria-hidden
+              onChange={(e) => void onPickFile(e.target.files)}
+            />
 
             <div className="verify-flow-video-wrap">
               <video ref={videoRef} className="verify-flow-video" playsInline muted autoPlay />
               <div className="verify-flow-face-guide" aria-hidden />
             </div>
-            {camError ? <p className="verify-flow-error">{camError}</p> : null}
+            {cameraError ? <p className="verify-flow-error">{cameraError}</p> : null}
             {submitError ? <p className="verify-flow-error">{submitError}</p> : null}
 
-            {step === 1 ? (
-              <div className="verify-flow-actions">
-                {!streamReady ? (
-                  <Button type="button" variant="primary" className="verify-flow-btn-main" onClick={() => void startCamera()}>
-                    {t("verification.flow.openCamera")}
-                  </Button>
-                ) : (
-                  <Button type="button" variant="primary" className="verify-flow-btn-main" disabled={busy} onClick={() => void onCaptureBaseline()}>
-                    {busy ? t("common.loading") : t("verification.flow.continue")}
-                  </Button>
-                )}
-              </div>
-            ) : null}
-
-            {step === 2 ? (
-              <div className="verify-flow-actions verify-flow-actions--row">
-                <Button type="button" variant="secondary" className="verify-flow-btn-secondary" disabled={busy} onClick={() => setStep(1)}>
-                  {t("common.back")}
+            <div className="verify-flow-actions verify-flow-actions--row">
+              <Button type="button" variant="secondary" className="verify-flow-btn-secondary" disabled={busy} onClick={() => fileInputRef.current?.click()}>
+                {t("verification.flow.choosePhoto")}
+              </Button>
+              {!streamReady ? (
+                <Button type="button" variant="primary" className="verify-flow-btn-main" disabled={busy} onClick={() => void startCamera()}>
+                  {t("verification.flow.openCamera")}
                 </Button>
-                <Button type="button" variant="primary" className="verify-flow-btn-main" disabled={busy} onClick={() => void onCapturePose()}>
-                  {busy ? t("common.loading") : t("verification.flow.capturePose")}
+              ) : (
+                <Button type="button" variant="primary" className="verify-flow-btn-main" disabled={busy} onClick={() => void onCaptureCamera()}>
+                  {busy ? t("common.loading") : t("verification.flow.captureSelfie")}
                 </Button>
-              </div>
-            ) : null}
+              )}
+            </div>
           </div>
         )}
       </div>

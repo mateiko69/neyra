@@ -841,9 +841,9 @@ export const apiClient = {
 export async function apiUpload(
   path: string,
   formData: FormData,
-  options: Pick<ApiFetchOptions, "skipAuthRedirect" | "metaReason"> = {},
+  options: Pick<ApiFetchOptions, "skipAuthRedirect" | "metaReason" | "signal"> = {},
 ) {
-  const { skipAuthRedirect, metaReason } = options;
+  const { skipAuthRedirect, metaReason, signal } = options;
   if (typeof window !== "undefined") {
     hydrateAuthStateFromStorage();
     if (authState === "unauthorized" && !isPublicApiPath(path, "POST")) {
@@ -865,6 +865,7 @@ export async function apiUpload(
         body: formData,
         cache: "no-store",
         credentials: "include",
+        signal,
       });
     } catch (e) {
       if (isAbortError(e)) {
