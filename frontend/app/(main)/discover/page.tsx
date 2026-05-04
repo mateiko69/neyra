@@ -53,14 +53,19 @@ function clamp(n: number, a: number, b: number) {
 const DISCOVER_SWIPE_EXIT_MS = 520;
 /** Deck advances ~after this from swipe start — shared by like/pass; never waits on `/swipes` (fixes stuck guard key on pass). */
 const DISCOVER_SWIPE_ADVANCE_MS = DISCOVER_SWIPE_EXIT_MS + 120;
-/** If UI state ever desyncs (no transitionend / lost timer), force completion so the deck never stacks multiple exits. */
-const DISCOVER_SWIPE_STUCK_RESET_MS = 900;
+/** Mobile button-only: short fade + nudge; like/pass must share timing so both advance identically. */
+const MOBILE_BUTTON_EXIT_MS = 260;
+const MOBILE_BUTTON_ADVANCE_MS = MOBILE_BUTTON_EXIT_MS + 80;
+/** If exit state never clears, force reset (mobile drag disabled — see comment on `discoverButtonOnly`). */
+const DISCOVER_SWIPE_STUCK_RESET_MS = 600;
 
 type DiscoverSwipeExitState = {
   liked: boolean;
   startX: number;
   startY: number;
   fly: boolean;
+  /** True: button-only mobile path — no 120vw fly; rapid touch drag caused deck desync, so gestures are off. */
+  simple?: boolean;
 };
 
 function toInterestsList(raw: unknown): string[] {
@@ -400,6 +405,8 @@ export default function DiscoverPage() {
   /** Mirrors exitUiLockRef for render (refs don’t re-render) — keeps Like/Pass disabled during the pre-paint exit window on rapid mobile taps. */
   const [exitUiHold, setExitUiHold] = useState(false);
   const [isNarrowSwipe, setIsNarrowSwipe] = useState(false);
+  /** True → no drag on cards; Like/Pass/Undo/Boost only (touch drag caused deck desync in production). */
+  const [discoverButtonOnly, setDiscoverButtonOnly] = useState(false);
   const pendingSwipeReleaseRef = useRef<{ targetId: number; action: DiscoverSwipeAction } | null>(null);
   const exitFinishHandledRef = useRef(false);
   /** Fired DISCOVER_SWIPE_ADVANCE_MS after swipe starts — removes top card even if transitionend/fly fails (fixes stuck pass + guard pending key). */
@@ -426,11 +433,19 @@ export default function DiscoverPage() {
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
-    const mq = window.matchMedia("(max-width: 640px)");
-    const apply = () => setIsNarrowSwipe(mq.matches);
+    const mqTouch = window.matchMedia("(max-width: 768px)");
+    const mqCoarse = window.matchMedia("(pointer: coarse)");
+    const apply = () => {
+      setIsNarrowSwipe(mqTouch.matches);
+      setDiscoverButtonOnly(mqTouch.matches || mqCoarse.matches);
+    };
     apply();
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
+    mqTouch.addEventListener("change", apply);
+    mqCoarse.addEventListener("change", apply);
+    return () => {
+      mqTouch.removeEventListener("change", apply);
+      mqCoarse.removeEventListener("change", apply);
+    };
   }, []);
 
   const loadFeed = useCallback(
@@ -637,7 +652,10 @@ export default function DiscoverPage() {
     setExitUiHold(false);
   }
 
-  /** Start fly phase after layout so pass/like get the same two-frame exit (useLayoutEffect avoids Strict Mode rAF drops). */
+  /**
+   * Second paint: enable CSS transition to “fly” (full exit on desktop, short nudge+fade on mobile `simple` exits).
+   * Mobile drag is disabled — this path is only for programmatic exits after button/drag commit.
+   */
   useLayoutEffect(() => {
     if (!swipeExit || swipeExit.fly) return;
     const id = requestAnimationFrame(() => {
@@ -671,12 +689,140 @@ export default function DiscoverPage() {
     finalizeSwipeExitOnce();
   }
 
+  /** POST `/swipes` after UI transition starts — never blocks the next card (deck slices on animation timer). */
+  async function runDiscoverSwipeApi(snapshot: DiscoverCard, targetId: number, liked: boolean) {
+    const swipeSignal =
+      typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(14_000) : undefined;
+    try {
+      const res = await apiFetch("/swipes", {
+        method: "POST",
+        metaReason: liked ? "discover-like" : "discover-pass",
+        body: JSON.stringify({ target_user_id: targetId, liked }),
+        signal: swipeSignal,
+      });
+
+      lastSwipeRef.current = { card: snapshot, liked };
+      swipeSessionCountRef.current += 1;
+
+      if (liked) {
+        void trackAnalyticsEvent("like_sent", { source: "discover", target_user_id: snapshot.user_id });
+      }
+
+      if (res && typeof res === "object" && (res as any).matched) {
+        void trackAnalyticsEvent("match_created", { source: "discover", partner_user_id: snapshot.user_id });
+        recordMatchMoment();
+        const photos = photosFromList(snapshot.photo_urls);
+        const bioTrim = String(snapshot.bio || "").trim();
+        const snapVibe = String(snapshot.vibe || "").trim();
+        const rawLt = snapshot.lifestyle_tags;
+        const ltList = Array.isArray(rawLt) ? rawLt : [];
+        const tagList: string[] = [];
+        if (snapVibe) tagList.push(snapVibe);
+        for (const x of ltList) {
+          const s = String(x || "").trim();
+          if (!s || tagList.some((tg) => tg.toLowerCase() === s.toLowerCase())) continue;
+          tagList.push(s);
+        }
+        const matchContext: AiOpenerMatchContext = {
+          matchName: String(snapshot.display_name || t("discover.card.profileFallback")),
+          city: snapshot.city ? String(snapshot.city) : null,
+          bio: bioTrim || null,
+          interests: toInterestsList(snapshot.interests),
+          tags: tagList.length ? tagList : null,
+        };
+        setMatch({
+          userId: Number(snapshot.user_id),
+          name: String(snapshot.display_name || t("discover.card.profileFallback")),
+          photoUrl: photos[0] || null,
+          chatUrl: typeof (res as any).chat_url === "string" ? (res as any).chat_url : null,
+          matchContext,
+        });
+        setToast(t("retention.match.dontLose"));
+        void trackAnalyticsEvent("retention_signal_shown", {
+          kind: "match_dont_lose",
+          surface: "discover_match_modal",
+          partner_user_id: Number(snapshot.user_id),
+        });
+      }
+
+      if (liked) {
+        recordOutboundLikeMoment();
+        void (async () => {
+          try {
+            invalidateApiGetCache("/nav/badges");
+            invalidateApiGetCache("/likes/incoming");
+            invalidateApiGetCache("/matches");
+            const [badges] = await Promise.all([
+              apiFetch("/nav/badges", {
+                metaReason: "discover-like-refresh-badges",
+                skipCache: true,
+                skipThrottle: true,
+                softFail: true,
+              }),
+              apiFetch("/likes/incoming?limit=1", {
+                metaReason: "discover-like-refresh-likes",
+                skipCache: true,
+                skipThrottle: true,
+              }).catch(() => null),
+              apiFetch("/matches", {
+                metaReason: "discover-like-refresh-matches",
+                skipCache: true,
+                skipThrottle: true,
+              }).catch(() => null),
+              apiFetch("/messages/conversations", {
+                metaReason: "discover-like-refresh-conversations",
+                skipCache: true,
+                skipThrottle: true,
+              }).catch(() => null),
+            ]);
+            if (badges !== undefined) setNavBadgesFromServer(badges as any, "discover-like-refresh");
+          } catch (e) {
+            if (!(e instanceof ApiThrottleSkipError)) {
+              /* ignore */
+            }
+          }
+        })();
+      }
+    } catch (e) {
+      const errName = e instanceof Error ? e.name : "";
+      const isAbort = errName === "AbortError" || (e instanceof Error && /abort/i.test(e.message));
+
+      if (e instanceof RateLimitError) {
+        setSwipeRefreshPaused(true);
+        cancelSwipeExitForError();
+        setCards((prev) => (prev[0]?.user_id === snapshot.user_id ? prev : [snapshot, ...prev]));
+        setToast(t("errors.api.rateLimited"));
+        return;
+      }
+
+      const msg = e instanceof Error ? e.message : String(e);
+      if (liked && msg === "paywall.likes_limit") {
+        cancelSwipeExitForError();
+        setCards((prev) => (prev[0]?.user_id === snapshot.user_id ? prev : [snapshot, ...prev]));
+        if (!hasValueMoment()) {
+          void trackAnalyticsEvent("paywall_deferred", { surface: "discover_likes_limit", reason: "no_value_moment" });
+          setToast(t("discover.paywall.deferredToast"));
+        } else {
+          void trackAnalyticsEvent("paywall_shown", { surface: "discover_toast_soft", source: "discover_likes_limit" });
+          setToast(t("monetization.discover.softHint"));
+        }
+        return;
+      }
+
+      if (isAbort) {
+        setToast(t("discover.swipe.timeoutToast"));
+      } else {
+        setToast(t("discover.swipe.syncFailed"));
+      }
+    }
+  }
+
   /**
-   * Single pipeline for like + pass: start exit → (timer + optional transition) removes top card → `/swipes` in background.
-   * Rapid-swipe queue: `exitUiLockRef` / `exitUiHold` block until finalize; extra inputs ignored (no queue pile-up).
+   * Desktop / pointer fine only: drag-to-swipe. Disabled when `discoverButtonOnly` (mobile MVP uses buttons only).
    */
   const performSwipe = useCallback(
     (profileId: number, action: DiscoverSwipeAction, fromDrag?: { x: number; y: number }) => {
+      if (discoverButtonOnly) return;
       if (exitUiLockRef.current || swipeExit) return;
       const card = cards[0];
       if (!card || Number(card.user_id) !== profileId) return;
@@ -709,137 +855,52 @@ export default function DiscoverPage() {
       }, DISCOVER_SWIPE_ADVANCE_MS);
 
       requestAnimationFrame(() => {
-        const swipeSignal =
-          typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(14_000) : undefined;
-
-        void (async () => {
-          try {
-            const res = await apiFetch("/swipes", {
-              method: "POST",
-              metaReason: liked ? "discover-like" : "discover-pass",
-              body: JSON.stringify({ target_user_id: targetId, liked }),
-              signal: swipeSignal,
-            });
-
-            lastSwipeRef.current = { card: snapshot, liked };
-            swipeSessionCountRef.current += 1;
-
-            if (liked) {
-              void trackAnalyticsEvent("like_sent", { source: "discover", target_user_id: snapshot.user_id });
-            }
-
-            if (res && typeof res === "object" && (res as any).matched) {
-              void trackAnalyticsEvent("match_created", { source: "discover", partner_user_id: snapshot.user_id });
-              recordMatchMoment();
-              const photos = photosFromList(snapshot.photo_urls);
-              const bioTrim = String(snapshot.bio || "").trim();
-              const snapVibe = String(snapshot.vibe || "").trim();
-              const rawLt = snapshot.lifestyle_tags;
-              const ltList = Array.isArray(rawLt) ? rawLt : [];
-              const tagList: string[] = [];
-              if (snapVibe) tagList.push(snapVibe);
-              for (const x of ltList) {
-                const s = String(x || "").trim();
-                if (!s || tagList.some((tg) => tg.toLowerCase() === s.toLowerCase())) continue;
-                tagList.push(s);
-              }
-              const matchContext: AiOpenerMatchContext = {
-                matchName: String(snapshot.display_name || t("discover.card.profileFallback")),
-                city: snapshot.city ? String(snapshot.city) : null,
-                bio: bioTrim || null,
-                interests: toInterestsList(snapshot.interests),
-                tags: tagList.length ? tagList : null,
-              };
-              setMatch({
-                userId: Number(snapshot.user_id),
-                name: String(snapshot.display_name || t("discover.card.profileFallback")),
-                photoUrl: photos[0] || null,
-                chatUrl: typeof (res as any).chat_url === "string" ? (res as any).chat_url : null,
-                matchContext,
-              });
-              setToast(t("retention.match.dontLose"));
-              void trackAnalyticsEvent("retention_signal_shown", {
-                kind: "match_dont_lose",
-                surface: "discover_match_modal",
-                partner_user_id: Number(snapshot.user_id),
-              });
-            }
-
-            if (liked) {
-              recordOutboundLikeMoment();
-              void (async () => {
-                try {
-                  invalidateApiGetCache("/nav/badges");
-                  invalidateApiGetCache("/likes/incoming");
-                  invalidateApiGetCache("/matches");
-                  const [badges] = await Promise.all([
-                    apiFetch("/nav/badges", {
-                      metaReason: "discover-like-refresh-badges",
-                      skipCache: true,
-                      skipThrottle: true,
-                      softFail: true,
-                    }),
-                    apiFetch("/likes/incoming?limit=1", {
-                      metaReason: "discover-like-refresh-likes",
-                      skipCache: true,
-                      skipThrottle: true,
-                    }).catch(() => null),
-                    apiFetch("/matches", {
-                      metaReason: "discover-like-refresh-matches",
-                      skipCache: true,
-                      skipThrottle: true,
-                    }).catch(() => null),
-                    apiFetch("/messages/conversations", {
-                      metaReason: "discover-like-refresh-conversations",
-                      skipCache: true,
-                      skipThrottle: true,
-                    }).catch(() => null),
-                  ]);
-                  if (badges !== undefined) setNavBadgesFromServer(badges as any, "discover-like-refresh");
-                } catch (e) {
-                  if (!(e instanceof ApiThrottleSkipError)) {
-                    /* ignore */
-                  }
-                }
-              })();
-            }
-          } catch (e) {
-            const errName = e instanceof Error ? e.name : "";
-            const isAbort = errName === "AbortError" || (e instanceof Error && /abort/i.test(e.message));
-
-            if (e instanceof RateLimitError) {
-              setSwipeRefreshPaused(true);
-              cancelSwipeExitForError();
-              setCards((prev) => (prev[0]?.user_id === snapshot.user_id ? prev : [snapshot, ...prev]));
-              setToast(t("errors.api.rateLimited"));
-              return;
-            }
-
-            const msg = e instanceof Error ? e.message : String(e);
-            // Only hard gates undo the in-flight exit animation; other errors toast only — deck advances when animation ends.
-            if (liked && msg === "paywall.likes_limit") {
-              cancelSwipeExitForError();
-              setCards((prev) => (prev[0]?.user_id === snapshot.user_id ? prev : [snapshot, ...prev]));
-              if (!hasValueMoment()) {
-                void trackAnalyticsEvent("paywall_deferred", { surface: "discover_likes_limit", reason: "no_value_moment" });
-                setToast(t("discover.paywall.deferredToast"));
-              } else {
-                void trackAnalyticsEvent("paywall_shown", { surface: "discover_toast_soft", source: "discover_likes_limit" });
-                setToast(t("monetization.discover.softHint"));
-              }
-              return;
-            }
-
-            if (isAbort) {
-              setToast(t("discover.swipe.timeoutToast"));
-            } else {
-              setToast(t("discover.swipe.syncFailed"));
-            }
-          }
-        })();
+        void runDiscoverSwipeApi(snapshot, targetId, liked);
       });
     },
-    [cards, swipeExit, swipeRefreshPaused, t, finalizeSwipeExitOnce],
+    [cards, swipeExit, discoverButtonOnly, finalizeSwipeExitOnce],
+  );
+
+  /**
+   * Like / Pass buttons: shared entry for mobile + desktop. Mobile uses a short fade+nudge only (no drag).
+   */
+  const performButtonSwipe = useCallback(
+    (profileId: number, action: DiscoverSwipeAction) => {
+      if (discoverButtonOnly) {
+        if (exitUiLockRef.current || swipeExit) return;
+        const card = cards[0];
+        if (!card || Number(card.user_id) !== profileId) return;
+        const liked = action === "like";
+        if (!acquireDiscoverSwipe(profileId, action)) return;
+
+        const snapshot = card;
+        const targetId = profileId;
+        exitFinishHandledRef.current = false;
+        exitUiLockRef.current = true;
+        setExitUiHold(true);
+        pendingSwipeReleaseRef.current = { targetId, action };
+
+        discoverSwipeFeedback(liked ? "like" : "pass");
+        setSwipeExit({ liked, startX: 0, startY: 0, fly: false, simple: true });
+        setDrag({ x: 0, y: 0, active: false });
+
+        if (advanceDeckTimerRef.current) {
+          clearTimeout(advanceDeckTimerRef.current);
+          advanceDeckTimerRef.current = null;
+        }
+        advanceDeckTimerRef.current = globalThis.setTimeout(() => {
+          advanceDeckTimerRef.current = null;
+          finalizeSwipeExitOnce();
+        }, MOBILE_BUTTON_ADVANCE_MS);
+
+        requestAnimationFrame(() => {
+          void runDiscoverSwipeApi(snapshot, targetId, liked);
+        });
+        return;
+      }
+      performSwipe(profileId, action);
+    },
+    [cards, swipeExit, discoverButtonOnly, finalizeSwipeExitOnce, performSwipe],
   );
 
   async function undoSwipe() {
@@ -887,6 +948,7 @@ export default function DiscoverPage() {
   }
 
   function onPointerDown(e: React.PointerEvent) {
+    if (discoverButtonOnly) return;
     if (exitUiLockRef.current || !topCardValid || swipeInteractionLocked) return;
     pointerStartRef.current = { x: e.clientX, y: e.clientY };
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
@@ -894,6 +956,7 @@ export default function DiscoverPage() {
   }
 
   function onPointerMove(e: React.PointerEvent) {
+    if (discoverButtonOnly) return;
     if (!pointerStartRef.current || !drag.active || exitUiLockRef.current || swipeInteractionLocked) return;
     const dx = e.clientX - pointerStartRef.current.x;
     const dy = e.clientY - pointerStartRef.current.y;
@@ -902,6 +965,10 @@ export default function DiscoverPage() {
   }
 
   function onPointerUp() {
+    if (discoverButtonOnly) {
+      pointerStartRef.current = null;
+      return;
+    }
     if (exitUiLockRef.current || swipeInteractionLocked) {
       pointerStartRef.current = null;
       return;
@@ -930,9 +997,20 @@ export default function DiscoverPage() {
   const rotDiv = isNarrowSwipe ? 42 : 18;
   const exiting = Boolean(swipeExit);
   const exitFly = Boolean(swipeExit?.fly);
+  const simpleExit = Boolean(swipeExit?.simple);
   let cardTransform: string;
   let cardOpacity = 1;
-  if (exiting && swipeExit) {
+  if (exiting && swipeExit && simpleExit) {
+    if (!exitFly) {
+      cardTransform = "translate3d(0,0,0)";
+      cardOpacity = 1;
+    } else {
+      const nudge = 28;
+      const tx = swipeExit.liked ? nudge : -nudge;
+      cardTransform = `translate3d(${tx}px, 0, 0)`;
+      cardOpacity = 0;
+    }
+  } else if (exiting && swipeExit) {
     if (!exitFly) {
       const sx = swipeExit.startX;
       const sy = swipeExit.startY;
@@ -945,20 +1023,26 @@ export default function DiscoverPage() {
       cardTransform = `translate3d(${xw}, ${yfly}px, 0) rotate(${endRot}deg)`;
       cardOpacity = 0;
     }
-  } else {
+  } else if (!discoverButtonOnly) {
     const r = clamp(drag.x / rotDiv, -maxRot, maxRot);
     cardTransform = `translate3d(${drag.x}px, ${drag.y}px, 0) rotate(${r}deg)`;
+  } else {
+    cardTransform = "translate3d(0,0,0)";
   }
   const cardTransition =
-    exiting && exitFly
-      ? `transform ${DISCOVER_SWIPE_EXIT_MS}ms cubic-bezier(0.22, 1, 0.36, 1), opacity ${DISCOVER_SWIPE_EXIT_MS}ms ease`
-      : exiting && !exitFly
+    exiting && simpleExit && exitFly
+      ? `transform ${MOBILE_BUTTON_EXIT_MS}ms ease-out, opacity ${MOBILE_BUTTON_EXIT_MS}ms ease-out`
+      : exiting && simpleExit && !exitFly
         ? "none"
-        : drag.active
-          ? "none"
-          : "transform 340ms cubic-bezier(0.22, 1, 0.36, 1)";
-  const likeOpacity = exiting ? 0 : clamp((drag.x - 40) / 140, 0, 1);
-  const passOpacity = exiting ? 0 : clamp((-drag.x - 40) / 140, 0, 1);
+        : exiting && exitFly && !simpleExit
+          ? `transform ${DISCOVER_SWIPE_EXIT_MS}ms cubic-bezier(0.22, 1, 0.36, 1), opacity ${DISCOVER_SWIPE_EXIT_MS}ms ease`
+          : exiting && !exitFly && !simpleExit
+            ? "none"
+            : drag.active
+              ? "none"
+              : "transform 340ms cubic-bezier(0.22, 1, 0.36, 1)";
+  const likeOpacity = discoverButtonOnly || exiting ? 0 : clamp((drag.x - 40) / 140, 0, 1);
+  const passOpacity = discoverButtonOnly || exiting ? 0 : clamp((-drag.x - 40) / 140, 0, 1);
   const lowDeckCandidates = Boolean(
     !loading &&
       topCardValid &&
@@ -1219,7 +1303,7 @@ export default function DiscoverPage() {
             </div>
           ) : (
             <>
-              {deckVisible[1] ? (
+              {!discoverButtonOnly && deckVisible[1] ? (
                 <div
                   className="surface"
                   aria-hidden
@@ -1236,10 +1320,10 @@ export default function DiscoverPage() {
 
               <div
                 className="surface"
-                onPointerDown={onPointerDown}
-                onPointerMove={onPointerMove}
-                onPointerUp={onPointerUp}
-                onPointerCancel={onPointerUp}
+                onPointerDown={discoverButtonOnly ? undefined : onPointerDown}
+                onPointerMove={discoverButtonOnly ? undefined : onPointerMove}
+                onPointerUp={discoverButtonOnly ? undefined : onPointerUp}
+                onPointerCancel={discoverButtonOnly ? undefined : onPointerUp}
                 onTransitionEnd={onSwipeExitTransitionEnd}
                 style={{
                   position: "absolute",
@@ -1247,7 +1331,7 @@ export default function DiscoverPage() {
                   zIndex: exiting ? 12 : 2,
                   borderRadius: 22,
                   overflow: "hidden",
-                  touchAction: swipeInteractionLocked ? "none" : "pan-y",
+                  touchAction: discoverButtonOnly ? "manipulation" : swipeInteractionLocked ? "none" : "pan-y",
                   transform: cardTransform,
                   opacity: cardOpacity,
                   transition: cardTransition,
@@ -1387,7 +1471,7 @@ export default function DiscoverPage() {
             type="button"
             variant="secondary"
             disabled={!topCardValid || swipeInteractionLocked}
-            onClick={() => topCard && void performSwipe(Number(topCard.user_id), "pass")}
+            onClick={() => topCard && void performButtonSwipe(Number(topCard.user_id), "pass")}
           >
             ❌ {t("discover.actions.pass")}
           </Button>
@@ -1397,7 +1481,7 @@ export default function DiscoverPage() {
           <Button
             type="button"
             disabled={!topCardValid || swipeInteractionLocked}
-            onClick={() => topCard && void performSwipe(Number(topCard.user_id), "like")}
+            onClick={() => topCard && void performButtonSwipe(Number(topCard.user_id), "like")}
           >
             ❤️ {t("discover.actions.like")}
           </Button>

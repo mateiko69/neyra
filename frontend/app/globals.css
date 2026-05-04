@@ -5515,6 +5515,7 @@ html[data-i18n-debug="true"] {
   isolation: isolate;
 }
 
+/* Below modals (~50+); above card stack (inside clipped stage). */
 .discover-swipe-actions {
   flex-shrink: 0;
   position: sticky;
