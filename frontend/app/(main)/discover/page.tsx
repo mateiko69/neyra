@@ -49,13 +49,26 @@ function clamp(n: number, a: number, b: number) {
   return Math.max(a, Math.min(b, n));
 }
 
+/** Dev-only diagnostics for Discover deck actions (no tokens). */
+function devDiscoverDebug(payload: { action: DiscoverSwipeAction; profileId: number; deckLength: number }) {
+  if (typeof process !== "undefined" && process.env.NODE_ENV === "development") {
+    // eslint-disable-next-line no-console
+    console.debug("[discover]", payload.action, { profileId: payload.profileId, deckLength: payload.deckLength });
+  }
+}
+
+/*
+ * Manual QA (mobile / narrow): Pass + Like always advance; rapid taps do not desync; Undo restores;
+ * Boost opens paywall/toast only; no drag-swipe on coarse/narrow.
+ */
+
 /** Exit animation duration — must stay aligned with exit lock + button disable window (rapid-swipe queue). */
 const DISCOVER_SWIPE_EXIT_MS = 520;
 /** Deck advances ~after this from swipe start — shared by like/pass; never waits on `/swipes` (fixes stuck guard key on pass). */
 const DISCOVER_SWIPE_ADVANCE_MS = DISCOVER_SWIPE_EXIT_MS + 120;
-/** Mobile button-only: short fade + nudge; like/pass must share timing so both advance identically. */
-const MOBILE_BUTTON_EXIT_MS = 260;
-const MOBILE_BUTTON_ADVANCE_MS = MOBILE_BUTTON_EXIT_MS + 80;
+/** Like/Pass buttons (all viewports): short fade + nudge; 220–300ms range; must match advance timer. */
+const DISCOVER_BUTTON_EXIT_MS = 280;
+const DISCOVER_BUTTON_ADVANCE_MS = DISCOVER_BUTTON_EXIT_MS + 80;
 /** If exit state never clears, force reset (mobile drag disabled — see comment on `discoverButtonOnly`). */
 const DISCOVER_SWIPE_STUCK_RESET_MS = 600;
 
@@ -64,7 +77,7 @@ type DiscoverSwipeExitState = {
   startX: number;
   startY: number;
   fly: boolean;
-  /** True: button-only mobile path — no 120vw fly; rapid touch drag caused deck desync, so gestures are off. */
+  /** True: Like/Pass button path — short nudge+fade (not 120vw fly). */
   simple?: boolean;
 };
 
@@ -386,8 +399,9 @@ export default function DiscoverPage() {
   } | null>(null);
   const [swipeRefreshPaused, setSwipeRefreshPaused] = useState(false);
   const [undoBusy, setUndoBusy] = useState(false);
-  const [undoUsed, setUndoUsed] = useState(false);
   const lastSwipeRef = useRef<null | { card: DiscoverCard; liked: boolean }>(null);
+  /** Captured at swipe start; applied to `lastSwipeRef` when the deck actually slices (not when `/swipes` returns). */
+  const removingForUndoRef = useRef<null | { card: DiscoverCard; liked: boolean }>(null);
   const discoverViewedRef = useRef(false);
   const lowDeckLoggedRef = useRef<string>("");
   const swipeSessionCountRef = useRef(0);
@@ -616,6 +630,8 @@ export default function DiscoverPage() {
       clearTimeout(stuckExitWatchdogRef.current);
       stuckExitWatchdogRef.current = null;
     }
+    const undoSnap = removingForUndoRef.current;
+    removingForUndoRef.current = null;
     try {
       setCards((prev) => {
         const next = prev.slice(1);
@@ -624,6 +640,10 @@ export default function DiscoverPage() {
         }
         return next;
       });
+      if (undoSnap) {
+        lastSwipeRef.current = undoSnap;
+        swipeSessionCountRef.current += 1;
+      }
       setSwipeExit(null);
       const rel = pendingSwipeReleaseRef.current;
       pendingSwipeReleaseRef.current = null;
@@ -635,6 +655,7 @@ export default function DiscoverPage() {
   }, [loadFeed, swipeRefreshPaused]);
 
   function cancelSwipeExitForError() {
+    removingForUndoRef.current = null;
     if (advanceDeckTimerRef.current) {
       clearTimeout(advanceDeckTimerRef.current);
       advanceDeckTimerRef.current = null;
@@ -643,6 +664,7 @@ export default function DiscoverPage() {
       clearTimeout(stuckExitWatchdogRef.current);
       stuckExitWatchdogRef.current = null;
     }
+    exitFinishHandledRef.current = false;
     setSwipeExit(null);
     setDrag({ x: 0, y: 0, active: false });
     const rel = pendingSwipeReleaseRef.current;
@@ -700,9 +722,6 @@ export default function DiscoverPage() {
         body: JSON.stringify({ target_user_id: targetId, liked }),
         signal: swipeSignal,
       });
-
-      lastSwipeRef.current = { card: snapshot, liked };
-      swipeSessionCountRef.current += 1;
 
       if (liked) {
         void trackAnalyticsEvent("like_sent", { source: "discover", target_user_id: snapshot.user_id });
@@ -790,6 +809,7 @@ export default function DiscoverPage() {
       if (e instanceof RateLimitError) {
         setSwipeRefreshPaused(true);
         cancelSwipeExitForError();
+        lastSwipeRef.current = null;
         setCards((prev) => (prev[0]?.user_id === snapshot.user_id ? prev : [snapshot, ...prev]));
         setToast(t("errors.api.rateLimited"));
         return;
@@ -798,6 +818,7 @@ export default function DiscoverPage() {
       const msg = e instanceof Error ? e.message : String(e);
       if (liked && msg === "paywall.likes_limit") {
         cancelSwipeExitForError();
+        lastSwipeRef.current = null;
         setCards((prev) => (prev[0]?.user_id === snapshot.user_id ? prev : [snapshot, ...prev]));
         if (!hasValueMoment()) {
           void trackAnalyticsEvent("paywall_deferred", { surface: "discover_likes_limit", reason: "no_value_moment" });
@@ -831,6 +852,7 @@ export default function DiscoverPage() {
       if (!acquireDiscoverSwipe(targetId, action)) return;
 
       const snapshot = card;
+      removingForUndoRef.current = { card: snapshot, liked };
       exitFinishHandledRef.current = false;
       exitUiLockRef.current = true;
       setExitUiHold(true);
@@ -862,59 +884,58 @@ export default function DiscoverPage() {
   );
 
   /**
-   * Like / Pass buttons: shared entry for mobile + desktop. Mobile uses a short fade+nudge only (no drag).
+   * Like / Pass from buttons only: one code path, optimistic deck advance, `/swipes` in background.
+   * Drag swipes use `performSwipe` (desktop); mobile is button-only when `discoverButtonOnly` is true.
    */
-  const performButtonSwipe = useCallback(
-    (profileId: number, action: DiscoverSwipeAction) => {
-      if (discoverButtonOnly) {
-        if (exitUiLockRef.current || swipeExit) return;
-        const card = cards[0];
-        if (!card || Number(card.user_id) !== profileId) return;
-        const liked = action === "like";
-        if (!acquireDiscoverSwipe(profileId, action)) return;
+  const advanceProfile = useCallback(
+    (action: DiscoverSwipeAction) => {
+      if (exitUiLockRef.current || swipeExit) return;
+      const card = cards[0];
+      if (!card || Number(card.user_id) <= 0) return;
+      const profileId = Number(card.user_id);
+      const liked = action === "like";
+      if (!acquireDiscoverSwipe(profileId, action)) return;
 
-        const snapshot = card;
-        const targetId = profileId;
-        exitFinishHandledRef.current = false;
-        exitUiLockRef.current = true;
-        setExitUiHold(true);
-        pendingSwipeReleaseRef.current = { targetId, action };
+      devDiscoverDebug({ action, profileId, deckLength: cards.length });
 
-        discoverSwipeFeedback(liked ? "like" : "pass");
-        setSwipeExit({ liked, startX: 0, startY: 0, fly: false, simple: true });
-        setDrag({ x: 0, y: 0, active: false });
+      const snapshot = card;
+      removingForUndoRef.current = { card: snapshot, liked };
+      exitFinishHandledRef.current = false;
+      exitUiLockRef.current = true;
+      setExitUiHold(true);
+      pendingSwipeReleaseRef.current = { targetId: profileId, action };
 
-        if (advanceDeckTimerRef.current) {
-          clearTimeout(advanceDeckTimerRef.current);
-          advanceDeckTimerRef.current = null;
-        }
-        advanceDeckTimerRef.current = globalThis.setTimeout(() => {
-          advanceDeckTimerRef.current = null;
-          finalizeSwipeExitOnce();
-        }, MOBILE_BUTTON_ADVANCE_MS);
+      discoverSwipeFeedback(liked ? "like" : "pass");
+      setSwipeExit({ liked, startX: 0, startY: 0, fly: false, simple: true });
+      setDrag({ x: 0, y: 0, active: false });
 
-        requestAnimationFrame(() => {
-          void runDiscoverSwipeApi(snapshot, targetId, liked);
-        });
-        return;
+      if (advanceDeckTimerRef.current) {
+        clearTimeout(advanceDeckTimerRef.current);
+        advanceDeckTimerRef.current = null;
       }
-      performSwipe(profileId, action);
+      advanceDeckTimerRef.current = globalThis.setTimeout(() => {
+        advanceDeckTimerRef.current = null;
+        finalizeSwipeExitOnce();
+      }, DISCOVER_BUTTON_ADVANCE_MS);
+
+      requestAnimationFrame(() => {
+        void runDiscoverSwipeApi(snapshot, profileId, liked);
+      });
     },
-    [cards, swipeExit, discoverButtonOnly, finalizeSwipeExitOnce, performSwipe],
+    [cards, swipeExit, finalizeSwipeExitOnce],
   );
 
   async function undoSwipe() {
     if (exitUiLockRef.current || swipeExit) return;
     const last = lastSwipeRef.current;
-    if (!last || undoBusy || undoUsed) return;
+    if (!last || undoBusy) return;
     setUndoBusy(true);
     try {
       await apiFetch("/swipes/undo", { method: "POST", metaReason: "discover-undo" });
       setCards((prev) => [last.card, ...prev]);
       lastSwipeRef.current = null;
-      setUndoUsed(true);
     } catch {
-      setUndoUsed(true);
+      setToast(t("discover.swipe.syncFailed"));
     } finally {
       setUndoBusy(false);
     }
@@ -1031,7 +1052,7 @@ export default function DiscoverPage() {
   }
   const cardTransition =
     exiting && simpleExit && exitFly
-      ? `transform ${MOBILE_BUTTON_EXIT_MS}ms ease-out, opacity ${MOBILE_BUTTON_EXIT_MS}ms ease-out`
+      ? `transform ${DISCOVER_BUTTON_EXIT_MS}ms ease-out, opacity ${DISCOVER_BUTTON_EXIT_MS}ms ease-out`
       : exiting && simpleExit && !exitFly
         ? "none"
         : exiting && exitFly && !simpleExit
@@ -1458,33 +1479,88 @@ export default function DiscoverPage() {
           </div>
         ) : null}
 
-        <div className="discover-swipe-actions" style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={undoUsed || undoBusy || !lastSwipeRef.current || swipeInteractionLocked}
-            onClick={() => void undoSwipe()}
-          >
-            ↩ {t("discover.actions.undo")}
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={!topCardValid || swipeInteractionLocked}
-            onClick={() => topCard && void performButtonSwipe(Number(topCard.user_id), "pass")}
-          >
-            ❌ {t("discover.actions.pass")}
-          </Button>
-          <Button type="button" variant="secondary" disabled={busy} onClick={() => void activateBoost()}>
-            ⭐ {t("discover.actions.boostProfile")}
-          </Button>
-          <Button
-            type="button"
-            disabled={!topCardValid || swipeInteractionLocked}
-            onClick={() => topCard && void performButtonSwipe(Number(topCard.user_id), "like")}
-          >
-            ❤️ {t("discover.actions.like")}
-          </Button>
+        <div
+          className={
+            discoverButtonOnly
+              ? "discover-swipe-actions discover-swipe-actions--mobile"
+              : "discover-swipe-actions discover-swipe-actions--desktop"
+          }
+        >
+          {discoverButtonOnly ? (
+            <div className="discover-actions-mobile">
+              <div className="discover-actions-primary">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="discover-action-tap discover-action-tap--pass"
+                  disabled={!topCardValid || swipeInteractionLocked}
+                  onClick={() => void advanceProfile("pass")}
+                >
+                  {t("discover.actions.pass")}
+                </Button>
+                <Button
+                  type="button"
+                  className="discover-action-tap discover-action-tap--like"
+                  disabled={!topCardValid || swipeInteractionLocked}
+                  onClick={() => void advanceProfile("like")}
+                >
+                  {t("discover.actions.like")}
+                </Button>
+              </div>
+              <div className="discover-actions-secondary">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="discover-action-tap discover-action-tap--sub"
+                  disabled={undoBusy || !lastSwipeRef.current || swipeInteractionLocked}
+                  onClick={() => void undoSwipe()}
+                >
+                  {t("discover.actions.undo")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="discover-action-tap discover-action-tap--sub"
+                  disabled={busy}
+                  onClick={() => void activateBoost()}
+                >
+                  {t("discover.actions.boostProfile")}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="discover-actions-desktop">
+              <Button
+                type="button"
+                variant="secondary"
+                className="discover-action-tap"
+                disabled={undoBusy || !lastSwipeRef.current || swipeInteractionLocked}
+                onClick={() => void undoSwipe()}
+              >
+                ↩ {t("discover.actions.undo")}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="discover-action-tap"
+                disabled={!topCardValid || swipeInteractionLocked}
+                onClick={() => void advanceProfile("pass")}
+              >
+                ❌ {t("discover.actions.pass")}
+              </Button>
+              <Button type="button" variant="secondary" className="discover-action-tap" disabled={busy} onClick={() => void activateBoost()}>
+                ⭐ {t("discover.actions.boostProfile")}
+              </Button>
+              <Button
+                type="button"
+                className="discover-action-tap"
+                disabled={!topCardValid || swipeInteractionLocked}
+                onClick={() => void advanceProfile("like")}
+              >
+                ❤️ {t("discover.actions.like")}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </PageShell>

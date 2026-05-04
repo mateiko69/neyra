@@ -5524,6 +5524,9 @@ html[data-i18n-debug="true"] {
   margin-top: 12px;
   padding-top: 10px;
   padding-bottom: max(12px, env(safe-area-inset-bottom));
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   background: linear-gradient(
     to top,
     rgba(10, 12, 18, 0.97) 40%,
@@ -5532,12 +5535,81 @@ html[data-i18n-debug="true"] {
   );
 }
 
-/* Mobile: cap card stack height so it never sits under the bottom nav + action row (shell-main already pads bottom). */
+.discover-swipe-actions--desktop .discover-actions-desktop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.discover-swipe-actions--desktop .discover-actions-desktop .discover-action-tap {
+  flex: 1 1 auto;
+  min-width: min(140px, 46vw);
+}
+
+.discover-swipe-actions--mobile {
+  display: flex;
+  justify-content: center;
+  padding-bottom: max(14px, calc(10px + env(safe-area-inset-bottom)));
+}
+
+.discover-actions-mobile {
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+}
+
+.discover-actions-primary,
+.discover-actions-secondary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.discover-action-tap {
+  min-height: 52px;
+  border-radius: 16px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em;
+  padding-left: 14px !important;
+  padding-right: 14px !important;
+  box-sizing: border-box;
+}
+
+.discover-action-tap:disabled {
+  opacity: 0.45;
+}
+
+.discover-action-tap--like {
+  box-shadow:
+    0 0 0 1px rgba(255, 120, 160, 0.28) inset,
+    0 12px 28px rgba(220, 90, 140, 0.18);
+}
+
+.discover-action-tap--pass {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+}
+
+.discover-action-tap--sub {
+  font-weight: 750 !important;
+  opacity: 0.95;
+}
+
+/* Mobile: cap card stack height so it never sits under the bottom nav + two-row action bar (shell-main already pads bottom). */
 @media (max-width: 720px) {
   .discover-swipe-stage {
     width: min(92vw, 520px);
     aspect-ratio: 3 / 4;
-    max-height: min(68dvh, calc(100dvh - 288px));
+    max-height: min(62dvh, calc(100dvh - 320px));
     height: auto;
     margin-left: auto;
     margin-right: auto;
