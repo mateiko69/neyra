@@ -94,6 +94,13 @@ function isNearBottom(element: HTMLDivElement): boolean {
   return element.scrollHeight - element.scrollTop - element.clientHeight < 140;
 }
 
+function resolveScrollHost(scroller: HTMLDivElement | null): HTMLDivElement | null {
+  if (!scroller) return null;
+  const mobileHost = scroller.closest(".chat-thread-mobile-scroll");
+  if (mobileHost instanceof HTMLDivElement) return mobileHost;
+  return scroller;
+}
+
 function groupKeyForMessage(message: ChatMessage): string {
   return `${message.senderId}:${dayKey(message.timestamp)}`;
 }
@@ -337,7 +344,7 @@ export function ChatMessageList({
   }, [messageById, messages]);
 
   useLayoutEffect(() => {
-    const scroller = scrollerRef.current;
+    const scroller = resolveScrollHost(scrollerRef.current);
     const anchor = bottomAnchorRef.current;
     if (!scroller || !anchor || showLoadingSkeleton) return;
 
@@ -355,7 +362,7 @@ export function ChatMessageList({
     if (!initialAutoScrollDoneRef.current) {
       let attempts = 0;
       const settle = () => {
-        const liveScroller = scrollerRef.current;
+        const liveScroller = resolveScrollHost(scrollerRef.current);
         const liveAnchor = bottomAnchorRef.current;
         if (!liveScroller || !liveAnchor) return;
         liveAnchor.scrollIntoView({ block: "end", behavior: "auto" });
@@ -386,7 +393,7 @@ export function ChatMessageList({
 
   useLayoutEffect(() => {
     if (showLoadingSkeleton || !showPartnerTyping) return;
-    const scroller = scrollerRef.current;
+    const scroller = resolveScrollHost(scrollerRef.current);
     if (!scroller || !isNearBottom(scroller)) return;
     requestAnimationFrame(() => {
       bottomAnchorRef.current?.scrollIntoView({ block: "end", behavior: "auto" });
@@ -395,7 +402,7 @@ export function ChatMessageList({
 
   useLayoutEffect(() => {
     if (showLoadingSkeleton) return;
-    const scroller = scrollerRef.current;
+    const scroller = resolveScrollHost(scrollerRef.current);
     if (!scroller) return;
 
     const onScroll = () => {
@@ -420,7 +427,8 @@ export function ChatMessageList({
     };
     window.addEventListener("resize", pinToBottom);
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => pinToBottom()) : null;
-    if (ro && scrollerRef.current) ro.observe(scrollerRef.current);
+    const host = resolveScrollHost(scrollerRef.current);
+    if (ro && host) ro.observe(host);
     return () => {
       window.removeEventListener("resize", pinToBottom);
       ro?.disconnect();
@@ -454,7 +462,7 @@ export function ChatMessageList({
   }, [messages, openReactionPickerId]);
 
   function scrollToBottom() {
-    const scroller = scrollerRef.current;
+    const scroller = resolveScrollHost(scrollerRef.current);
     const anchor = bottomAnchorRef.current;
     if (!scroller || !anchor) return;
     anchor.scrollIntoView({ block: "end", behavior: "smooth" });
