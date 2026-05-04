@@ -415,10 +415,11 @@ async def _startup_demo_living_worker() -> None:
         return
 
     def run() -> None:
-        time.sleep(random.uniform(2.0, 8.0))
+        time.sleep(random.uniform(1.0, 4.0))
         while True:
             try:
-                time.sleep(random.uniform(30.0, 90.0))
+                # Short cadence so scheduled demo replies land soon after their due time (paired with DB scheduling).
+                time.sleep(random.uniform(2.0, 5.0))
                 db = SessionLocal()
                 try:
                     run_demo_behavior_tick(db)

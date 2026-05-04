@@ -412,6 +412,21 @@ export function ChatMessageList({
     return () => scroller.removeEventListener("scroll", onScroll);
   }, [showLoadingSkeleton]);
 
+  useEffect(() => {
+    if (showLoadingSkeleton) return;
+    const pinToBottom = () => {
+      if (!atBottomRef.current) return;
+      bottomAnchorRef.current?.scrollIntoView({ block: "end", behavior: "auto" });
+    };
+    window.addEventListener("resize", pinToBottom);
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => pinToBottom()) : null;
+    if (ro && scrollerRef.current) ro.observe(scrollerRef.current);
+    return () => {
+      window.removeEventListener("resize", pinToBottom);
+      ro?.disconnect();
+    };
+  }, [showLoadingSkeleton, messages.length]);
+
   useLayoutEffect(() => {
     if (showLoadingSkeleton) return;
     const nextIds = new Set(messages.map((message) => message.id));

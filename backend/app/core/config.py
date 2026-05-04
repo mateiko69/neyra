@@ -157,6 +157,10 @@ class Settings(BaseSettings):
     DEMO_BOT_CHAT_ENABLED: bool = _demo_bot_default_enabled()
     DEMO_BOT_REPLY_DELAY_SECONDS: int = 2
     DEMO_BOT_FIRST_MESSAGE_ENABLED: bool = _demo_bot_default_enabled()
+    # When true, pauses auto demo chat scheduling if the user already has an active real-human match thread.
+    DEMO_PAUSE_AUTO_DEMO_IF_REAL_CHAT: bool = False
+    # Min seconds between automated demo-bot *outbound* messages to the same user (per pair), best-effort via Redis.
+    DEMO_BOT_OUTBOUND_MIN_INTERVAL_SECONDS: int = 4
     # Dev-only override: treat all users as premium. Ignored in production.
     DEV_FORCE_PREMIUM: bool = False
     # When true, admin localization Gemini endpoints are allowed even if ENV=production.

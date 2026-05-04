@@ -602,9 +602,24 @@ def set_demo_live_settings(
 
 
 def is_demo_live_enabled(db: Session) -> bool:
+    """Living demo (delayed replies, revives) — gated by env `DEMO_LIVE_BEHAVIOR`.
+
+    When env is on and demo mode is on, live behavior defaults **on**. Admins can hard-disable
+    via AppSetting `demo_live_behavior` JSON `{\"enabled\": false}`.
+    """
     if not bool(getattr(settings, "DEMO_LIVE_BEHAVIOR", False)):
         return False
-    return bool(is_demo_mode_enabled(db) and get_demo_live_settings(db).get("enabled"))
+    if not is_demo_mode_enabled(db):
+        return False
+    row = db.query(AppSetting).filter(AppSetting.key == DEMO_LIVE_SETTING_KEY).first()
+    if row and (getattr(row, "value_json", None) or "").strip():
+        try:
+            data = json.loads(row.value_json)
+            if isinstance(data, dict) and data.get("enabled") is False:
+                return False
+        except Exception:
+            pass
+    return True
 
 
 def ensure_demo_personality_json(profile: Profile | None) -> None:
@@ -1007,26 +1022,25 @@ def build_demo_reply(profile: Profile | None, user_message: str, context: list[s
     name = (getattr(profile, "display_name", "") or "there").strip()
     text = (user_message or "").strip().lower()
     context_count = len([x for x in (context or []) if str(x or "").strip()])
-    tag = "Demo profile — not a real person."
     playful = [
-        f"Haha okay — you’ve got {name}’s attention 🙂 What’s one thing you’re weirdly passionate about? {tag}",
-        f"Cheeky question: if we skipped small talk, what would you actually want to talk about? {tag}",
-        f"I like that energy. What’s been the highlight of your week so far? {tag}",
+        f"Haha okay — you’ve got {name}’s attention 🙂 What’s one thing you’re weirdly passionate about?",
+        f"Cheeky question: if we skipped small talk, what would you actually want to talk about?",
+        f"I like that energy. What’s been the highlight of your week so far?",
     ]
     curious = [
-        f"Interesting — what drew you to say that? {tag}",
-        f"I’m curious: what does a perfect Sunday look like for you? {tag}",
-        f"Nice. What are you into lately when you’re not on here? {tag}",
+        "Interesting — what drew you to say that?",
+        "I’m curious: what does a perfect Sunday look like for you?",
+        "Nice. What are you into lately when you’re not on here?",
     ]
     if "coffee" in text or "drink" in text or "meet" in text:
         pool = [
-            f"That sounds fun 🙂 Are you more of a chill café person or a walk-and-talk person? {tag}",
-            f"Love it. What kind of spot would feel easy for a first meet? {tag}",
+            "That sounds fun 🙂 Are you more of a chill café person or a walk-and-talk person?",
+            "Love it. What kind of spot would feel easy for a first meet?",
         ]
     elif "music" in text or "film" in text or "movie" in text:
         pool = [
-            f"Good taste — what’s one thing I should watch or listen to this week? {tag}",
-            f"Nice — what’s your go-to comfort watch or album lately? {tag}",
+            "Good taste — what’s one thing I should watch or listen to this week?",
+            "Nice — what’s your go-to comfort watch or album lately?",
         ]
     elif "hi" in text or "hello" in text or context_count == 0:
         pool = playful + curious

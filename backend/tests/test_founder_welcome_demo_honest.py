@@ -93,12 +93,14 @@ def test_founder_welcome_show_once_until_seen():
         db.close()
 
 
-def test_demo_simulated_reply_labels_not_real_person():
+def test_demo_fallback_reply_is_human_and_not_disclaimer_stuffed():
+    """Disclaimers belong in profile/chat chrome — fallback replies stay conversational."""
     p = Profile(display_name="Maya")
     out = build_demo_reply(p, "hello", [])
     low = out.lower()
-    assert "demo" in low
-    assert "not a real person" in low
+    assert len(out.strip()) >= 12
+    assert "not a real person" not in low
+    assert "demo profile —" not in low
 
 
 def test_admin_overview_excludes_demo_users_from_totals():

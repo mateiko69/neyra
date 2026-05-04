@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import random
+import time
 from datetime import UTC, datetime, timedelta
 from difflib import SequenceMatcher
 from typing import Any
@@ -39,7 +40,61 @@ from app.services.match_partner import users_are_matched
 from app.services.safety import is_blocked
 from app.utils.media_urls import normalize_media_url
 
+try:
+    from app.services.ai.cache import get_redis
+except Exception:  # pragma: no cover
+    get_redis = None  # type: ignore[misc, assignment]
+
 log = logging.getLogger("neyra.demo_behavior")
+
+
+def _sanitize_demo_bot_reply_text(text: str) -> str:
+    """Strip canned demo disclaimers from outbound lines — disclaimer belongs in profile/UI."""
+    t = (text or "").strip()
+    if not t:
+        return ""
+    noise = (
+        "Demo profile — not a real person.",
+        "AI demo profile — not a real person.",
+        "demo profile — not a real person",
+        "(demo simulation)",
+        "— not a real person",
+    )
+    for n in noise:
+        t = t.replace(n, "").strip()
+    return t.strip()
+
+
+def _demo_outbound_min_gap_seconds() -> float:
+    return float(max(2, int(getattr(settings, "DEMO_BOT_OUTBOUND_MIN_INTERVAL_SECONDS", 4) or 4)))
+
+
+def _throttle_or_defer_demo_outbound(
+    db: Session, profile: Profile, *, demo_uid: int, partner_id: int, mode: str, trigger_message_id: int | None
+) -> bool:
+    """If the same pair just received a bot line, defer delivery slightly (prevents double-fire)."""
+    if get_redis is None:
+        return True
+    try:
+        r = get_redis()
+        key = f"demo:bot:ts:{int(demo_uid)}:{int(partner_id)}"
+        now = time.time()
+        gap = _demo_outbound_min_gap_seconds()
+        raw = r.get(key)
+        if raw:
+            try:
+                if now - float(raw) < gap:
+                    defer = min(5.0, max(1.5, gap - (now - float(raw))))
+                    _set_pending(profile, int(partner_id), str(mode), _utcnow() + timedelta(seconds=defer), trigger_message_id=trigger_message_id)
+                    db.add(profile)
+                    db.commit()
+                    return False
+            except Exception:
+                pass
+        r.setex(key, 180, str(now))
+        return True
+    except Exception:
+        return True
 
 
 def _utcnow() -> datetime:
@@ -596,7 +651,7 @@ def _deliver_pending(db: Session, profile: Profile, demo_user: User) -> None:
         db.add(profile)
         db.commit()
         return
-    if _real_user_has_active_real_chat(db, int(partner_id)):
+    if bool(getattr(settings, "DEMO_PAUSE_AUTO_DEMO_IF_REAL_CHAT", False)) and _real_user_has_active_real_chat(db, int(partner_id)):
         _clear_pending(profile)
         db.add(profile)
         db.commit()
@@ -606,6 +661,15 @@ def _deliver_pending(db: Session, profile: Profile, demo_user: User) -> None:
         _clear_pending(profile)
         db.add(profile)
         db.commit()
+        return
+    if not _throttle_or_defer_demo_outbound(
+        db,
+        profile,
+        demo_uid=int(demo_user.id),
+        partner_id=int(partner_id),
+        mode=mode,
+        trigger_message_id=trigger_message_id,
+    ):
         return
     # If user already wrote before first opener fired, cancel scheduled opener.
     if mode == "first_match":
@@ -647,7 +711,7 @@ def _deliver_pending(db: Session, profile: Profile, demo_user: User) -> None:
         direct = AIOrchestrator.generate_demo_reply(
             speaker_profile=profile,
             partner_profile=partner_profile,
-            last_user_message=last_inbound or "",
+            user_message=last_inbound or "",
             ui_locale=target_lang,
         )
         if direct:
@@ -704,7 +768,7 @@ def _deliver_pending(db: Session, profile: Profile, demo_user: User) -> None:
     if mode in {"first_match", "opener"} and (_is_generic_first_line(content) or len((content or "").strip()) < 14):
         content = _contextual_first_hook(profile, partner_profile, target_lang)
         source = "context_fallback"
-    content = (content or "")[:4000]
+    content = _sanitize_demo_bot_reply_text(str(content or ""))[:4000]
     if not content.strip():
         _clear_pending(profile)
         db.add(profile)
@@ -838,12 +902,11 @@ def note_real_user_message_to_demo(db: Session, demo_user_id: int, real_user_id:
     demo_u = db.query(User).filter(User.id == demo_user_id).first()
     if not prof or not demo_u or not prof.is_demo_profile:
         return
-    if _real_user_has_active_real_chat(db, int(real_user_id)):
+    if bool(getattr(settings, "DEMO_PAUSE_AUTO_DEMO_IF_REAL_CHAT", False)) and _real_user_has_active_real_chat(db, int(real_user_id)):
         return
     ensure_demo_personality_json(prof)
     now = _utcnow()
-    if prof.demo_reply_scheduled_at and _aware_utc(prof.demo_reply_scheduled_at) > now:
-        return
+    # Always reschedule so rapid messages collapse into one reply tied to the latest trigger id.
     pers = _load_personality(prof)
     rd_lo = int(pers.get("reply_delay_min", 5))
     rd_hi = int(pers.get("reply_delay_max", 25))
@@ -905,7 +968,7 @@ def schedule_demo_first_message_maybe(db: Session, demo_user_id: int, real_user_
         return
     if not users_are_matched(db, int(demo_user_id), int(real_user_id)):
         return
-    if _real_user_has_active_real_chat(db, int(real_user_id)):
+    if bool(getattr(settings, "DEMO_PAUSE_AUTO_DEMO_IF_REAL_CHAT", False)) and _real_user_has_active_real_chat(db, int(real_user_id)):
         return
     ensure_demo_personality_json(prof)
     if prof.demo_reply_scheduled_at and _aware_utc(prof.demo_reply_scheduled_at) > _utcnow():
@@ -938,7 +1001,7 @@ def schedule_demo_first_message_maybe(db: Session, demo_user_id: int, real_user_
 def _maybe_revive_thread(db: Session, profile: Profile, demo_uid: int, real_uid: int) -> None:
     if not _pair_auto_demo_allowed(db, int(demo_uid), int(real_uid)):
         return
-    if _real_user_has_active_real_chat(db, int(real_uid)):
+    if bool(getattr(settings, "DEMO_PAUSE_AUTO_DEMO_IF_REAL_CHAT", False)) and _real_user_has_active_real_chat(db, int(real_uid)):
         return
     if _waiting_for_user_response(db, int(demo_uid), int(real_uid)):
         return
@@ -991,7 +1054,7 @@ def _random_planned_action(db: Session, profile: Profile, demo_uid: int) -> None
     real_uid = random.choice(partners)
     if not _pair_auto_demo_allowed(db, int(demo_uid), int(real_uid)):
         return
-    if _real_user_has_active_real_chat(db, int(real_uid)):
+    if bool(getattr(settings, "DEMO_PAUSE_AUTO_DEMO_IF_REAL_CHAT", False)) and _real_user_has_active_real_chat(db, int(real_uid)):
         return
     if _waiting_for_user_response(db, int(demo_uid), int(real_uid)):
         return

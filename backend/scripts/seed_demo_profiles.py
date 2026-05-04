@@ -19,6 +19,7 @@ Docker (compose mounts ./frontend → /app/frontend so the catalog is visible):
 
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -35,6 +36,14 @@ from app.services.demo_mode import (  # noqa: E402
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Seed demo profiles from demo_profiles.json")
+    parser.add_argument(
+        "--upsert-only",
+        action="store_true",
+        help="Skip purge; upsert catalog rows only (idempotent redeploy, keeps existing demo user ids).",
+    )
+    args = parser.parse_args()
+
     path = demo_profiles_json_path()
     print(f"Catalog path: {path}")
     if not path.is_file():
@@ -42,13 +51,16 @@ def main() -> None:
         sys.exit(1)
     db = SessionLocal()
     try:
-        purged = purge_all_demo_users(db)
-        print(
-            "Purge demo users:",
-            f"removed_users={purged.get('removed_users', 0)}",
-            f"messages_deleted={purged.get('messages_deleted', 0)}",
-            f"matches_deleted={purged.get('matches_deleted', 0)}",
-        )
+        if args.upsert_only:
+            print("Upsert-only mode: skipping purge")
+        else:
+            purged = purge_all_demo_users(db)
+            print(
+                "Purge demo users:",
+                f"removed_users={purged.get('removed_users', 0)}",
+                f"messages_deleted={purged.get('messages_deleted', 0)}",
+                f"matches_deleted={purged.get('matches_deleted', 0)}",
+            )
         stats = sync_demo_profiles_from_catalog(db)
         if not stats.get("ok"):
             sys.exit(2)
