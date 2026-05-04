@@ -380,7 +380,7 @@ export function ChatMessageList({
     if (lastMessageId && lastAutoScrolledMessageIdRef.current === lastMessageId) return;
     lastAutoScrolledMessageIdRef.current = lastMessageId;
     requestAnimationFrame(() => {
-      bottomAnchorRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+      bottomAnchorRef.current?.scrollIntoView({ block: "end", behavior: "auto" });
     });
   }, [showLoadingSkeleton, messages]);
 
@@ -389,7 +389,7 @@ export function ChatMessageList({
     const scroller = scrollerRef.current;
     if (!scroller || !isNearBottom(scroller)) return;
     requestAnimationFrame(() => {
-      bottomAnchorRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+      bottomAnchorRef.current?.scrollIntoView({ block: "end", behavior: "auto" });
     });
   }, [showLoadingSkeleton, showPartnerTyping]);
 

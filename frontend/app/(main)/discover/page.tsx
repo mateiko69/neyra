@@ -955,13 +955,12 @@ export default function DiscoverPage() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg === "paywall.boost_requires_premium") {
-        if (!hasValueMoment()) {
-          void trackAnalyticsEvent("paywall_deferred", { surface: "discover_boost_gate", reason: "no_value_moment" });
-          setToast(t("discover.paywall.deferredToast"));
-          return;
-        }
-        void trackAnalyticsEvent("paywall_shown", { surface: "discover_toast_soft", source: "discover_boost_requires_premium" });
+        void trackAnalyticsEvent("paywall_shown", { surface: "discover_boost", source: "boost_requires_premium" });
+        router.push("/premium?source=discover_boost");
         setToast(t("monetization.discover.softHint"));
+      } else {
+        void trackAnalyticsEvent("boost_activate_failed", { surface: "discover", error: msg.slice(0, 120) });
+        setToast(t("common.tryAgain"));
       }
     } finally {
       setBusy(false);
@@ -1395,15 +1394,12 @@ export default function DiscoverPage() {
                 />
 
                 <div
+                  className="discover-card__copy"
                   style={{
                     position: "absolute",
                     left: 14,
                     right: 14,
                     bottom: 14,
-                    maxHeight: "48%",
-                    overflowY: "auto",
-                    paddingBottom: 4,
-                    boxSizing: "border-box",
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -1411,7 +1407,9 @@ export default function DiscoverPage() {
                       {String(topCard.display_name || t("discover.card.profileFallback"))}
                       {topCard.age != null ? `, ${String(topCard.age)}` : ""}
                     </div>
-                    {badges?.verified ? <VerifiedBadge size="md" title={t("discover.badge.verified")} /> : null}
+                    {badges?.verified && !topCard.discover_missing_photo && Boolean(mainPhoto) ? (
+                      <VerifiedBadge size="md" title={t("discover.badge.verified")} />
+                    ) : null}
                   </div>
                   {topCard.city ? (
                     <div className="subtitle" style={{ marginTop: 6, opacity: 0.88 }}>
@@ -1433,15 +1431,11 @@ export default function DiscoverPage() {
 
                   {bioExcerpt ? (
                     <div
-                      className="caption"
+                      className="caption discover-card__bio"
                       style={{
                         marginTop: 10,
                         opacity: 0.92,
                         lineHeight: 1.45,
-                        display: "-webkit-box",
-                        WebkitLineClamp: 3,
-                        WebkitBoxOrient: "vertical" as const,
-                        overflow: "hidden",
                       }}
                     >
                       {bioExcerpt}
@@ -1521,7 +1515,7 @@ export default function DiscoverPage() {
                   type="button"
                   variant="secondary"
                   className="discover-action-tap discover-action-tap--sub"
-                  disabled={busy}
+                  disabled={busy || swipeInteractionLocked || !topCardValid}
                   onClick={() => void activateBoost()}
                 >
                   {t("discover.actions.boostProfile")}
@@ -1548,7 +1542,13 @@ export default function DiscoverPage() {
               >
                 ❌ {t("discover.actions.pass")}
               </Button>
-              <Button type="button" variant="secondary" className="discover-action-tap" disabled={busy} onClick={() => void activateBoost()}>
+              <Button
+                type="button"
+                variant="secondary"
+                className="discover-action-tap"
+                disabled={busy || swipeInteractionLocked || !topCardValid}
+                onClick={() => void activateBoost()}
+              >
                 ⭐ {t("discover.actions.boostProfile")}
               </Button>
               <Button

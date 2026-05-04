@@ -2226,6 +2226,11 @@ html[data-i18n-debug="true"] {
 }
 
 @media (max-width: 1023px) {
+  .shell-main {
+    min-height: 100dvh;
+    padding: max(12px, env(safe-area-inset-top, 0px)) 16px calc(96px + env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
+  }
   .shell-nav-center { display: none; }
   .shell-top-inner {
     grid-template-columns: 1fr auto;
@@ -2312,7 +2317,7 @@ html[data-i18n-debug="true"] {
     flex-direction: column;
     flex: 1 1 auto;
     min-height: 0;
-    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    max-height: calc(100dvh - 72px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   }
 
   .shell-main:has(.chat-page-shell) .page-canvas {
@@ -2573,6 +2578,64 @@ html[data-i18n-debug="true"] {
   isolation: isolate;
 }
 
+/* Thread column order: on small screens the message list sits above the AI/suggestion rail so the scroller keeps height. */
+.chat-thread-module > .chat-thread-topbar {
+  order: 0;
+  flex-shrink: 0;
+}
+.chat-thread-module > .chat-thread-lead {
+  order: 1;
+  flex-shrink: 0;
+}
+.chat-thread-module > .chat-thread-messages-slot {
+  order: 2;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.chat-thread-module > .chat-thread-opener-status {
+  order: 3;
+  flex-shrink: 0;
+}
+.chat-thread-module > .chat-thread-ai-helpers {
+  order: 4;
+  flex-shrink: 0;
+  min-height: 0;
+}
+.chat-thread-module > .chat-thread-tail {
+  order: 5;
+  flex-shrink: 0;
+}
+.chat-thread-module > .chat-composer-stack {
+  order: 6;
+  flex-shrink: 0;
+}
+
+@media (min-width: 1024px) {
+  .chat-thread-module > .chat-thread-messages-slot {
+    order: 4;
+  }
+  .chat-thread-module > .chat-thread-opener-status {
+    order: 3;
+  }
+  .chat-thread-module > .chat-thread-ai-helpers {
+    order: 2;
+  }
+}
+
+@media (max-width: 1023px) {
+  .chat-thread-module > .chat-thread-ai-helpers {
+    max-height: min(44vh, 400px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    margin-top: 2px;
+    padding-top: 4px;
+  }
+}
+
 .chat-header {
   display: flex;
   align-items: center;
@@ -2681,6 +2744,12 @@ html[data-i18n-debug="true"] {
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+}
+
+@media (max-width: 1023px) {
+  .chat-thread-scroller {
+    scroll-behavior: auto;
+  }
 }
 
 .chat-thread-inline-hint {
@@ -5687,12 +5756,24 @@ html[data-i18n-debug="true"] {
   opacity: 0.95;
 }
 
+/* Profile text panel: scroll inside the card; keep above bottom actions + nav (stage height is capped on mobile). */
+.discover-card__copy {
+  max-height: min(56dvh, 58%);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
 /* Mobile: cap card stack height so it never sits under the bottom nav + two-row action bar (shell-main already pads bottom). */
 @media (max-width: 720px) {
   .discover-swipe-stage {
     width: min(92vw, 520px);
     aspect-ratio: 3 / 4;
-    max-height: min(62dvh, calc(100dvh - 320px));
+    max-height: min(58dvh, calc(100dvh - 300px));
     height: auto;
     margin-left: auto;
     margin-right: auto;

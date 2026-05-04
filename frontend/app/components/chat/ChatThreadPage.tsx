@@ -1829,78 +1829,120 @@ export function ChatThreadPage() {
           </div>
         </div>
 
-        {trialBanner ? (
-          <div
-            style={{
-              marginTop: 10,
-              marginBottom: 10,
-              padding: "10px 12px",
-              borderRadius: 14,
-              border: "1px solid rgba(180, 120, 255, 0.28)",
-              background: "rgba(124, 92, 255, 0.10)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-            }}
-          >
-            <div style={{ display: "grid", gap: 2 }}>
-              <div style={{ fontWeight: 850 }}>{trialBanner.text}</div>
-              {trialBanner.sub ? <div className="caption" style={{ opacity: 0.85 }}>{trialBanner.sub}</div> : null}
-            </div>
-            {trialBanner.kind === "expired" ? (
-              <Link
-                href="/subscription"
-                className="btn btn-primary"
-                style={{ whiteSpace: "nowrap" }}
-                onClick={() =>
-                  void trackAnalyticsEvent("paywall_cta_clicked", {
-                    cta_label: "continue",
-                    surface: "chat_trial_expired_banner",
-                  })
-                }
+        {(trialBanner || incomingVideoUrl) ? (
+          <div className="chat-thread-lead">
+            {trialBanner ? (
+              <div
+                style={{
+                  marginTop: 10,
+                  marginBottom: 10,
+                  padding: "10px 12px",
+                  borderRadius: 14,
+                  border: "1px solid rgba(180, 120, 255, 0.28)",
+                  background: "rgba(124, 92, 255, 0.10)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                }}
               >
-                {t("common.continue")}
-              </Link>
+                <div style={{ display: "grid", gap: 2 }}>
+                  <div style={{ fontWeight: 850 }}>{trialBanner.text}</div>
+                  {trialBanner.sub ? <div className="caption" style={{ opacity: 0.85 }}>{trialBanner.sub}</div> : null}
+                </div>
+                {trialBanner.kind === "expired" ? (
+                  <Link
+                    href="/subscription"
+                    className="btn btn-primary"
+                    style={{ whiteSpace: "nowrap" }}
+                    onClick={() =>
+                      void trackAnalyticsEvent("paywall_cta_clicked", {
+                        cta_label: "continue",
+                        surface: "chat_trial_expired_banner",
+                      })
+                    }
+                  >
+                    {t("common.continue")}
+                  </Link>
+                ) : null}
+              </div>
+            ) : null}
+
+            {incomingVideoUrl ? (
+              <div
+                className="surface surface--inset"
+                style={{
+                  marginTop: 10,
+                  marginBottom: 10,
+                  padding: "10px 12px",
+                  borderRadius: 14,
+                  border: "1px solid rgba(255, 255, 255, 0.10)",
+                  background: "rgba(255, 255, 255, 0.04)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                }}
+              >
+                <div style={{ display: "grid", gap: 2 }}>
+                  <div style={{ fontWeight: 900 }}>{t("chat.videoCall.incomingTitle")}</div>
+                  <div className="caption" style={{ opacity: 0.85 }}>
+                    {incomingVideoUrl}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => {
+                    const roomId = incomingVideoUrl.split("/").filter(Boolean).slice(-1)[0] || "";
+                    router.push(`/video/${encodeURIComponent(roomId)}?url=${encodeURIComponent(incomingVideoUrl)}`);
+                  }}
+                >
+                  {t("chat.videoCall.join")}
+                </button>
+              </div>
             ) : null}
           </div>
         ) : null}
 
-        {incomingVideoUrl ? (
-          <div
-            className="surface surface--inset"
-            style={{
-              marginTop: 10,
-              marginBottom: 10,
-              padding: "10px 12px",
-              borderRadius: 14,
-              border: "1px solid rgba(255, 255, 255, 0.10)",
-              background: "rgba(255, 255, 255, 0.04)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-            }}
-          >
-            <div style={{ display: "grid", gap: 2 }}>
-              <div style={{ fontWeight: 900 }}>{t("chat.videoCall.incomingTitle")}</div>
-              <div className="caption" style={{ opacity: 0.85 }}>
-                {incomingVideoUrl}
-              </div>
-            </div>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => {
-                const roomId = incomingVideoUrl.split("/").filter(Boolean).slice(-1)[0] || "";
-                router.push(`/video/${encodeURIComponent(roomId)}?url=${encodeURIComponent(incomingVideoUrl)}`);
-              }}
-            >
-              {t("chat.videoCall.join")}
-            </button>
+        <div className="chat-thread-messages-slot">
+        <ChatMessageList
+          key={c.partnerUserId}
+          showLoadingSkeleton={c.showMessageSkeleton}
+          showPartnerTyping={c.partnerTyping}
+          partnerTypingAriaLabel={
+            isDemoChat
+              ? t("chat.list.partnerTyping", { name: t("demo.profile.disclaimer_short") })
+              : undefined
+          }
+          messages={c.messages}
+          reactionPendingByMessageId={c.reactionPendingByMessageId}
+          currentUserId={c.viewer?.userId ?? null}
+          partnerUserId={c.partnerUserId}
+          partnerName={c.displayNameForThread || t("chat.thread.matchFallback")}
+          partnerAvatarUrl={c.partnerAvatarUrl}
+          myName={c.myName}
+          myAvatarUrl={c.myAvatarUrl}
+          emptyState={threadLoadErrorEmptyState}
+          onRetryMessage={(tempId) => void c.actions.retrySend(tempId)}
+          onRetryVoiceMessage={(tempId) => void c.actions.retryVoice(tempId)}
+          onReplyMessage={(message) => c.setReplyTo(message)}
+          onReactMessage={(id, emoji) => void c.actions.react(id, emoji)}
+          inlineUnderLastPartnerMessage={inlineReplySuggestionsUnderLastMessage}
+          hasMoreOlder={c.threadHasMore}
+          olderLoading={c.olderLoading}
+          onLoadOlder={() => void c.actions.loadOlderMessages()}
+          partnerReplyGlowId={partnerReplyGlowId}
+        />
+        </div>
+
+        {c.openerDrafting ? (
+          <div className="chat-thread-opener-status caption" style={{ padding: "8px 18px", opacity: 0.85 }}>
+            {t("chat.thread.openerDrafting")}
           </div>
         ) : null}
 
+        <div className="chat-thread-ai-helpers">
         {showFirstMessageSuggestion && c.partnerUserId != null ? (
           <div style={{ padding: "14px 18px 0" }}>
             <ChatFirstMessageSuggestion
@@ -1966,7 +2008,6 @@ export function ChatThreadPage() {
                 disabled={!c.canCompose || c.sending || Boolean(c.blockedThread) || !c.partnerUserId}
                 onOpenAi={() => setAiOpen(true)}
               />
-              {/* Meeting escalation: single surface — moment hint + full card from /ai/meeting-readiness (show_moment_hint + meeting_options). */}
               <ChatMeetingSuggestInline
                 partnerUserId={c.partnerUserId}
                 viewerUserId={c.viewer?.userId ?? null}
@@ -2017,42 +2058,9 @@ export function ChatThreadPage() {
             </div>
           </>
         ) : null}
+        </div>
 
-        {c.openerDrafting ? (
-          <div className="caption" style={{ padding: "8px 18px", opacity: 0.85 }}>
-            {t("chat.thread.openerDrafting")}
-          </div>
-        ) : null}
-
-        <ChatMessageList
-          key={c.partnerUserId}
-          showLoadingSkeleton={c.showMessageSkeleton}
-          showPartnerTyping={c.partnerTyping}
-          partnerTypingAriaLabel={
-            isDemoChat
-              ? t("chat.list.partnerTyping", { name: t("demo.profile.disclaimer_short") })
-              : undefined
-          }
-          messages={c.messages}
-          reactionPendingByMessageId={c.reactionPendingByMessageId}
-          currentUserId={c.viewer?.userId ?? null}
-          partnerUserId={c.partnerUserId}
-          partnerName={c.displayNameForThread || t("chat.thread.matchFallback")}
-          partnerAvatarUrl={c.partnerAvatarUrl}
-          myName={c.myName}
-          myAvatarUrl={c.myAvatarUrl}
-          emptyState={threadLoadErrorEmptyState}
-          onRetryMessage={(tempId) => void c.actions.retrySend(tempId)}
-          onRetryVoiceMessage={(tempId) => void c.actions.retryVoice(tempId)}
-          onReplyMessage={(message) => c.setReplyTo(message)}
-          onReactMessage={(id, emoji) => void c.actions.react(id, emoji)}
-          inlineUnderLastPartnerMessage={inlineReplySuggestionsUnderLastMessage}
-          hasMoreOlder={c.threadHasMore}
-          olderLoading={c.olderLoading}
-          onLoadOlder={() => void c.actions.loadOlderMessages()}
-          partnerReplyGlowId={partnerReplyGlowId}
-        />
-
+        <div className="chat-thread-tail">
         {goodConversation ? (
           <div style={{ padding: "0 18px", marginTop: 10, display: "grid", gap: 8 }}>
             <Chip>🔥 {t("chat.thread.goodConversation")}</Chip>
@@ -2251,6 +2259,7 @@ export function ChatThreadPage() {
             onDismiss={() => setViralSharePrompt(null)}
           />
         ) : null}
+        </div>
 
         <div className="chat-composer-stack">
           {sendMicroFeedbackKey > 0 ? (

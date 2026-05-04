@@ -88,6 +88,13 @@ def _demo_email_catalog_id(catalog_id: str) -> str:
     return f"demo+{str(catalog_id).strip()}@neyra.local"
 
 
+_DEMO_CATALOG_AVATAR_COLORS: tuple[tuple[str, str], ...] = (
+    ("#6F5CFF", "#F4D35E"),
+    ("#168AAD", "#FFD166"),
+    ("#EF476F", "#06D6A0"),
+)
+
+
 def _apply_demo_trust_and_premium(user: User, profile: Profile, index: int, now: datetime) -> None:
     """Deterministic mix for feeds: ~10% ID verified, ~30% photo verified, ~20% premium."""
     r = (index * 17 + 23) % 100
@@ -180,7 +187,8 @@ def _apply_catalog_demo_row(db: Session, entry: dict, index: int, now: datetime,
         ensure_demo_personality_json(profile)
 
     photo = str(entry.get("photo_main_path") or "").strip()
-    profile.photo_urls = photo if photo else profile.photo_urls
+    if photo:
+        profile.photo_urls = photo
 
     profile.display_name = str(entry.get("display_name") or profile.display_name or "Demo")
     profile.age = int(entry.get("age") or profile.age or 25)
@@ -201,6 +209,13 @@ def _apply_catalog_demo_row(db: Session, entry: dict, index: int, now: datetime,
     if parts:
         profile.photo_urls = ",".join(
             normalize_photo_url(p, demo_profile_gender=profile.gender) for p in parts
+        )
+    else:
+        profile.photo_urls = _photo_urls_for_spec(
+            {
+                "display_name": str(entry.get("display_name") or profile.display_name or "Demo"),
+                "colors": _DEMO_CATALOG_AVATAR_COLORS[index % len(_DEMO_CATALOG_AVATAR_COLORS)],
+            }
         )
     _apply_demo_trust_and_premium(user, profile, index, now)
     db.add(user)
