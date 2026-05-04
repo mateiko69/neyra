@@ -126,7 +126,7 @@ export function VerificationFlowModal({ open, onClose, onComplete }: Props) {
         const raw = await apiUpload("/verify/submit", fd, { metaReason: "verify-submit", signal });
         const res = raw as SubmitResponse;
         const st = String(res.status || res.verification_status || "").toLowerCase();
-        if (st === "approved") {
+        if (st === "approved" || st === "verified") {
           setPhase("success");
           stopStream();
           window.setTimeout(() => {
@@ -135,7 +135,7 @@ export function VerificationFlowModal({ open, onClose, onComplete }: Props) {
           }, 2200);
           return;
         }
-        if (st === "pending") {
+        if (st === "pending" || st === "pending_manual_review") {
           setPhase("pending");
           stopStream();
           window.setTimeout(() => {

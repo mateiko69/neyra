@@ -348,7 +348,8 @@ export default function ProfilePage() {
 
   const vStatus = String(profile?.verification_status || "").toLowerCase();
   const verified = Boolean(profile?.is_verified ?? profile?.verified) || vStatus === "approved" || vStatus === "verified";
-  const verificationPending = vStatus === "pending";
+  const verificationPending = vStatus === "pending" || vStatus === "pending_manual_review";
+  const verificationManualReview = vStatus === "pending_manual_review";
   const verificationRejected = vStatus === "rejected";
   const showVerifiedBadge = verified && profile?.verification_badge_visible !== false;
   const isPremium = Boolean(profile?.is_premium);
@@ -584,11 +585,14 @@ export default function ProfilePage() {
               ) : verificationPending ? (
                 <div className="profile-verification-card__pending">
                   <div className="h2" style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>
-                    {t("profile.verification.card.pendingTitle")}
+                    {verificationManualReview ? t("profile.verification.card.pendingManualTitle") : t("profile.verification.card.pendingTitle")}
                   </div>
                   <p className="caption" style={{ margin: 0, opacity: 0.88, lineHeight: 1.45 }}>
-                    {t("profile.verification.card.pendingSub")}
+                    {verificationManualReview ? t("profile.verification.card.pendingManualSub") : t("profile.verification.card.pendingSub")}
                   </p>
+                  <Button type="button" variant="secondary" className="profile-verification-card__btn" onClick={() => setVerifyOpen(true)}>
+                    {t("profile.verification.card.ctaRetry")}
+                  </Button>
                 </div>
               ) : (
                 <div className="profile-verification-card__cta-block">

@@ -3,7 +3,7 @@
 `verification_status` is the source of truth for `is_verified`.
 Legacy DB values `approved` are treated as `verified` until migrations backfill.
 
-API responses use consumer-friendly tokens: pending | approved | rejected | none
+API responses use consumer-friendly tokens: pending | pending_manual_review | approved | rejected | none
 (DB keeps `verified` for approved users).
 """
 
@@ -20,7 +20,7 @@ def normalize_verification_status(raw: str | None) -> str:
         return "verified"
     if s == "pending_review":
         return "pending"
-    if s in ("none", "pending", "verified", "rejected"):
+    if s in ("none", "pending", "pending_manual_review", "verified", "rejected"):
         return s
     return "none"
 
@@ -40,7 +40,7 @@ def should_show_verified_badge(profile: Profile | None) -> bool:
 
 
 def verification_status_for_api(profile: Profile | None) -> str:
-    """UI + mobile: none | pending | approved | rejected."""
+    """UI + mobile: none | pending | pending_manual_review | approved | rejected."""
     if not profile:
         return "none"
     raw = normalize_verification_status(getattr(profile, "verification_status", None))
@@ -48,6 +48,8 @@ def verification_status_for_api(profile: Profile | None) -> str:
         return "approved"
     if raw == "pending":
         return "pending"
+    if raw == "pending_manual_review":
+        return "pending_manual_review"
     if raw == "rejected":
         return "rejected"
     return "none"

@@ -5748,6 +5748,31 @@ html[data-i18n-debug="true"] {
   opacity: 0.95;
 }
 
+.discover-action-tap--boost {
+  background: linear-gradient(135deg, rgba(250, 196, 80, 0.92), rgba(124, 92, 255, 0.92)) !important;
+  border: 1px solid rgba(255, 228, 142, 0.42) !important;
+  color: rgba(16, 14, 10, 0.95) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 245, 210, 0.25) inset,
+    0 16px 34px rgba(124, 92, 255, 0.26);
+}
+
+.discover-action-tap--ignore {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.discover-actions-mvp {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.discover-action-tap--mvp {
+  min-height: 56px;
+  font-size: 15px !important;
+}
+
 /* Profile text panel: scroll inside the card; keep above bottom actions + nav (stage height is capped on mobile). */
 .discover-card__copy {
   max-height: min(56dvh, 58%);
@@ -9108,6 +9133,19 @@ button.profile-chip:not(:disabled) {
 
   .discover-mobile-card-mvp__img {
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .discover-action-tap--like.discover-action-tap--mvp {
+    background: linear-gradient(135deg, rgba(255, 91, 140, 0.95), rgba(124, 92, 255, 0.92)) !important;
+    border: 1px solid rgba(255, 164, 198, 0.42) !important;
+    box-shadow:
+      0 0 0 1px rgba(255, 195, 219, 0.22) inset,
+      0 18px 34px rgba(199, 78, 139, 0.32);
+  }
+
+  .discover-action-tap--pass.discover-action-tap--mvp {
+    background: linear-gradient(180deg, rgba(28, 32, 46, 0.92), rgba(16, 18, 26, 0.94)) !important;
+    border: 1px solid rgba(255, 255, 255, 0.16) !important;
   }
 }
 

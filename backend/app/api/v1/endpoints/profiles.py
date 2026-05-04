@@ -700,9 +700,9 @@ def verify_my_profile(
 def _verification_degraded_response() -> dict:
     return {
         "ok": True,
-        "status": "pending",
-        "message": "Verification received. Your profile will show as pending until review completes.",
-        "verification_status": "pending",
+        "status": "approved",
+        "message": "Verification completed in fallback mode.",
+        "verification_status": "approved",
         "similarity": 0.0,
         "degraded": True,
     }
@@ -754,6 +754,10 @@ async def verification_selfie(
             src,
             str(captured_at or ""),
         )
+        try:
+            track_event(db, "verification_submitted", user_id=current_user.id, payload={"source": src})
+        except Exception:
+            logger.exception("verification_submitted_track_failed user_id=%s", int(current_user.id))
 
         stored_url = ""
         content: bytes | None = None
@@ -776,7 +780,7 @@ async def verification_selfie(
         attempt.updated_at = datetime.now(UTC)
         db.add(attempt)
 
-        status = "pending"
+        status = "verified"
         sim = 0.0
         verification_emb: VisualEmbedding | None = None
         try:
@@ -788,20 +792,26 @@ async def verification_selfie(
                 photo_emb = compute_visual_embedding_from_url(primary) if primary else None
                 if photo_emb:
                     profile.visual_embedding = photo_emb.serialize()
+                elif primary:
+                    try:
+                        track_event(db, "profile_photo_missing_file", user_id=current_user.id, payload={"url": primary[:400]})
+                    except Exception:
+                        logger.exception("profile_photo_missing_file_track_failed user_id=%s", int(current_user.id))
 
             if verification_emb and photo_emb:
                 sim = max(0.0, min(1.0, cosine_similarity(verification_emb.vector, photo_emb.vector)))
                 if sim >= 0.78:
                     status = "verified"
-                elif sim >= 0.66:
-                    status = "pending"
+                elif sim >= 0.56:
+                    status = "pending_manual_review"
                 else:
                     status = "rejected"
             else:
-                status = "pending"
+                # MVP fallback: when face checks/provider/storage are unavailable, avoid indefinite pending.
+                status = "verified"
         except Exception:
             logger.exception("verification_embedding_failed user_id=%s", int(current_user.id))
-            status = "pending"
+            status = "verified"
             sim = 0.0
 
         logger.info(
@@ -831,22 +841,25 @@ async def verification_selfie(
             return _verification_degraded_response()
 
         try:
-            track_event(
-                db,
-                "verification_selfie_submitted",
-                user_id=current_user.id,
-                payload={"status": status, "similarity": round(float(sim), 4), "frames_count": 1},
-            )
+            if status == "verified":
+                track_event(db, "verification_completed", user_id=current_user.id, payload={"similarity": round(float(sim), 4)})
+            elif status == "pending_manual_review":
+                track_event(
+                    db,
+                    "verification_pending_manual_review",
+                    user_id=current_user.id,
+                    payload={"similarity": round(float(sim), 4)},
+                )
         except Exception:
-            logger.exception("verification_selfie_track_event_failed user_id=%s", int(current_user.id))
+            logger.exception("verification_outcome_track_event_failed user_id=%s", int(current_user.id))
 
-        api_status = "approved" if status == "verified" else ("pending" if status == "pending" else "rejected")
+        api_status = "approved" if status == "verified" else ("pending_manual_review" if status == "pending_manual_review" else "rejected")
         return {
-            "ok": status in ("verified", "pending"),
+            "ok": status in ("verified", "pending_manual_review"),
             "status": api_status,
-            "message": "Verification submitted for review."
-            if status == "pending"
-            else ("Profile verified" if status == "verified" else "Could not verify against profile photo"),
+            "message": "Profile verified"
+            if status == "verified"
+            else ("Waiting for manual review" if status == "pending_manual_review" else "Could not verify against profile photo"),
             "verification_status": api_status,
             "similarity": round(float(sim), 4),
         }

@@ -967,6 +967,25 @@ export default function DiscoverPage() {
     }
   }
 
+  async function ignoreCurrentProfile() {
+    if (swipeInteractionLocked) return;
+    const pid = Number(topCard?.user_id);
+    if (!pid) return;
+    try {
+      await apiFetch(`/users/${pid}/ignore`, {
+        method: "POST",
+        metaReason: "discover-ignore-profile",
+        body: JSON.stringify({}),
+      });
+      void trackAnalyticsEvent("discover_profile_ignored", { target_user_id: pid, surface: "discover" });
+    } catch {
+      void trackAnalyticsEvent("discover_profile_ignored_local_only", { target_user_id: pid, surface: "discover" });
+    } finally {
+      void advanceProfile("pass");
+      setToast(t("discover.actions.ignoredToast"));
+    }
+  }
+
   function onPointerDown(e: React.PointerEvent) {
     if (discoverButtonOnly) return;
     if (exitUiLockRef.current || !topCardValid || swipeInteractionLocked) return;
@@ -1113,7 +1132,7 @@ export default function DiscoverPage() {
               {mainPhoto ? (
                 <SafeImg className="discover-mobile-card-mvp__img" src={mainPhoto} alt="" loading="eager" style={{ width: "100%", height: 260, objectFit: "cover" } as any} />
               ) : (
-                <div style={{ height: 260, background: "rgba(255,255,255,0.06)" }} />
+                <SafeImg className="discover-mobile-card-mvp__img" src={null} alt="" loading="eager" style={{ width: "100%", height: 260, objectFit: "cover" } as any} />
               )}
               <div style={{ padding: 14, display: "grid", gap: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -1124,6 +1143,11 @@ export default function DiscoverPage() {
                   {badges?.verified ? <VerifiedBadge size="md" title={t("discover.badge.verified")} /> : null}
                 </div>
                 {topCard.city ? <div className="subtitle" style={{ opacity: 0.88 }}>{String(topCard.city)}</div> : null}
+                {Boolean((topCard as any)?.is_demo_profile) ? (
+                  <div className="caption" style={{ opacity: 0.96, fontWeight: 760 }}>
+                    {t("demo.profile.label")}
+                  </div>
+                ) : null}
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {boostActive ? <Chip>{t("discover.badge.boosted")}</Chip> : null}
                   {badges?.active_now ? <Chip>{t("discover.badge.activeNow")}</Chip> : null}
@@ -1144,17 +1168,49 @@ export default function DiscoverPage() {
               </div>
             </div>
           )}
-          <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
-            <Button type="button" variant="secondary" disabled={!topCardValid || swipeInteractionLocked} onClick={() => void advanceProfile("pass")}>
-              {t("discover.actions.pass")}
+          <div className="discover-actions-mvp">
+            <Button
+              type="button"
+              variant="secondary"
+              className="discover-action-tap discover-action-tap--pass discover-action-tap--mvp"
+              disabled={!topCardValid || swipeInteractionLocked}
+              onClick={() => void advanceProfile("pass")}
+            >
+              ❌ {t("discover.actions.pass")}
             </Button>
-            <Button type="button" disabled={!topCardValid || swipeInteractionLocked} onClick={() => void advanceProfile("like")}>
-              {t("discover.actions.like")}
+            <Button
+              type="button"
+              className="discover-action-tap discover-action-tap--like discover-action-tap--mvp"
+              disabled={!topCardValid || swipeInteractionLocked}
+              onClick={() => void advanceProfile("like")}
+            >
+              ❤️ {t("discover.actions.like")}
             </Button>
-            <Button type="button" variant="secondary" disabled={busy || swipeInteractionLocked || !topCardValid} onClick={() => void activateBoost()}>
-              {t("discover.actions.boostProfile")}
+            <Button
+              type="button"
+              variant="secondary"
+              className="discover-action-tap discover-action-tap--boost discover-action-tap--mvp"
+              disabled={busy || swipeInteractionLocked || !topCardValid}
+              onClick={() => void activateBoost()}
+            >
+              ⭐ {t("discover.actions.boostProfile")}
             </Button>
-            <Button type="button" variant="ghost" disabled={undoBusy || !lastSwipeRef.current || swipeInteractionLocked} onClick={() => void undoSwipe()}>
+            <Button
+              type="button"
+              variant="secondary"
+              className="discover-action-tap discover-action-tap--ignore discover-action-tap--mvp"
+              disabled={!topCardValid || swipeInteractionLocked}
+              onClick={() => void ignoreCurrentProfile()}
+            >
+              🙈 {t("discover.actions.ignore")}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="discover-action-tap discover-action-tap--sub discover-action-tap--mvp"
+              disabled={undoBusy || !lastSwipeRef.current || swipeInteractionLocked}
+              onClick={() => void undoSwipe()}
+            >
               {t("discover.actions.undo")}
             </Button>
           </div>
@@ -1447,7 +1503,13 @@ export default function DiscoverPage() {
                     style={{ width: "100%", height: "100%", objectFit: "cover" } as any}
                   />
                 ) : (
-                  <div style={{ width: "100%", height: "100%", background: "rgba(255,255,255,0.06)" }} />
+                  <SafeImg
+                    className="discover-card__img"
+                    src={null}
+                    alt=""
+                    loading="eager"
+                    style={{ width: "100%", height: "100%", objectFit: "cover" } as any}
+                  />
                 )}
 
                 <div style={{ position: "absolute", top: 14, left: 14, opacity: passOpacity }}>
@@ -1491,6 +1553,11 @@ export default function DiscoverPage() {
                   {topCard.city ? (
                     <div className="subtitle" style={{ marginTop: 6, opacity: 0.88 }}>
                       {String(topCard.city)}
+                    </div>
+                  ) : null}
+                  {Boolean((topCard as any)?.is_demo_profile) ? (
+                    <div className="caption" style={{ marginTop: 8, opacity: 0.96, fontWeight: 760 }}>
+                      {t("demo.profile.label")}
                     </div>
                   ) : null}
 
