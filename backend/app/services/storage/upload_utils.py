@@ -125,17 +125,22 @@ def persist_user_image(user_id: int, ext: str, content: bytes) -> str:
 
 
 def persist_verification_selfie(user_id: int, ext: str, content: bytes) -> str:
+    """Persist verification frames; returns public URL or \"\" if storage is unavailable (embedding flow still runs)."""
     filename = f"verification/{user_id}_{uuid.uuid4().hex}.{ext}"
-    provider = get_storage_provider()
-    url = provider.save(filename, content)
-    log.info(
-        "stored verification selfie user_id=%s bytes=%s filename=%s public_url=%s",
-        user_id,
-        len(content),
-        filename,
-        url,
-    )
-    return url
+    try:
+        provider = get_storage_provider()
+        url = provider.save(filename, content)
+        log.info(
+            "stored verification selfie user_id=%s bytes=%s filename=%s public_url=%s",
+            user_id,
+            len(content),
+            filename,
+            url,
+        )
+        return url
+    except Exception:
+        log.warning("persist_verification_selfie failed user_id=%s", user_id, exc_info=True)
+        return ""
 
 
 def _audio_ext_for_mime(mime: str) -> str:

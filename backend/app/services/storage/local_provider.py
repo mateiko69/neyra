@@ -15,6 +15,7 @@ class LocalStorageProvider(StorageProvider):
         base = upload_dir
         base.mkdir(parents=True, exist_ok=True)
         target = base / filename
+        target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
         # Relative path so browsers resolve via NEXT_PUBLIC_BACKEND_URL / PUBLIC_BACKEND_URL (avoids wrong absolute host in Docker).
         return f"{public_prefix}/{filename}"

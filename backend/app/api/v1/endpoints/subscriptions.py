@@ -1,3 +1,4 @@
+import logging
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 
@@ -16,6 +17,7 @@ from app.services.monetization.subscription_sync import apply_subscription_mirro
 from app.services.payments.service import get_payments_provider
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/checkout")
@@ -70,8 +72,46 @@ def _ai_usage_today(db: Session, *, user_id: int, plan: str) -> dict:
     return {"used": used, "limit": limit, "unlimited": bool(ent.unlimited_ai)}
 
 
-@router.get("/me")
-def my_subscription(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def _ai_usage_today_safe(db: Session, *, user_id: int, plan: str) -> dict:
+    try:
+        return _ai_usage_today(db, user_id=user_id, plan=plan)
+    except Exception:
+        logger.warning("ai_usage_today failed user_id=%s", user_id, exc_info=True)
+        ent = entitlements_for_plan(plan)
+        limit: int | None = None
+        if not ent.unlimited_ai and ent.ai_reply_daily_cap is not None:
+            limit = int(ent.ai_reply_daily_cap)
+        return {"used": 0, "limit": limit, "unlimited": bool(ent.unlimited_ai)}
+
+
+def _subscription_expires_iso(exp: object | None) -> str | None:
+    if exp is None:
+        return None
+    try:
+        iso = getattr(exp, "isoformat", None)
+        if callable(iso):
+            return str(iso())
+    except Exception:
+        return None
+    return None
+
+
+def _subscription_me_safe_payload() -> dict:
+    plan = "free"
+    return {
+        "status": "inactive",
+        "plan_code": plan,
+        "billing_plan": plan,
+        "provider": str(getattr(settings, "PAYMENTS_PROVIDER", None) or "mock"),
+        "subscription_expires_at": None,
+        "entitlements": _ent_dict(plan),
+        "trial_active": False,
+        "trial_expires_at": None,
+        "ai_usage_today": {"used": 0, "limit": 8, "unlimited": False},
+    }
+
+
+def _build_my_subscription(current_user: User, db: Session) -> dict:
     try:
         if bool(getattr(settings, "DEV_FORCE_PREMIUM", False)) and str(getattr(settings, "ENV", "") or "").strip().lower() != "production":
             return {
@@ -129,9 +169,18 @@ def my_subscription(current_user: User = Depends(get_current_user), db: Session 
         "plan_code": plan,
         "billing_plan": billing_plan,
         "provider": prov,
-        "subscription_expires_at": exp.isoformat() if exp and hasattr(exp, "isoformat") else None,
+        "subscription_expires_at": _subscription_expires_iso(exp),
         "entitlements": _ent_dict(plan),
         "trial_active": trial_active_flag,
         "trial_expires_at": trial_expires_iso,
-        "ai_usage_today": _ai_usage_today(db, user_id=int(current_user.id), plan=plan),
+        "ai_usage_today": _ai_usage_today_safe(db, user_id=int(current_user.id), plan=plan),
     }
+
+
+@router.get("/me")
+def my_subscription(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        return _build_my_subscription(current_user, db)
+    except Exception:
+        logger.exception("subscriptions_me_failed user_id=%s", getattr(current_user, "id", None))
+        return _subscription_me_safe_payload()

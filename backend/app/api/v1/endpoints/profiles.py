@@ -768,7 +768,7 @@ async def verification_selfie(
             int(current_user.id),
             len(normalized_frames),
         )
-        raise HTTPException(status_code=500, detail=api_error("profile.verify.frames_process_failed")) from e
+        raise HTTPException(status_code=400, detail=api_error("profile.verify.frames_process_failed")) from e
 
     # Increment attempts.
     attempt.count = int(attempt.count or 0) + 1
@@ -861,14 +861,17 @@ async def verification_selfie(
     except Exception as e:
         db.rollback()
         logger.exception("verification_selfie_db_commit_failed user_id=%s profile_id=%s", int(current_user.id), int(profile.id))
-        raise HTTPException(status_code=500, detail=api_error("profile.verify.persist_failed")) from e
+        raise HTTPException(status_code=400, detail=api_error("profile.verify.persist_failed")) from e
 
-    track_event(
-        db,
-        "verification_selfie_submitted",
-        user_id=current_user.id,
-        payload={"status": status, "similarity": round(float(sim), 4), "frames_count": len(normalized_frames)},
-    )
+    try:
+        track_event(
+            db,
+            "verification_selfie_submitted",
+            user_id=current_user.id,
+            payload={"status": status, "similarity": round(float(sim), 4), "frames_count": len(normalized_frames)},
+        )
+    except Exception:
+        logger.exception("verification_selfie_track_event_failed user_id=%s", int(current_user.id))
     api_status = "approved" if status == "verified" else ("pending" if status == "pending" else "rejected")
     return {
         "ok": status in ("verified", "pending"),
