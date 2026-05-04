@@ -49,8 +49,10 @@ function clamp(n: number, a: number, b: number) {
   return Math.max(a, Math.min(b, n));
 }
 
-/** Exit animation duration — buttons stay disabled until slice completes (~same window). */
+/** Exit animation duration — must stay aligned with exit lock + button disable window (rapid-swipe queue). */
 const DISCOVER_SWIPE_EXIT_MS = 520;
+/** If UI state ever desyncs (no transitionend / lost timer), force completion so the deck never stacks multiple exits. */
+const DISCOVER_SWIPE_STUCK_RESET_MS = 900;
 
 type DiscoverSwipeExitState = {
   liked: boolean;
@@ -384,16 +386,27 @@ export default function DiscoverPage() {
   const swipeSessionCountRef = useRef(0);
 
   const topCard = cards[0] ?? null;
+  const topCardValid = Boolean(topCard && Number(topCard.user_id) > 0);
+  /** Max 3 nodes in DOM: avoid rendering the whole feed during fast swipes. */
+  const deckVisible = useMemo(() => cards.slice(0, 3), [cards]);
   const nextCards = cards.slice(1, 4);
 
   const [drag, setDrag] = useState({ x: 0, y: 0, active: false });
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const rafRef = useRef<number | null>(null);
   const [swipeExit, setSwipeExit] = useState<DiscoverSwipeExitState | null>(null);
+  /** Mirrors exitUiLockRef for render (refs don’t re-render) — keeps Like/Pass disabled during the pre-paint exit window on rapid mobile taps. */
+  const [exitUiHold, setExitUiHold] = useState(false);
   const [isNarrowSwipe, setIsNarrowSwipe] = useState(false);
   const pendingSwipeReleaseRef = useRef<{ targetId: number; action: DiscoverSwipeAction } | null>(null);
   const exitFinishHandledRef = useRef(false);
   const exitFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * Synchronous “one exit at a time” gate. React `swipeExit` updates async — rapid mobile taps could otherwise
+   * start a second swipe before state commits; this ref blocks immediately until finalize/cancel/timeout clears it.
+   */
+  const exitUiLockRef = useRef(false);
+  const stuckExitWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const preloadQueue = useMemo(() => {
     const out: string[] = [];
@@ -572,7 +585,7 @@ export default function DiscoverPage() {
     | { new?: boolean; active_now?: boolean; verified?: boolean }
     | null;
 
-  const swipeInteractionLocked = Boolean(swipeExit);
+  const swipeInteractionLocked = Boolean(swipeExit) || exitUiHold;
 
   const finalizeSwipeExitOnce = useCallback(() => {
     if (exitFinishHandledRef.current) return;
@@ -581,17 +594,26 @@ export default function DiscoverPage() {
       clearTimeout(exitFallbackTimerRef.current);
       exitFallbackTimerRef.current = null;
     }
-    setCards((prev) => {
-      const next = prev.slice(1);
-      if (!swipeRefreshPaused && next.length <= 4) {
-        queueMicrotask(() => void loadFeed("discover-swipe-refill"));
-      }
-      return next;
-    });
-    setSwipeExit(null);
-    const rel = pendingSwipeReleaseRef.current;
-    pendingSwipeReleaseRef.current = null;
-    if (rel) releaseDiscoverSwipe(rel.targetId, rel.action);
+    if (stuckExitWatchdogRef.current) {
+      clearTimeout(stuckExitWatchdogRef.current);
+      stuckExitWatchdogRef.current = null;
+    }
+    try {
+      setCards((prev) => {
+        const next = prev.slice(1);
+        if (!swipeRefreshPaused && next.length <= 4) {
+          queueMicrotask(() => void loadFeed("discover-swipe-refill"));
+        }
+        return next;
+      });
+      setSwipeExit(null);
+      const rel = pendingSwipeReleaseRef.current;
+      pendingSwipeReleaseRef.current = null;
+      if (rel) releaseDiscoverSwipe(rel.targetId, rel.action);
+    } finally {
+      exitUiLockRef.current = false;
+      setExitUiHold(false);
+    }
   }, [loadFeed, swipeRefreshPaused]);
 
   function cancelSwipeExitForError() {
@@ -599,11 +621,17 @@ export default function DiscoverPage() {
       clearTimeout(exitFallbackTimerRef.current);
       exitFallbackTimerRef.current = null;
     }
+    if (stuckExitWatchdogRef.current) {
+      clearTimeout(stuckExitWatchdogRef.current);
+      stuckExitWatchdogRef.current = null;
+    }
     setSwipeExit(null);
     setDrag({ x: 0, y: 0, active: false });
     const rel = pendingSwipeReleaseRef.current;
     pendingSwipeReleaseRef.current = null;
     if (rel) releaseDiscoverSwipe(rel.targetId, rel.action);
+    exitUiLockRef.current = false;
+    setExitUiHold(false);
   }
 
   useEffect(() => {
@@ -629,15 +657,38 @@ export default function DiscoverPage() {
     };
   }, [swipeExit?.fly, finalizeSwipeExitOnce]);
 
+  /** Hard recovery: if exit state never clears (lost transition / timer), force slice + unlock so rapid taps cannot pile up. */
+  useEffect(() => {
+    if (!swipeExit) return;
+    if (stuckExitWatchdogRef.current) {
+      clearTimeout(stuckExitWatchdogRef.current);
+      stuckExitWatchdogRef.current = null;
+    }
+    stuckExitWatchdogRef.current = setTimeout(() => {
+      stuckExitWatchdogRef.current = null;
+      finalizeSwipeExitOnce();
+    }, DISCOVER_SWIPE_STUCK_RESET_MS);
+    return () => {
+      if (stuckExitWatchdogRef.current) {
+        clearTimeout(stuckExitWatchdogRef.current);
+        stuckExitWatchdogRef.current = null;
+      }
+    };
+  }, [swipeExit, finalizeSwipeExitOnce]);
+
   function onSwipeExitTransitionEnd(e: React.TransitionEvent<HTMLDivElement>) {
     if (!swipeExit?.fly) return;
     if (e.propertyName !== "transform" && e.propertyName !== "opacity") return;
     finalizeSwipeExitOnce();
   }
 
+  /**
+   * Rapid-swipe queue: one exit at a time — `exitUiLockRef` + `exitUiHold` gate synchronously (React state lags),
+   * while `swipeExit` drives the animation. Ignores extra taps/drags until `finalizeSwipeExitOnce` clears the lock (~520ms).
+   */
   const commitSwipe = useCallback(
     (liked: boolean, fromDrag?: { x: number; y: number }) => {
-      if (swipeExit) return;
+      if (exitUiLockRef.current || swipeExit) return;
       const card = cards[0];
       if (!card) return;
       const targetId = Number(card.user_id);
@@ -647,6 +698,8 @@ export default function DiscoverPage() {
 
       const snapshot = card;
       exitFinishHandledRef.current = false;
+      exitUiLockRef.current = true;
+      setExitUiHold(true);
       pendingSwipeReleaseRef.current = { targetId, action };
 
       discoverSwipeFeedback(liked ? "like" : "pass");
@@ -766,6 +819,7 @@ export default function DiscoverPage() {
             }
 
             const msg = e instanceof Error ? e.message : String(e);
+            // Only hard gates undo the in-flight exit animation; other errors toast only — deck advances when animation ends.
             if (liked && msg === "paywall.likes_limit") {
               cancelSwipeExitForError();
               setCards((prev) => (prev[0]?.user_id === snapshot.user_id ? prev : [snapshot, ...prev]));
@@ -792,7 +846,7 @@ export default function DiscoverPage() {
   );
 
   async function undoSwipe() {
-    if (swipeExit) return;
+    if (exitUiLockRef.current || swipeExit) return;
     const last = lastSwipeRef.current;
     if (!last || undoBusy || undoUsed) return;
     setUndoBusy(true);
@@ -836,14 +890,14 @@ export default function DiscoverPage() {
   }
 
   function onPointerDown(e: React.PointerEvent) {
-    if (!topCard || swipeInteractionLocked) return;
+    if (exitUiLockRef.current || !topCardValid || swipeInteractionLocked) return;
     pointerStartRef.current = { x: e.clientX, y: e.clientY };
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     setDrag({ x: 0, y: 0, active: true });
   }
 
   function onPointerMove(e: React.PointerEvent) {
-    if (!pointerStartRef.current || !drag.active || swipeInteractionLocked) return;
+    if (!pointerStartRef.current || !drag.active || exitUiLockRef.current || swipeInteractionLocked) return;
     const dx = e.clientX - pointerStartRef.current.x;
     const dy = e.clientY - pointerStartRef.current.y;
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
@@ -851,7 +905,7 @@ export default function DiscoverPage() {
   }
 
   function onPointerUp() {
-    if (swipeInteractionLocked) {
+    if (exitUiLockRef.current || swipeInteractionLocked) {
       pointerStartRef.current = null;
       return;
     }
@@ -908,7 +962,7 @@ export default function DiscoverPage() {
   const passOpacity = exiting ? 0 : clamp((-drag.x - 40) / 140, 0, 1);
   const lowDeckCandidates = Boolean(
     !loading &&
-      topCard != null &&
+      topCardValid &&
       cards.length <= 2 &&
       cards.length > 0 &&
       swipeSessionCountRef.current >= 8 &&
@@ -1042,7 +1096,10 @@ export default function DiscoverPage() {
       <div className="discover-swipe-column">
         {/* Stage clips translated cards; column keeps actions visually below the deck (not under it). */}
         <div className="discover-swipe-stage">
-          <div className="discover-swipe-viewport">
+          <div
+            className="discover-swipe-viewport"
+            style={{ pointerEvents: swipeInteractionLocked ? "none" : undefined }}
+          >
           {loading ? (
             <div className="surface" style={{ width: "100%", height: "100%", borderRadius: 22, background: "rgba(255,255,255,0.06)" }} />
           ) : onboardingGate ? (
@@ -1066,7 +1123,7 @@ export default function DiscoverPage() {
                 </div>
               </div>
             </div>
-          ) : !topCard ? (
+          ) : !topCardValid ? (
             <div className="surface" style={{ width: "100%", height: "100%", borderRadius: 22, display: "grid", placeItems: "center", padding: 18 }}>
               <div style={{ textAlign: "center" }}>
                 <div className="h2" style={{ fontSize: 18, fontWeight: 900 }}>
@@ -1163,13 +1220,28 @@ export default function DiscoverPage() {
             </div>
           ) : (
             <>
-              {cards[1] ? (
+              {deckVisible[2] ? (
                 <div
                   className="surface"
                   aria-hidden
                   style={{
                     position: "absolute",
                     inset: 0,
+                    zIndex: 0,
+                    borderRadius: 22,
+                    transform: "scale(0.97) translateY(10px)",
+                    background: "rgba(255,255,255,0.04)",
+                  }}
+                />
+              ) : null}
+              {deckVisible[1] ? (
+                <div
+                  className="surface"
+                  aria-hidden
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    zIndex: 1,
                     borderRadius: 22,
                     transform: "scale(0.985) translateY(6px)",
                     background: "rgba(255,255,255,0.05)",
@@ -1187,6 +1259,7 @@ export default function DiscoverPage() {
                 style={{
                   position: "absolute",
                   inset: 0,
+                  zIndex: exiting ? 12 : 2,
                   borderRadius: 22,
                   overflow: "hidden",
                   touchAction: swipeInteractionLocked ? "none" : "pan-y",
@@ -1310,7 +1383,7 @@ export default function DiscoverPage() {
           </div>
         </div>
 
-        {!loading && topCard ? (
+        {!loading && topCardValid ? (
           <div className="caption" style={{ marginTop: 12, textAlign: "center", opacity: 0.82, lineHeight: 1.4 }}>
             💡 {t("discover.swipe.verifiedRespondMore")}
           </div>
@@ -1325,13 +1398,13 @@ export default function DiscoverPage() {
           >
             ↩ {t("discover.actions.undo")}
           </Button>
-          <Button type="button" variant="secondary" disabled={!topCard || swipeInteractionLocked} onClick={() => void commitSwipe(false)}>
+          <Button type="button" variant="secondary" disabled={!topCardValid || swipeInteractionLocked} onClick={() => void commitSwipe(false)}>
             ❌ {t("discover.actions.pass")}
           </Button>
           <Button type="button" variant="secondary" disabled={busy || swipeInteractionLocked} onClick={() => void activateBoost()}>
             ⭐ {t("discover.actions.boostProfile")}
           </Button>
-          <Button type="button" disabled={!topCard || swipeInteractionLocked} onClick={() => void commitSwipe(true)}>
+          <Button type="button" disabled={!topCardValid || swipeInteractionLocked} onClick={() => void commitSwipe(true)}>
             ❤️ {t("discover.actions.like")}
           </Button>
         </div>

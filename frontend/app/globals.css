@@ -5512,6 +5512,7 @@ html[data-i18n-debug="true"] {
   inset: 0;
   overflow: hidden;
   border-radius: 22px;
+  isolation: isolate;
 }
 
 .discover-swipe-actions {
