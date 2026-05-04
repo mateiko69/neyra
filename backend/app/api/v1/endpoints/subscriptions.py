@@ -113,74 +113,74 @@ def _subscription_me_safe_payload() -> dict:
 
 def _build_my_subscription(current_user: User, db: Session) -> dict:
     try:
-        if bool(getattr(settings, "DEV_FORCE_PREMIUM", False)) and str(getattr(settings, "ENV", "") or "").strip().lower() != "production":
-            return {
-                "status": "active",
-                "plan_code": "premium_plus",
-                "billing_plan": "premium_plus",
-                "provider": "dev_override",
-                "subscription_expires_at": None,
-                "entitlements": _ent_dict("premium_plus"),
-                "trial_active": False,
-                "trial_expires_at": None,
-                "ai_usage_today": {"used": 0, "limit": None, "unlimited": True},
-            }
-    except Exception:
-        pass
-    subs = SubscriptionService()
-    billing_plan = subs.get_billing_plan(db, int(current_user.id))
-    plan = subs.get_active_plan(db, int(current_user.id))
-    u = db.query(User).filter(User.id == int(current_user.id)).first()
-    now = datetime.now(UTC)
-    row = db.query(Subscription).filter(Subscription.user_id == current_user.id).first()
-    prov = (row.provider if row and row.provider else None) or str(settings.PAYMENTS_PROVIDER or "mock")
-    exp = getattr(u, "subscription_expires_at", None) if u else None
+        try:
+            if bool(getattr(settings, "DEV_FORCE_PREMIUM", False)) and str(getattr(settings, "ENV", "") or "").strip().lower() != "production":
+                return {
+                    "status": "active",
+                    "plan_code": "premium_plus",
+                    "billing_plan": "premium_plus",
+                    "provider": "dev_override",
+                    "subscription_expires_at": None,
+                    "entitlements": _ent_dict("premium_plus"),
+                    "trial_active": False,
+                    "trial_expires_at": None,
+                    "ai_usage_today": {"used": 0, "limit": None, "unlimited": True},
+                }
+        except Exception:
+            pass
+        subs = SubscriptionService()
+        billing_plan = subs.get_billing_plan(db, int(current_user.id))
+        plan = subs.get_active_plan(db, int(current_user.id))
+        u = db.query(User).filter(User.id == int(current_user.id)).first()
+        now = datetime.now(UTC)
+        row = db.query(Subscription).filter(Subscription.user_id == current_user.id).first()
+        prov = (row.provider if row and row.provider else None) or str(settings.PAYMENTS_PROVIDER or "mock")
+        exp = getattr(u, "subscription_expires_at", None) if u else None
 
-    trial_active_flag = billing_plan == "free" and plan == "premium"
-    trial_expires_iso = None
-    try:
-        if trial_active_flag and u:
-            te = getattr(u, "trial_expires_at", None)
-            pu = getattr(u, "premium_until", None)
-            ta = te if te else pu
-            if ta is not None:
-                if getattr(ta, "tzinfo", None) is None:
-                    ta = ta.replace(tzinfo=UTC)
-                if now < ta:
-                    trial_expires_iso = ta.isoformat()
-                else:
-                    trial_active_flag = False
-    except Exception:
+        trial_active_flag = billing_plan == "free" and plan == "premium"
         trial_expires_iso = None
-        trial_active_flag = False
+        try:
+            if trial_active_flag and u:
+                te = getattr(u, "trial_expires_at", None)
+                pu = getattr(u, "premium_until", None)
+                ta = te if te else pu
+                if ta is not None:
+                    if getattr(ta, "tzinfo", None) is None:
+                        ta = ta.replace(tzinfo=UTC)
+                    if now < ta:
+                        trial_expires_iso = ta.isoformat()
+                    else:
+                        trial_active_flag = False
+        except Exception:
+            trial_expires_iso = None
+            trial_active_flag = False
 
-    if billing_plan in {"premium", "premium_plus"}:
-        st = str(getattr(u, "subscription_status", "") or "active") if u else "active"
-        if st not in {"active", "past_due", "canceled"} and row and row.status:
-            st = str(row.status)
-        status_out = st
-    elif trial_active_flag:
-        status_out = "trialing"
-    else:
-        status_out = "inactive"
+        if billing_plan in {"premium", "premium_plus"}:
+            st = str(getattr(u, "subscription_status", "") or "active") if u else "active"
+            if st not in {"active", "past_due", "canceled"} and row and row.status:
+                st = str(row.status)
+            status_out = st
+        elif trial_active_flag:
+            status_out = "trialing"
+        else:
+            status_out = "inactive"
 
-    return {
-        "status": status_out,
-        "plan_code": plan,
-        "billing_plan": billing_plan,
-        "provider": prov,
-        "subscription_expires_at": _subscription_expires_iso(exp),
-        "entitlements": _ent_dict(plan),
-        "trial_active": trial_active_flag,
-        "trial_expires_at": trial_expires_iso,
-        "ai_usage_today": _ai_usage_today_safe(db, user_id=int(current_user.id), plan=plan),
-    }
+        return {
+            "status": status_out,
+            "plan_code": plan,
+            "billing_plan": billing_plan,
+            "provider": prov,
+            "subscription_expires_at": _subscription_expires_iso(exp),
+            "entitlements": _ent_dict(plan),
+            "trial_active": trial_active_flag,
+            "trial_expires_at": trial_expires_iso,
+            "ai_usage_today": _ai_usage_today_safe(db, user_id=int(current_user.id), plan=plan),
+        }
+    except Exception:
+        logger.exception("subscriptions_me_failed user_id=%s", getattr(current_user, "id", None))
+        return _subscription_me_safe_payload()
 
 
 @router.get("/me")
 def my_subscription(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    try:
-        return _build_my_subscription(current_user, db)
-    except Exception:
-        logger.exception("subscriptions_me_failed user_id=%s", getattr(current_user, "id", None))
-        return _subscription_me_safe_payload()
+    return _build_my_subscription(current_user, db)

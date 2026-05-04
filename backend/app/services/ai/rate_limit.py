@@ -67,12 +67,16 @@ def enforce_ai_limits(db: Session, user_id: int) -> None:
     mk = _min_key(user_id)
     dk = _day_key(user_id)
 
-    m = r.incr(mk)
-    if m == 1:
-        r.expire(mk, 90)
-    d = r.incr(dk)
-    if d == 1:
-        r.expire(dk, 60 * 60 * 30)
+    try:
+        m = r.incr(mk)
+        if m == 1:
+            r.expire(mk, 90)
+        d = r.incr(dk)
+        if d == 1:
+            r.expire(dk, 60 * 60 * 30)
+    except Exception:
+        logger.warning("enforce_ai_limits redis counters failed user_id=%s", int(user_id), exc_info=True)
+        return
 
     logger.info(
         "rate_limit_tier_used",

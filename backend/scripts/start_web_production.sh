@@ -28,6 +28,22 @@ except Exception:
     raise SystemExit(1)
 PY
 
-alembic upgrade head
+# Railway Postgres may accept connections before all roles/extensions are ready — retry migrations.
+_MAX=40
+_I=1
+_OK=0
+while [ "$_I" -le "$_MAX" ]; do
+  if alembic upgrade head; then
+    _OK=1
+    break
+  fi
+  echo "[start_web_production] alembic upgrade head failed (attempt $_I/$_MAX); retry in 2s..." >&2
+  sleep 2
+  _I=$((_I + 1))
+done
+if [ "$_OK" -ne 1 ]; then
+  echo "[start_web_production] alembic could not reach head after $_MAX attempts. Fix DATABASE_URL or migration errors." >&2
+  exit 1
+fi
 
 exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}"
