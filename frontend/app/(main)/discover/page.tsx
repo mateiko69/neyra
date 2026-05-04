@@ -1086,6 +1086,83 @@ export default function DiscoverPage() {
     return <DiscoverGuestPreview />;
   }
 
+  if (discoverButtonOnly) {
+    return (
+      <PageShell className="discover-swipe-shell">
+        <Toast text={toast || ""} onClose={() => setToast(null)} />
+        <div style={{ paddingBottom: "calc(120px + env(safe-area-inset-bottom, 0px))" }}>
+          <div style={{ marginBottom: 12 }}>
+            <div className="caption" style={{ opacity: 0.82 }}>
+              {t("discover.swipe.tip")}
+            </div>
+          </div>
+          {loading ? (
+            <div className="surface" style={{ borderRadius: 20, minHeight: 420, background: "rgba(255,255,255,0.05)" }} />
+          ) : !topCardValid ? (
+            <div className="surface" style={{ borderRadius: 20, padding: 18 }}>
+              <div className="h2" style={{ fontSize: 20 }}>{t("discover.empty.title")}</div>
+              <div className="subtitle" style={{ marginTop: 8, opacity: 0.85 }}>{t("discover.empty.description")}</div>
+              <div style={{ marginTop: 12 }}>
+                <Button type="button" variant="secondary" onClick={() => void loadFeed("discover-swipe-refresh", { manual: true })}>
+                  {t("discover.empty.refresh")}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="surface discover-mobile-card-mvp" style={{ borderRadius: 20, overflow: "hidden" }}>
+              {mainPhoto ? (
+                <SafeImg className="discover-mobile-card-mvp__img" src={mainPhoto} alt="" loading="eager" style={{ width: "100%", height: 260, objectFit: "cover" } as any} />
+              ) : (
+                <div style={{ height: 260, background: "rgba(255,255,255,0.06)" }} />
+              )}
+              <div style={{ padding: 14, display: "grid", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <div className="h2" style={{ fontSize: 24, margin: 0, fontWeight: 900, letterSpacing: "-0.03em" }}>
+                    {String(topCard.display_name || t("discover.card.profileFallback"))}
+                    {topCard.age != null ? `, ${String(topCard.age)}` : ""}
+                  </div>
+                  {badges?.verified ? <VerifiedBadge size="md" title={t("discover.badge.verified")} /> : null}
+                </div>
+                {topCard.city ? <div className="subtitle" style={{ opacity: 0.88 }}>{String(topCard.city)}</div> : null}
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {boostActive ? <Chip>{t("discover.badge.boosted")}</Chip> : null}
+                  {badges?.active_now ? <Chip>{t("discover.badge.activeNow")}</Chip> : null}
+                  {badges?.new ? <Chip>{t("discover.badge.new")}</Chip> : null}
+                  {vibeTags.map((tag) => <Chip key={`vibe-mobile-${tag}`}>{tag}</Chip>)}
+                  {topInterests.map((tag) => <Chip key={`interest-mobile-${tag}`}>{t(`profile.interests.${String(tag).toLowerCase()}`)}</Chip>)}
+                </div>
+                {bioExcerpt ? <div className="caption" style={{ opacity: 0.92, lineHeight: 1.45 }}>{bioExcerpt}</div> : null}
+                {sharedInterests.length ? (
+                  <div className="caption" style={{ opacity: 0.9, lineHeight: 1.35 }}>
+                    {t("discover.why.shared", { items: sharedInterests.map((x) => t(`profile.interests.${String(x).toLowerCase()}`)).join(", ") })}
+                  </div>
+                ) : null}
+                <div className="caption" style={{ opacity: 0.88, lineHeight: 1.4 }}>
+                  {aiPercent != null ? t("discover.ai.percent", { score: aiPercent }) : t("discover.ai.percentMissing")}
+                  {aiHint ? ` - ${aiHint}` : ""}
+                </div>
+              </div>
+            </div>
+          )}
+          <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
+            <Button type="button" variant="secondary" disabled={!topCardValid || swipeInteractionLocked} onClick={() => void advanceProfile("pass")}>
+              {t("discover.actions.pass")}
+            </Button>
+            <Button type="button" disabled={!topCardValid || swipeInteractionLocked} onClick={() => void advanceProfile("like")}>
+              {t("discover.actions.like")}
+            </Button>
+            <Button type="button" variant="secondary" disabled={busy || swipeInteractionLocked || !topCardValid} onClick={() => void activateBoost()}>
+              {t("discover.actions.boostProfile")}
+            </Button>
+            <Button type="button" variant="ghost" disabled={undoBusy || !lastSwipeRef.current || swipeInteractionLocked} onClick={() => void undoSwipe()}>
+              {t("discover.actions.undo")}
+            </Button>
+          </div>
+        </div>
+      </PageShell>
+    );
+  }
+
   return (
     <PageShell className="discover-swipe-shell">
       <Toast text={toast || ""} onClose={() => setToast(null)} />

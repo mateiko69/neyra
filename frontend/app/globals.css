@@ -9026,6 +9026,17 @@ button.profile-chip:not(:disabled) {
 
 /* Final mobile chat overrides (kept near end to beat earlier defaults). */
 @media (max-width: 1023px) {
+  .shell-main {
+    max-height: none;
+    overflow: visible;
+    padding-bottom: calc(108px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .page-canvas {
+    max-height: none;
+    overflow: visible;
+  }
+
   .chat-page-shell {
     min-height: 100dvh;
     padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
@@ -9048,10 +9059,7 @@ button.profile-chip:not(:disabled) {
   }
 
   .chat-thread-mobile-scroll {
-    overflow-y: auto;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
+    overflow: visible;
     padding-bottom: calc(102px + env(safe-area-inset-bottom, 0px));
     scroll-padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
   }
@@ -9092,6 +9100,14 @@ button.profile-chip:not(:disabled) {
     position: sticky;
     bottom: calc(110px + env(safe-area-inset-bottom, 0px));
     z-index: 2;
+  }
+
+  .discover-mobile-card-mvp {
+    overflow: visible;
+  }
+
+  .discover-mobile-card-mvp__img {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
 }
 
