@@ -15,6 +15,7 @@ from app.models.subscription import Subscription
 from app.models.user import User
 from app.models.oauth_account import OAuthAccount
 from app.models.analytics_event import AnalyticsEvent
+from app.services.demo_mode import demo_bundled_photo_url
 from app.services.visual_embeddings import VisualEmbedding
 
 
@@ -354,8 +355,8 @@ def run_seed() -> None:
             interests=["fitness", "music", "travel", "coffee"],
             lifestyle_tags=["confident", "ambitious", "social"],
             photo_urls=[
-                "https://images.example.com/taras-1.jpg",
-                "https://images.example.com/taras-2.jpg",
+                demo_bundled_photo_url(catalog_id="seed_taras_1", gender="male"),
+                demo_bundled_photo_url(catalog_id="seed_taras_2", gender="male"),
             ],
             preferred_language="uk",
             verified=True,
@@ -377,8 +378,8 @@ def run_seed() -> None:
             interests=["travel", "coffee", "books", "hiking"],
             lifestyle_tags=["active", "romantic", "urban"],
             photo_urls=[
-                "https://images.example.com/olena-1.jpg",
-                "https://images.example.com/olena-2.jpg",
+                demo_bundled_photo_url(catalog_id="seed_olena_1", gender="female"),
+                demo_bundled_photo_url(catalog_id="seed_olena_2", gender="female"),
             ],
             preferred_language="uk",
             verified=False,
@@ -400,8 +401,8 @@ def run_seed() -> None:
             interests=["design", "art", "music", "coffee"],
             lifestyle_tags=["creative", "calm", "stylish"],
             photo_urls=[
-                "https://images.example.com/anna-1.jpg",
-                "https://images.example.com/anna-2.jpg",
+                demo_bundled_photo_url(catalog_id="seed_anna_1", gender="female"),
+                demo_bundled_photo_url(catalog_id="seed_anna_2", gender="female"),
             ],
             preferred_language="uk",
             verified=True,
@@ -423,7 +424,10 @@ def run_seed() -> None:
             relationship_goal="relationship",
             interests=["travel", "coffee", "hiking", "photography"],
             lifestyle_tags=["warm", "curious", "active"],
-            photo_urls=["https://images.example.com/iryna-1.jpg", "https://images.example.com/iryna-2.jpg"],
+            photo_urls=[
+                demo_bundled_photo_url(catalog_id="seed_iryna_1", gender="female"),
+                demo_bundled_photo_url(catalog_id="seed_iryna_2", gender="female"),
+            ],
             preferred_language="uk",
             verified=True,
             visual_embedding=serialize_embedding([0.33, 0.31, 0.29, 0.28, 0.26, 0.25, 0.24, 0.23]),
@@ -443,7 +447,10 @@ def run_seed() -> None:
             relationship_goal="relationship",
             interests=["fitness", "coffee", "travel", "music"],
             lifestyle_tags=["calm", "active", "stylish"],
-            photo_urls=["https://images.example.com/sofia-1.jpg", "https://images.example.com/sofia-2.jpg"],
+            photo_urls=[
+                demo_bundled_photo_url(catalog_id="seed_sofia_1", gender="female"),
+                demo_bundled_photo_url(catalog_id="seed_sofia_2", gender="female"),
+            ],
             preferred_language="uk",
             verified=False,
             visual_embedding=serialize_embedding([0.34, 0.33, 0.32, 0.31, 0.29, 0.28, 0.27, 0.26]),
@@ -463,7 +470,10 @@ def run_seed() -> None:
             relationship_goal="relationship",
             interests=["books", "coffee", "travel", "art"],
             lifestyle_tags=["calm", "romantic", "family"],
-            photo_urls=["https://images.example.com/marta-1.jpg", "https://images.example.com/marta-2.jpg"],
+            photo_urls=[
+                demo_bundled_photo_url(catalog_id="seed_marta_1", gender="female"),
+                demo_bundled_photo_url(catalog_id="seed_marta_2", gender="female"),
+            ],
             preferred_language="uk",
             verified=False,
             visual_embedding=serialize_embedding([0.31, 0.30, 0.29, 0.28, 0.27, 0.27, 0.26, 0.25]),
@@ -484,8 +494,8 @@ def run_seed() -> None:
             interests=["running", "movies", "mountains", "dogs"],
             lifestyle_tags=["active", "kind", "grounded"],
             photo_urls=[
-                "https://images.example.com/mark-1.jpg",
-                "https://images.example.com/mark-2.jpg",
+                demo_bundled_photo_url(catalog_id="seed_mark_1", gender="male"),
+                demo_bundled_photo_url(catalog_id="seed_mark_2", gender="male"),
             ],
             preferred_language="en",
             verified=False,
@@ -507,8 +517,8 @@ def run_seed() -> None:
             interests=["ops"],
             lifestyle_tags=["admin"],
             photo_urls=[
-                "https://images.example.com/admin-1.jpg",
-                "https://images.example.com/admin-2.jpg",
+                demo_bundled_photo_url(catalog_id="seed_admin_1", gender="other"),
+                demo_bundled_photo_url(catalog_id="seed_admin_2", gender="other"),
             ],
             preferred_language="en",
             verified=False,

@@ -219,6 +219,10 @@ class Settings(BaseSettings):
     S3_REGION: str = ""
     S3_ACCESS_KEY_ID: str = ""
     S3_SECRET_ACCESS_KEY: str = ""
+    # Cloudflare R2 / custom S3: e.g. https://<accountid>.r2.cloudflarestorage.com
+    S3_ENDPOINT_URL: str = ""
+    # Public origin for objects (R2 public bucket URL, R2 custom domain, or CloudFront). No trailing slash.
+    S3_PUBLIC_BASE_URL: str = ""
 
     PAYMENTS_PROVIDER: str = "mock"
     STRIPE_SECRET_KEY: str = ""

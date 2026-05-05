@@ -1,5 +1,13 @@
 # Demo profile photos
 
+## Bundled avatar pool (recommended for seeds / repair)
+
+The app also ships a small set of static JPEGs under **`shared/`**:
+
+- `/demo-profiles/shared/avatar-01.jpg` … `avatar-12.jpg`
+
+The backend maps each demo profile to one of these files deterministically (see `demo_bundled_photo_url` in `backend/app/services/demo_mode.py`).
+
 ## Layout (gender = folder only)
 
 Put each profile under **`women/`** or **`men/`**, then `demo_NNN/main.jpg`:

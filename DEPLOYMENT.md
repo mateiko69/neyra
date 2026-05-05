@@ -9,11 +9,25 @@ This repo is wired for:
 
 Do **not** commit `.env`, tokens, API keys, or database URLs. Examples live in [`backend/.env.example`](backend/.env.example) and [`frontend/.env.production.example`](frontend/.env.production.example).
 
-### Uploads: local storage is ephemeral on Railway
+### Uploads: Railway disk is ephemeral; production photos need S3 / R2
 
-The default app configuration uses **local disk** under **`UPLOAD_DIR`** (see [`backend/app/services/storage/local_provider.py`](backend/app/services/storage/local_provider.py)). On Railway, container filesystems are **not durable**: every **deploy or restart** can wipe files that were never stored in object storage. Older profile or verification image URLs may then return **404**; the API serves missing files as 404 (no crash), and the Next.js app uses **`SafeImg`** to fall back to a **placeholder** instead of a broken image icon when a URL fails.
+**Railway (and most PaaS) container filesystems are not durable.** The default **local** storage under **`UPLOAD_DIR`** (see [`backend/app/services/storage/local_provider.py`](backend/app/services/storage/local_provider.py)) is fine for **development** only. After a **redeploy or restart**, files that were never written to object storage are **gone**; the database can still point at old **`/uploads/...`** paths. The API does **not** clear those URLs when a file 404s; the Next.js app uses **`SafeImg`** to show a **placeholder** when an image cannot be loaded (so the UI does not show a broken icon while the user re-uploads).
 
-For production durability, set **`STORAGE_PROVIDER=s3`** (or equivalent) and configure **`S3_BUCKET`**, **`S3_REGION`**, **`S3_ACCESS_KEY_ID`**, **`S3_SECRET_ACCESS_KEY`** so uploads live in **S3-compatible** storage (AWS S3, Cloudflare R2, etc.).
+**Production** must use **S3-compatible** object storage (AWS S3, **Cloudflare R2**, MinIO, etc.):
+
+| Variable | Purpose |
+|----------|--------|
+| `ENV` | `production` (or `prod`) so the API **never** falls back to local disk for user media when S3 is not fully configured. |
+| `STORAGE_PROVIDER` | Set to **`s3`** in production to match your intent; the API also requires the S3 fields below. |
+| `S3_BUCKET` | Target bucket. |
+| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | API credentials. |
+| `S3_PUBLIC_BASE_URL` | **Public** origin for objects (R2 public URL, R2 custom domain, or CloudFront). **No trailing slash.** Browsers use this in returned image URLs. |
+| `S3_ENDPOINT_URL` | For **Cloudflare R2**, set the R2 S3 API endpoint (for example `https://<accountid>.r2.cloudflarestorage.com`). Optional for AWS (default endpoint). |
+| `S3_REGION` | For R2, **`auto`** is common; for AWS, your bucket region. |
+
+If required S3 variables are **missing in production**, the service logs a **clear warning** and user uploads return **503** with a storage-unavailable error (it does **not** silently write to ephemeral disk). When S3 is configured, upload endpoints return **durable public URLs** under `S3_PUBLIC_BASE_URL`.
+
+**Demo / seed avatars** use static files under [`frontend/public/demo-profiles/`](frontend/public/demo-profiles/) in the monorepo. The same files are **copied into** [`backend/static/demo-profiles/`](backend/static/demo-profiles/) so the **Railway** image (build context `backend/`) still mounts `/demo-profiles/...` from the API. Public URLs look like `/demo-profiles/shared/avatar-01.jpg` (served by the backend, not ephemeral upload disk).
 
 ---
 

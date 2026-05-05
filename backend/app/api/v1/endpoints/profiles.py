@@ -806,12 +806,16 @@ async def verification_selfie(
                     status = "pending_manual_review"
                 else:
                     status = "rejected"
+            elif verification_emb and not photo_emb:
+                # Primary profile photo missing or not embeddable (e.g. 404 on ephemeral /uploads) — do not
+                # block on a vanished file; queue for manual review instead of staying stuck in "pending".
+                status = "pending_manual_review"
             else:
-                # MVP fallback: when face checks/provider/storage are unavailable, avoid indefinite pending.
+                # No usable embeddings — approve in MVP mode so the client never lands in indefinite pending.
                 status = "verified"
         except Exception:
             logger.exception("verification_embedding_failed user_id=%s", int(current_user.id))
-            status = "verified"
+            status = "pending_manual_review"
             sim = 0.0
 
         logger.info(

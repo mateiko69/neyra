@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import html
+import hashlib
 import json
 import logging
 from datetime import UTC, datetime, timedelta
 import random
 from pathlib import Path
-from urllib.parse import quote
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -43,8 +42,18 @@ DEMO_PROFILE_LABEL = "AI demo profile — not a real person"
 DEMO_PROFILE_DISCLAIMER = "AI demo profile — not a real person"
 DEMO_CHAT_LABEL = "Demo chat — AI simulation"
 DEMO_TARGET_COUNT = 25
+# Bundled JPEGs under frontend/public/demo-profiles/shared/avatar-01.jpg … avatar-12.jpg
+DEMO_BUNDLED_AVATAR_COUNT = 12
 
 _log_demo = logging.getLogger("neyra.demo_seed")
+
+
+def demo_bundled_photo_url(*, catalog_id: str, gender: str | None = None) -> str:
+    """Stable public path for demo profile photos (served from Next.js `public/demo-profiles`)."""
+    seed = f"{(catalog_id or '').strip()}|{(gender or '').strip()}"
+    digest = hashlib.md5(seed.encode("utf-8")).hexdigest()
+    idx = int(digest[:8], 16) % DEMO_BUNDLED_AVATAR_COUNT + 1
+    return f"/demo-profiles/shared/avatar-{idx:02d}.jpg"
 
 
 def _frontend_repo_root() -> Path:
@@ -62,7 +71,13 @@ def _frontend_repo_root() -> Path:
 
 
 def demo_profiles_public_dir() -> Path:
-    return _frontend_repo_root() / "frontend" / "public" / "demo-profiles"
+    """Prefer monorepo `frontend/public/demo-profiles`; fall back to `backend/static/demo-profiles` (Railway Docker root=`backend/`)."""
+    monorepo = _frontend_repo_root() / "frontend" / "public" / "demo-profiles"
+    if monorepo.is_dir() and any(monorepo.iterdir()):
+        return monorepo
+    here = Path(__file__).resolve()
+    embedded = here.parents[2] / "static" / "demo-profiles"
+    return embedded
 
 
 def demo_profiles_json_path() -> Path:
@@ -86,13 +101,6 @@ def load_demo_profiles_catalog() -> list[dict]:
 
 def _demo_email_catalog_id(catalog_id: str) -> str:
     return f"demo+{str(catalog_id).strip()}@neyra.local"
-
-
-_DEMO_CATALOG_AVATAR_COLORS: tuple[tuple[str, str], ...] = (
-    ("#6F5CFF", "#F4D35E"),
-    ("#168AAD", "#FFD166"),
-    ("#EF476F", "#06D6A0"),
-)
 
 
 def _apply_demo_trust_and_premium(user: User, profile: Profile, index: int, now: datetime) -> None:
@@ -186,15 +194,13 @@ def _apply_catalog_demo_row(db: Session, entry: dict, index: int, now: datetime,
         profile.demo_personality_json = "{}"
         ensure_demo_personality_json(profile)
 
-    photo = str(entry.get("photo_main_path") or "").strip()
-    if photo:
-        profile.photo_urls = photo
-
     profile.display_name = str(entry.get("display_name") or profile.display_name or "Demo")
     profile.age = int(entry.get("age") or profile.age or 25)
     profile.city = str(entry.get("city") or "")
     profile.gender = _catalog_gender_to_profile_gender(entry)
     stats["gender_assigned"].append(f"{cid}:{profile.gender}")
+    catalog_key = str(entry.get("id") or "").strip() or f"demo_{index}"
+    profile.photo_urls = demo_bundled_photo_url(catalog_id=catalog_key, gender=profile.gender)
     profile.interested_in = str(entry.get("interested_in") or "")
     profile.relationship_goal = str(entry.get("relationship_goal") or "relationship")
     profile.interests = str(entry.get("interests") or "")
@@ -205,27 +211,6 @@ def _apply_catalog_demo_row(db: Session, entry: dict, index: int, now: datetime,
     profile.is_demo_profile = True
     profile.demo_disclaimer = DEMO_PROFILE_DISCLAIMER
     profile.preferred_language = str(entry.get("preferred_language") or "en").strip() or "en"
-    parts = [p.strip() for p in (profile.photo_urls or "").split(",") if p.strip()]
-    if parts:
-        normalized_parts = [normalize_photo_url(p, demo_profile_gender=profile.gender) for p in parts]
-        has_unstable_upload = any(p.startswith("/uploads/") for p in normalized_parts)
-        has_missing = not any(normalized_parts)
-        if has_unstable_upload or has_missing:
-            profile.photo_urls = _photo_urls_for_spec(
-                {
-                    "display_name": str(entry.get("display_name") or profile.display_name or "Demo"),
-                    "colors": _DEMO_CATALOG_AVATAR_COLORS[index % len(_DEMO_CATALOG_AVATAR_COLORS)],
-                }
-            )
-        else:
-            profile.photo_urls = ",".join(normalized_parts)
-    else:
-        profile.photo_urls = _photo_urls_for_spec(
-            {
-                "display_name": str(entry.get("display_name") or profile.display_name or "Demo"),
-                "colors": _DEMO_CATALOG_AVATAR_COLORS[index % len(_DEMO_CATALOG_AVATAR_COLORS)],
-            }
-        )
     _apply_demo_trust_and_premium(user, profile, index, now)
     db.add(user)
     db.add(profile)
@@ -268,13 +253,12 @@ def repair_demo_profile_photos(db: Session) -> dict:
     for index, profile in enumerate(rows):
         current_parts = [normalize_photo_url(p.strip(), demo_profile_gender=profile.gender) for p in str(profile.photo_urls or "").split(",") if p.strip()]
         has_unstable_upload = any(p.startswith("/uploads/") for p in current_parts)
-        if current_parts and not has_unstable_upload:
+        has_remote_placeholder = any(p.startswith(("http://", "https://")) for p in current_parts)
+        if current_parts and not has_unstable_upload and not has_remote_placeholder:
             continue
-        profile.photo_urls = _photo_urls_for_spec(
-            {
-                "display_name": str(profile.display_name or "Demo"),
-                "colors": _DEMO_CATALOG_AVATAR_COLORS[index % len(_DEMO_CATALOG_AVATAR_COLORS)],
-            }
+        profile.photo_urls = demo_bundled_photo_url(
+            catalog_id=f"repair_{int(profile.user_id)}_{index}",
+            gender=str(getattr(profile, "gender", None) or ""),
         )
         db.add(profile)
         updated += 1
@@ -539,34 +523,6 @@ def set_demo_mode_enabled(db: Session, enabled: bool) -> bool:
     return bool(enabled)
 
 
-def _demo_svg_data_uri(display_name: str, colors: tuple[str, str]) -> str:
-    initials = "".join(part[:1] for part in display_name.split()[:2]).upper() or "N"
-    bg, accent = colors
-    safe_initials = html.escape(initials)
-    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
-<defs>
-<linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="{html.escape(bg)}"/><stop offset="1" stop-color="{html.escape(accent)}"/></linearGradient>
-<filter id="s"><feDropShadow dx="0" dy="24" stdDeviation="32" flood-opacity=".28"/></filter>
-</defs>
-<rect width="900" height="1200" fill="url(#g)"/>
-<circle cx="720" cy="150" r="190" fill="rgba(255,255,255,.18)"/>
-<circle cx="160" cy="980" r="260" fill="rgba(255,255,255,.16)"/>
-<g filter="url(#s)">
-<circle cx="450" cy="440" r="170" fill="rgba(255,255,255,.78)"/>
-<rect x="210" y="650" width="480" height="320" rx="160" fill="rgba(255,255,255,.72)"/>
-</g>
-<text x="450" y="1038" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="72" font-weight="800" fill="rgba(255,255,255,.92)">{safe_initials}</text>
-</svg>"""
-    return "data:image/svg+xml;charset=utf-8," + quote(svg, safe="")
-
-
-def _photo_urls_for_spec(spec: dict[str, object]) -> str:
-    colors = spec.get("colors")
-    if not isinstance(colors, tuple) or len(colors) != 2:
-        colors = ("#6F5CFF", "#F4D35E")
-    return _demo_svg_data_uri(str(spec.get("display_name") or "Demo"), colors)[:7800]
-
-
 def _demo_email(slug: str) -> str:
     return f"demo+{slug}@neyra.local"
 
@@ -825,7 +781,7 @@ def ensure_demo_profiles(db: Session, target_count: int = DEMO_TARGET_COUNT) -> 
         profile.interests = str(spec["interests"])
         profile.lifestyle_tags = str(spec["lifestyle"])
         profile.bio = str(spec["bio"])
-        profile.photo_urls = _photo_urls_for_spec(spec)
+        profile.photo_urls = demo_bundled_photo_url(catalog_id=f"spec_{slug}", gender=str(spec["gender"]))
         profile.onboarding_completed = True
         profile.founder_welcome_seen = True
         profile.is_demo_profile = True

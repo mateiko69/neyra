@@ -56,7 +56,7 @@ def _load_core_ui_overlays() -> dict[str, dict[str, str]]:
     if not path.exists():
         return {}
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = json.loads(path.read_text(encoding="utf-8-sig"))
     except Exception:
         return {}
     if not isinstance(raw, dict):
@@ -73,7 +73,7 @@ def _load_string_dict(path: Path) -> dict[str, str]:
     if not path.exists():
         return {}
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = json.loads(path.read_text(encoding="utf-8-sig"))
     except Exception:
         return {}
     if not isinstance(raw, dict):

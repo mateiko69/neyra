@@ -138,10 +138,7 @@ export function VerificationFlowModal({ open, onClose, onComplete }: Props) {
         if (st === "pending" || st === "pending_manual_review") {
           setPhase("pending");
           stopStream();
-          window.setTimeout(() => {
-            onComplete();
-            onClose();
-          }, 2000);
+          onComplete();
           return;
         }
         setPhase("rejected");
@@ -207,6 +204,22 @@ export function VerificationFlowModal({ open, onClose, onComplete }: Props) {
               {t("verification.flow.pendingTitle")}
             </h2>
             <p className="verify-flow-sub">{t("verification.flow.pendingSub")}</p>
+            <div style={{ marginTop: 18, display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setPhase("flow");
+                  setSubmitError("");
+                  stopStream();
+                }}
+              >
+                {t("profile.verify.tryAgain")}
+              </Button>
+              <Button type="button" variant="primary" onClick={() => onClose()}>
+                {t("verification.flow.close")}
+              </Button>
+            </div>
           </div>
         ) : phase === "uploading" ? (
           <div className="verify-flow-body verify-flow-body--center">

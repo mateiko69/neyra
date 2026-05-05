@@ -2278,5 +2278,6 @@
   "profile.emailVerify.failed": "Kunne ikke sende bekreftelses-e-post på nytt. Prøv igjen.",
   "locale.zh": "简体中文",
   "locale.bg": "Български",
-  "locale.zh-CN": "简体中文"
+  "locale.zh-CN": "简体中文",
+  "errors.api.upload.storageUnavailable": "Photo storage is not configured on the server. Set S3/R2 (see deployment docs) or try again later."
 }

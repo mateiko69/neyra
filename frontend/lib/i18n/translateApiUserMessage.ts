@@ -71,6 +71,7 @@ const ERROR_CODES: Record<string, string> = {
   "upload.no_files": "errors.api.upload.noFiles",
   "upload.too_many_files": "errors.api.upload.tooManyFiles",
   "upload.item_failed": "errors.api.upload.itemFailed",
+  "upload.storage_unavailable": "errors.api.upload.storageUnavailable",
   "safety.invalid_target": "errors.api.safety.invalidTarget",
   "safety.user_not_found": "errors.api.safety.userNotFound",
   "safety.demo_report_forbidden": "errors.api.safety.demoReportForbidden",

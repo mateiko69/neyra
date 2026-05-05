@@ -32,6 +32,10 @@ def _join_csv_urls(values: list[str]) -> str:
 
 
 def _persist_profile_photo_url(db: Session, user_id: int, url: str, *, max_photos: int = 6) -> str:
+    if not (url or "").strip():
+        log.warning("persist_profile_photo_url skipped empty url user_id=%s", user_id)
+        profile = db.query(Profile).filter(Profile.user_id == user_id).first()
+        return (getattr(profile, "photo_urls", "") or "") if profile else ""
     profile = db.query(Profile).filter(Profile.user_id == user_id).first()
     if not profile:
         # Minimal profile to keep uploads consistent; other fields can be filled later.
@@ -64,6 +68,18 @@ async def upload_photo(
     )
     content, ext = await read_validate_image(file)
     url = persist_user_image(current_user.id, ext, content)
+    if not (url or "").strip():
+        log.error(
+            "upload_photo storage_unavailable user_id=%s — configure S3/R2 in production",
+            current_user.id,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=api_error(
+                "upload.storage_unavailable",
+                message="Object storage is not configured. For production, set S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_PUBLIC_BASE_URL, and optional S3_ENDPOINT_URL (R2).",
+            ),
+        )
     saved_csv = _persist_profile_photo_url(db, current_user.id, url)
     log.info("upload_photo ok user_id=%s url=%s saved_photo_urls=%s", current_user.id, url, saved_csv)
     return {"url": url}
@@ -87,8 +103,24 @@ async def upload_photos(
     for i, f in enumerate(files):
         try:
             content, ext = await read_validate_image(f)
-            urls.append(persist_user_image(current_user.id, ext, content))
+            u = persist_user_image(current_user.id, ext, content)
+            if not (u or "").strip():
+                log.error(
+                    "upload_photos storage_unavailable user_id=%s index=%s",
+                    current_user.id,
+                    i + 1,
+                )
+                raise HTTPException(
+                    status_code=503,
+                    detail=api_error(
+                        "upload.storage_unavailable",
+                        message="Object storage is not configured. For production, set S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_PUBLIC_BASE_URL, and optional S3_ENDPOINT_URL (R2).",
+                    ),
+                )
+            urls.append(u)
         except HTTPException as e:
+            if e.status_code == 503:
+                raise
             inner = e.detail if isinstance(e.detail, dict) else {}
             code = inner.get("code") if isinstance(inner, dict) else None
             log.warning(
@@ -117,6 +149,18 @@ async def upload_voice(file: UploadFile = File(...), current_user: User = Depend
     )
     content, ct = await read_validate_audio(file)
     url = persist_user_voice_note(current_user.id, ct, content)
+    if not (url or "").strip():
+        log.error(
+            "upload_voice storage_unavailable user_id=%s — configure S3/R2 in production",
+            current_user.id,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=api_error(
+                "upload.storage_unavailable",
+                message="Object storage is not configured. For production, set S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_PUBLIC_BASE_URL, and optional S3_ENDPOINT_URL (R2).",
+            ),
+        )
     # Duration is computed client-side; return null here to keep backend dependency-free.
     log.info("upload_voice ok user_id=%s url=%s bytes=%s ct=%s", current_user.id, url, len(content), ct)
     return {"url": url, "content_type": ct, "bytes": len(content), "duration_ms": None}

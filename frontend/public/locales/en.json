@@ -149,6 +149,7 @@
   "errors.api.upload.noFiles": "No files uploaded.",
   "errors.api.upload.tooManyFiles": "Too many files at once (max {max}).",
   "errors.api.upload.itemFailed": "Photo {part} could not be uploaded. Try another file.",
+  "errors.api.upload.storageUnavailable": "Photo storage is not configured on the server. Set S3/R2 (see deployment docs) or try again later.",
   "errors.api.safety.invalidTarget": "Invalid user.",
   "errors.api.safety.userNotFound": "User not found.",
   "errors.api.safety.demoReportForbidden": "Demo profiles cannot be reported.",
