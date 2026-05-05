@@ -2,6 +2,7 @@
 
 import { resolveMediaUrl } from "../../../lib/media";
 import { SafeImg } from "../SafeImg";
+import { useState } from "react";
 
 type ChatAvatarProps = {
   name: string;
@@ -18,12 +19,24 @@ function initialForName(name: string): string {
 export function ChatAvatar({ name, src, className = "", alt = "" }: ChatAvatarProps) {
   const raw = src?.trim() || "";
   const resolved = raw ? resolveMediaUrl(raw) : "";
+  const [imgFailed, setImgFailed] = useState(false);
+  const showNativeImg = Boolean(resolved) && !imgFailed;
   return (
-    <SafeImg
-      className={resolved ? className : `${className} chat-avatar chat-avatar--fallback`.trim()}
-      src={resolved || null}
-      alt={alt || initialForName(name)}
-      loading="lazy"
-    />
+    showNativeImg ? (
+      <img
+        className={className}
+        src={resolved}
+        alt={alt || initialForName(name)}
+        loading="lazy"
+        onError={() => setImgFailed(true)}
+      />
+    ) : (
+      <SafeImg
+        className={`${className} chat-avatar chat-avatar--fallback`.trim()}
+        src={null}
+        alt={alt || initialForName(name)}
+        loading="lazy"
+      />
+    )
   );
 }

@@ -11,6 +11,7 @@ from app.services.retention.daily_boosts import get_daily_boosts_state, streak_e
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger("neyra.ratelimit")
+_redis_degraded_warned = False
 
 
 class RateLimitExceeded(Exception):
@@ -75,7 +76,10 @@ def enforce_ai_limits(db: Session, user_id: int) -> None:
         if d == 1:
             r.expire(dk, 60 * 60 * 30)
     except Exception:
-        logger.warning("enforce_ai_limits redis counters failed user_id=%s", int(user_id), exc_info=True)
+        global _redis_degraded_warned
+        if not _redis_degraded_warned:
+            _redis_degraded_warned = True
+            logger.warning("enforce_ai_limits redis unavailable using unlimited fallback")
         return
 
     logger.info(

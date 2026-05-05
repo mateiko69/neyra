@@ -19,6 +19,7 @@ from app.services.monetization.plan_entitlements import entitlements_for_plan
 from app.services.monetization.subscription_service import SubscriptionService
 
 logger = logging.getLogger(__name__)
+_redis_degraded_warned = False
 
 
 class AiLimitReached(Exception):
@@ -67,7 +68,10 @@ def _rapid_guard(user_id: int) -> None:
     except AiRapidCooldown:
         raise
     except Exception:
-        logger.warning("ai rapid_guard redis degraded user_id=%s", int(user_id), exc_info=True)
+        global _redis_degraded_warned
+        if not _redis_degraded_warned:
+            _redis_degraded_warned = True
+            logger.warning("ai rapid_guard redis unavailable using unlimited fallback")
         return
 
 

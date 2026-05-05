@@ -344,7 +344,16 @@ export function normalizePartnerProfile(raw: unknown): ChatPartnerProfile | null
 
   const photoUrls = normalizePhotoUrls(object.photo_urls ?? object.photoUrls ?? object.photos);
   const primaryPhoto = toText(
-    object.primary_photo ?? object.primaryPhoto ?? object.photo_url ?? object.photoUrl ?? object.avatar_url ?? object.avatarUrl,
+    object.primary_photo ??
+      object.primaryPhoto ??
+      object.photo_url ??
+      object.photoUrl ??
+      object.avatar_url ??
+      object.avatarUrl ??
+      object.demo_profile_photo_url ??
+      object.demoProfilePhotoUrl ??
+      object.demo_photo_url ??
+      object.demoPhotoUrl,
   );
   const resolvedPhotoUrls = photoUrls.length > 0 ? photoUrls : primaryPhoto ? [primaryPhoto] : [];
 
@@ -371,7 +380,16 @@ export function normalizePartnerProfile(raw: unknown): ChatPartnerProfile | null
 }
 
 function avatarFromConversationObject(object: Record<string, unknown>): string | null {
-  const directAvatar = toText(object.partner_photo ?? object.partnerPhoto ?? object.avatar_url ?? object.avatarUrl);
+  const directAvatar = toText(
+    object.partner_photo ??
+      object.partnerPhoto ??
+      object.avatar_url ??
+      object.avatarUrl ??
+      object.partner_photo_url ??
+      object.partnerPhotoUrl ??
+      object.demo_profile_photo_url ??
+      object.demoProfilePhotoUrl,
+  );
   if (directAvatar) return directAvatar;
 
   const nestedProfile = object.partner_profile ?? object.partnerProfile ?? object.profile;

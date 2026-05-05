@@ -1829,7 +1829,6 @@ export function ChatThreadPage() {
           </div>
         </div>
 
-        <div className="chat-thread-mobile-scroll">
         {(trialBanner || incomingVideoUrl) ? (
           <div className="chat-thread-lead">
             {trialBanner ? (
@@ -2345,7 +2344,7 @@ export function ChatThreadPage() {
               });
             }}
           />
-        </div>
+          <div style={{ height: 180 }} aria-hidden />
         </div>
         <ViralShareModal open={shareModalOpen} onClose={() => setShareModalOpen(false)} />
         <ViralMomentShareModal

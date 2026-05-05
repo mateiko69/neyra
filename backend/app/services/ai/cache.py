@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from typing import Any
 
 import redis
 
 from app.core.config import settings
+
+logger = logging.getLogger("neyra.ai.redis")
+_redis_warned = False
 
 
 def cache_key(prefix: str, payload: dict) -> str:
@@ -16,9 +20,19 @@ def cache_key(prefix: str, payload: dict) -> str:
 
 
 def get_redis() -> redis.Redis:
+    global _redis_warned
     if not (settings.REDIS_URL or "").strip():
+        if not _redis_warned:
+            _redis_warned = True
+            logger.warning("redis_unavailable_using_local_fallback")
         raise RuntimeError("Redis disabled")
-    return redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+    try:
+        return redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+    except Exception:
+        if not _redis_warned:
+            _redis_warned = True
+            logger.warning("redis_unavailable_using_local_fallback")
+        raise
 
 
 def cache_get(key: str) -> Any | None:

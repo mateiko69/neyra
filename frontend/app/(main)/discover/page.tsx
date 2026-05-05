@@ -1047,10 +1047,15 @@ export default function DiscoverPage() {
   }
 
   if (discoverButtonOnly) {
+    const mobilePhotos = topCard ? photosFromList(topCard.photo_urls) : [];
+    const mobileMainPhoto = String(mobilePhotos[0] || "").trim();
+    const mobileName = String(topCard?.display_name || t("discover.card.profileFallback")).trim();
+    const mobileAge = topCard?.age != null ? `, ${topCard.age}` : "";
+    const mobileCity = String(topCard?.city || "").trim();
     return (
       <PageShell className="discover-swipe-shell">
         <Toast text={toast || ""} onClose={() => setToast(null)} />
-        <div style={{ paddingBottom: "calc(120px + env(safe-area-inset-bottom, 0px))" }}>
+        <div style={{ paddingBottom: "calc(260px + env(safe-area-inset-bottom, 0px))" }}>
           <div style={{ marginBottom: 12 }}>
             <div className="caption" style={{ opacity: 0.82 }}>
               {t("discover.swipe.tip")}
@@ -1070,21 +1075,61 @@ export default function DiscoverPage() {
             </div>
           ) : (
             <div className="discover-mobile-embed-card">
-              <DiscoverProfileCard
-                card={mapDiscoverCardToProfileData(topCard, demoPremiumFeedActive)}
-                planTier="free"
-                viewerProfileId={viewerProfileId}
-                disabled={swipeInteractionLocked}
-                exiting={null}
-                onLike={() => void advanceProfile("like")}
-                onPass={() => void advanceProfile("pass")}
-                onIgnore={() => void ignoreCurrentProfile()}
-                onPeek={() => router.push(`/people/${topCard.user_id}`)}
-                onMediaFatal={swipeAwayBrokenPhoto}
-              />
+              <article className="surface discover-mobile-mvp-card">
+                <div className="discover-mobile-mvp-card__photo-wrap">
+                  {mobileMainPhoto ? (
+                    <img
+                      className="discover-mobile-mvp-card__photo"
+                      src={mobileMainPhoto}
+                      alt={mobileName}
+                      loading="eager"
+                    />
+                  ) : (
+                    <div className="discover-mobile-mvp-card__photo-fallback" />
+                  )}
+                </div>
+                <div className="discover-mobile-mvp-card__meta">
+                  <div className="discover-mobile-mvp-card__name">
+                    {mobileName}
+                    {mobileAge}
+                  </div>
+                  {mobileCity ? <div className="discover-mobile-mvp-card__city">{mobileCity}</div> : null}
+                  <button type="button" className="discover-detail-link" onClick={() => router.push(`/people/${topCard.user_id}`)}>
+                    {t("discover.card.fullProfile")}
+                  </button>
+                </div>
+              </article>
             </div>
           )}
           <div className="discover-actions-mvp">
+            <div className="discover-actions-mvp__row">
+              <Button
+                type="button"
+                className="discover-action-tap discover-action-tap--like discover-action-tap--mvp"
+                disabled={swipeInteractionLocked || !topCardValid}
+                onClick={() => void advanceProfile("like")}
+              >
+                ❤️ Like
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="discover-action-tap discover-action-tap--pass discover-action-tap--mvp"
+                disabled={swipeInteractionLocked || !topCardValid}
+                onClick={() => void advanceProfile("pass")}
+              >
+                ✖ Pass
+              </Button>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              className="discover-action-tap discover-action-tap--ignore discover-action-tap--mvp"
+              disabled={swipeInteractionLocked || !topCardValid}
+              onClick={() => void advanceProfile("ignore")}
+            >
+              🚫 Ignore
+            </Button>
             <Button
               type="button"
               variant="secondary"
