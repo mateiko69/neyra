@@ -2202,6 +2202,8 @@
     "demo.mode.subtitle":  "Walkthrough profiles are labeled. Bring friends so your city feels alive with real matches.",
     "demo.badge":  "Demo",
     "demo.notice":  "This profile helps you test matching and AI chat.",
+    "demo.showcase.badgeTitle":  "✨ AI DEMO PROFILE",
+    "demo.showcase.badgeSub":  "This is a showcase profile — an AI will reply in chat (not a real person).",
     "demo.match.subtitle":  "This demo profile will show you how NEYRA chat works.",
     "demo.match.openChat":  "Open chat",
     "demo.match.tryAi":  "Try AI reply suggestions",

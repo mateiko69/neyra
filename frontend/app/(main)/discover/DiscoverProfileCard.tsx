@@ -369,12 +369,6 @@ function DiscoverProfileCardInner({
             </div>
             <div className="discover-card__hover-glow" aria-hidden />
             <div className="discover-card__shade discover-card__shade--vignette" aria-hidden />
-            {(demoPremiumShowcase || isDemoProfile) && (
-              <div className="discover-card__demo-ribbon" role="status">
-                <div className="discover-card__demo-ribbon-title">{t("demo.showcase.badgeTitle")}</div>
-                <div className="discover-card__demo-ribbon-sub">{t("demo.showcase.badgeSub")}</div>
-              </div>
-            )}
             {showVariableReward && variableRewardLabel ? (
               <div className="discover-card__variable-reward" aria-hidden>
                 {variableRewardLabel}
