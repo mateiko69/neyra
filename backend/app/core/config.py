@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
-from pydantic import ValidationInfo, field_validator, model_validator
+from pydantic import Field, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine.url import make_url
 
@@ -23,6 +23,14 @@ def _demo_bot_default_enabled() -> bool:
     if env in {"production", "prod"}:
         return False
     return True
+
+
+def _default_demo_premium_only_mode() -> bool:
+    """Non-production: Discover/Matches are demo-only by default (override with env). Tests stay opt-in False."""
+    if _running_tests():
+        return False
+    env = str(os.environ.get("ENV", "") or "").strip().lower()
+    return env not in {"production", "prod"}
 
 def _is_weak_secret(value: str) -> bool:
     v = str(value or "").strip()
@@ -147,6 +155,9 @@ class Settings(BaseSettings):
     ENABLE_PREMIUM_FEATURES: bool = True
     DEMO_MODE: bool = True
     DEMO_MODE_DEFAULT_ENABLED: bool = True
+    # When true: Discover + Matches show **only** catalog demo users (`is_demo`); real profiles are excluded.
+    # Default ON for dev/staging; set DEMO_PREMIUM_ONLY_MODE=false to mix real users locally. Force true in prod via env.
+    DEMO_PREMIUM_ONLY_MODE: bool = Field(default_factory=_default_demo_premium_only_mode)
     AI_STRICT_MONETIZATION: bool = False
     QA_AGENT_ENABLED: bool = False
     QA_AGENT_DEMO_ONLY: bool = True

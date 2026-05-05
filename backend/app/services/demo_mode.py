@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.utils.media_urls import normalize_photo_url
+from app.utils.demo_catalog_paths import demo_catalog_main_photo_url
 from app.models.ai_interaction_event import AiInteractionEvent
 from app.models.ai_trial_usage import AiTrialUsage
 from app.models.analytics_event import AnalyticsEvent
@@ -46,6 +47,11 @@ DEMO_TARGET_COUNT = 25
 DEMO_BUNDLED_AVATAR_COUNT = 12
 
 _log_demo = logging.getLogger("neyra.demo_seed")
+
+
+def is_demo_premium_feed_enabled() -> bool:
+    """Discover/Matches only AI catalog demos when True (see README / DEPLOYMENT)."""
+    return bool(getattr(settings, "DEMO_PREMIUM_ONLY_MODE", False))
 
 
 def demo_bundled_photo_url(*, catalog_id: str, gender: str | None = None) -> str:
@@ -101,6 +107,20 @@ def load_demo_profiles_catalog() -> list[dict]:
 
 def _demo_email_catalog_id(catalog_id: str) -> str:
     return f"demo+{str(catalog_id).strip()}@neyra.local"
+
+
+def _apply_demo_trust_showcase_no_verify(user: User, profile: Profile, index: int, now: datetime) -> None:
+    """Premium demo deck: no verification badges; optional premium flair."""
+    profile.verification_status = "none"
+    profile.verification_level = "none"
+    profile.verified = False
+    profile.verified_at = None
+    profile.verification_badge_visible = False
+    premium_roll = ((index * 31 + 7) % 100) < 35
+    if premium_roll:
+        user.premium_until = now + timedelta(days=180)
+    else:
+        user.premium_until = None
 
 
 def _apply_demo_trust_and_premium(user: User, profile: Profile, index: int, now: datetime) -> None:
@@ -192,7 +212,7 @@ def _apply_catalog_demo_row(db: Session, entry: dict, index: int, now: datetime,
         profile.demo_personality_json = json.dumps(dp)
     else:
         profile.demo_personality_json = "{}"
-        ensure_demo_personality_json(profile)
+    ensure_demo_personality_json(profile)
 
     profile.display_name = str(entry.get("display_name") or profile.display_name or "Demo")
     profile.age = int(entry.get("age") or profile.age or 25)
@@ -200,7 +220,7 @@ def _apply_catalog_demo_row(db: Session, entry: dict, index: int, now: datetime,
     profile.gender = _catalog_gender_to_profile_gender(entry)
     stats["gender_assigned"].append(f"{cid}:{profile.gender}")
     catalog_key = str(entry.get("id") or "").strip() or f"demo_{index}"
-    profile.photo_urls = demo_bundled_photo_url(catalog_id=catalog_key, gender=profile.gender)
+    profile.photo_urls = demo_catalog_main_photo_url(catalog_key)
     profile.interested_in = str(entry.get("interested_in") or "")
     profile.relationship_goal = str(entry.get("relationship_goal") or "relationship")
     profile.interests = str(entry.get("interests") or "")
@@ -211,7 +231,10 @@ def _apply_catalog_demo_row(db: Session, entry: dict, index: int, now: datetime,
     profile.is_demo_profile = True
     profile.demo_disclaimer = DEMO_PROFILE_DISCLAIMER
     profile.preferred_language = str(entry.get("preferred_language") or "en").strip() or "en"
-    _apply_demo_trust_and_premium(user, profile, index, now)
+    if is_demo_premium_feed_enabled():
+        _apply_demo_trust_showcase_no_verify(user, profile, index, now)
+    else:
+        _apply_demo_trust_and_premium(user, profile, index, now)
     db.add(user)
     db.add(profile)
 
@@ -238,28 +261,39 @@ def sync_demo_profiles_from_catalog(db: Session, *, limit: int | None = None) ->
     return stats
 
 
+def _demo_catalog_id_from_email(email: str | None) -> str | None:
+    e = (email or "").strip().lower()
+    if not e.startswith("demo+") or not e.endswith("@neyra.local"):
+        return None
+    return e.split("@", 1)[0][len("demo+") :].strip() or None
+
+
 def repair_demo_profile_photos(db: Session) -> dict:
     """
     Idempotent repair for existing demo profiles with missing or unstable photo URLs.
-    Replaces empty or /uploads/* values with deterministic built-in SVG avatars.
+    Prefers `/demo-profiles/{men|women}/…/main.jpg` derived from `demo+<id>@neyra.local`.
     """
     rows = (
-        db.query(Profile)
+        db.query(Profile, User)
         .join(User, User.id == Profile.user_id)
         .filter(User.is_demo == True, Profile.is_demo_profile == True)  # noqa: E712
         .all()
     )
     updated = 0
-    for index, profile in enumerate(rows):
+    for index, (profile, user) in enumerate(rows):
         current_parts = [normalize_photo_url(p.strip(), demo_profile_gender=profile.gender) for p in str(profile.photo_urls or "").split(",") if p.strip()]
         has_unstable_upload = any(p.startswith("/uploads/") for p in current_parts)
         has_remote_placeholder = any(p.startswith(("http://", "https://")) for p in current_parts)
-        if current_parts and not has_unstable_upload and not has_remote_placeholder:
+        has_shared_only = bool(current_parts) and all("/demo-profiles/shared/" in p for p in current_parts)
+        if current_parts and not has_unstable_upload and not has_remote_placeholder and not has_shared_only:
             continue
-        profile.photo_urls = demo_bundled_photo_url(
-            catalog_id=f"repair_{int(profile.user_id)}_{index}",
-            gender=str(getattr(profile, "gender", None) or ""),
-        )
+        cid = _demo_catalog_id_from_email(getattr(user, "email", None))
+        if cid and ("_demo_" in cid or cid.startswith("man_") or cid.startswith("woman_")):
+            profile.photo_urls = demo_catalog_main_photo_url(cid)
+        else:
+            slug = (cid or f"repair_{int(profile.user_id)}").strip() or "demo"
+            folder = "men" if str(getattr(profile, "gender", "") or "").strip().lower() == "man" else "women"
+            profile.photo_urls = f"/demo-profiles/{folder}/{slug}/main.jpg"
         db.add(profile)
         updated += 1
     if updated:
@@ -645,10 +679,11 @@ def ensure_demo_personality_json(profile: Profile | None) -> None:
 
     legacy_map = {
         "flirty": "playful",
-        "dry": "sarcastic",
-        "cold": "sarcastic",
+        "dry": "teasing",
+        "cold": "teasing",
         "curious": "deep",
-        "calm": "warm",
+        "sarcastic": "teasing",
+        "warm": "calm",
         "confident": "playful",
     }
     p_raw = str(cur.get("personality") or "").strip().lower()
@@ -656,7 +691,7 @@ def ensure_demo_personality_json(profile: Profile | None) -> None:
         cur["personality"] = legacy_map[p_raw]
 
     defaults = {
-        "personality": random.choice(["playful", "deep", "sarcastic", "warm"]),
+        "personality": random.choice(["playful", "deep", "calm", "teasing"]),
         "style": random.choice(["warm", "playful", "calm", "bold"]),
         "interests": random.sample(
             ["travel", "coffee", "music", "movies", "hiking", "food", "books", "nightlife", "pets", "gaming", "art"],
@@ -708,8 +743,12 @@ def ensure_demo_personality_json(profile: Profile | None) -> None:
         cur["humor"] = "light"
     if str(cur.get("reply_speed") or "").strip().lower() not in {"fast", "normal", "slow"}:
         cur["reply_speed"] = str(cur.get("response_speed") or "normal").strip().lower()
-    if str(cur.get("personality") or "").strip().lower() not in {"playful", "deep", "sarcastic", "warm"}:
+    p_fin = str(cur.get("personality") or "").strip().lower()
+    if p_fin not in {"playful", "deep", "calm", "teasing"}:
         cur["personality"] = defaults["personality"]
+    cur["personality_type"] = str(cur.get("personality_type") or cur.get("personality") or "calm").strip().lower()
+    if cur["personality_type"] not in {"playful", "deep", "calm", "teasing"}:
+        cur["personality_type"] = str(cur.get("personality") or "calm")
 
     profile.demo_personality_json = json.dumps(cur)
 
@@ -781,14 +820,18 @@ def ensure_demo_profiles(db: Session, target_count: int = DEMO_TARGET_COUNT) -> 
         profile.interests = str(spec["interests"])
         profile.lifestyle_tags = str(spec["lifestyle"])
         profile.bio = str(spec["bio"])
-        profile.photo_urls = demo_bundled_photo_url(catalog_id=f"spec_{slug}", gender=str(spec["gender"]))
+        folder = "men" if str(spec["gender"]) == "man" else "women"
+        profile.photo_urls = f"/demo-profiles/{folder}/{slug}/main.jpg"
         profile.onboarding_completed = True
         profile.founder_welcome_seen = True
         profile.is_demo_profile = True
         profile.demo_disclaimer = DEMO_PROFILE_DISCLAIMER
         profile.preferred_language = "en"
         ensure_demo_personality_json(profile)
-        _apply_demo_trust_and_premium(user, profile, index, now)
+        if is_demo_premium_feed_enabled():
+            _apply_demo_trust_showcase_no_verify(user, profile, index, now)
+        else:
+            _apply_demo_trust_and_premium(user, profile, index, now)
         db.add(user)
         db.add(profile)
     db.commit()

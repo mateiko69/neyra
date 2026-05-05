@@ -43,6 +43,11 @@ def verification_status_for_api(profile: Profile | None) -> str:
     """UI + mobile: none | pending | pending_manual_review | approved | rejected."""
     if not profile:
         return "none"
+    # Catalog demo bots do not use human verification — never surface perpetual "pending".
+    if bool(getattr(profile, "is_demo_profile", False)):
+        raw_demo = normalize_verification_status(getattr(profile, "verification_status", None))
+        if raw_demo in ("pending", "pending_manual_review"):
+            return "none"
     raw = normalize_verification_status(getattr(profile, "verification_status", None))
     if raw == "verified":
         return "approved"

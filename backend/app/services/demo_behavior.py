@@ -134,6 +134,7 @@ def _engine_personality(pers: dict[str, Any]) -> str:
     alias = {
         "playful": "flirty",
         "flirty": "flirty",
+        "teasing": "flirty",
         "warm": "curious",
         "calm": "curious",
         "deep": "curious",
@@ -961,7 +962,9 @@ def schedule_demo_first_message_maybe(db: Session, demo_user_id: int, real_user_
         return
     demo_user_id = int(demo_user_id)
     real_user_id = int(real_user_id)
-    if not _real_user_onboarding_completed(db, int(real_user_id)):
+    if not bool(getattr(settings, "DEMO_PREMIUM_ONLY_MODE", False)) and not _real_user_onboarding_completed(
+        db, int(real_user_id)
+    ):
         return
     prof = db.query(Profile).filter(Profile.user_id == demo_user_id).first()
     if not prof or not prof.is_demo_profile:
@@ -990,8 +993,11 @@ def schedule_demo_first_message_maybe(db: Session, demo_user_id: int, real_user_
     )
     if int(n or 0) > 0:
         return
-    # Product requirement: human opener delay 45..150 seconds after like/match.
-    delay = random.randint(45, 150)
+    # Premium demo: schedule opener for the next tick (0s) so chat feels instant; default walkthrough: 45–150s.
+    if bool(getattr(settings, "DEMO_PREMIUM_ONLY_MODE", False)):
+        delay = 0
+    else:
+        delay = random.randint(45, 150)
     _set_pending(prof, real_user_id, "first_match", _utcnow() + timedelta(seconds=delay))
     log.info("demo_bot_reply_scheduled demo=%s partner=%s delay=%s trigger=0", int(demo_user_id), int(real_user_id), int(delay))
     db.add(prof)

@@ -89,7 +89,7 @@ FEMALE_NAMES = [
     "Mila",
 ]
 
-FEMALE_PERSONALITIES = ("flirty", "playful", "warm")
+PERSONALITY_CYCLE = ("playful", "deep", "calm", "teasing")
 
 MALE_NAMES = [
     "Leo",
@@ -106,8 +106,6 @@ MALE_NAMES = [
     "Victor",
     "Hugo",
 ]
-
-MALE_PERSONALITIES = ("calm", "confident", "curious")
 
 FEMALE_BIOS = [
     "Coffee shops, weekend markets, and playlists that feel like a hug.",
@@ -237,6 +235,60 @@ def _ex(en: list[str], uk: list[str]) -> dict[str, list[str]]:
 
 def _examples_for(personality: str, name: str, city: str) -> dict[str, dict[str, list[str]]]:
     """Multilingual catalog lines (en + uk); demo_behavior falls back to en for other locales."""
+    if personality == "teasing":
+        return {
+            "opener_examples": _ex(
+                [
+                    "Quick vibe check 🙂 are you more spontaneous or do you like planning the week?",
+                    f"Hey — I'm {name}. What's something small that instantly lifts your mood?",
+                ],
+                [
+                    "Хей 🙂 ти більше про спонтанність чи любиш планувати?",
+                    f"Привіт — я {name}. Що маленьке одразу піднімає настрій?",
+                ],
+            ),
+            "reply_examples": _ex(
+                [
+                    "Haha fair 🙂 I'd push back gently — coffee first or straight to adventure?",
+                    "I'm listening — what's one thing you're picky about (in a cute way)?",
+                ],
+                [
+                    "Справедливо 🙂 тоді обережно спитаю — спочатку кава чи одразу пригода?",
+                    "Слухаю — будь до чого ти вибірковий (в гарному сенсі)?",
+                ],
+            ),
+            "revive_examples": _ex(
+                ["Still curious about you — no pressure, just checking in 🙂"],
+                ["Досі цікаво про тебе — без тиску, просто заглядаю 🙂"],
+            ),
+        }
+    if personality == "deep":
+        return {
+            "opener_examples": _ex(
+                [
+                    f"Hey — I'm {name}. What's something you've changed your mind about lately?",
+                    "Hi. What's a lesson from this year that stuck with you?",
+                ],
+                [
+                    f"Привіт — я {name}. Над чим ти нещодавно змінив думку?",
+                    "Привіт. Який урок цього року запам'ятався найбільше?",
+                ],
+            ),
+            "reply_examples": _ex(
+                [
+                    "That resonates. What made it click for you?",
+                    "Thanks for sharing — what's one thing you're hoping for next month?",
+                ],
+                [
+                    "Відгукується. Що для тебе стало переломним?",
+                    "Дякую, що поділився — на що сподіваєшся в наступному місяці?",
+                ],
+            ),
+            "revive_examples": _ex(
+                ["Hey — random check-in. Still around? No pressure either way."],
+                ["Привіт — короткий чек-ін. Ти ще тут? Без тиску."],
+            ),
+        }
     if personality in ("flirty", "playful"):
         return {
             "opener_examples": _ex(
@@ -435,23 +487,22 @@ def build_profiles_from_scan_entries(entries: list[dict]) -> list[dict]:
     out: list[dict] = []
     f_idx = 0
     m_idx = 0
-    for e in entries:
+    for global_idx, e in enumerate(entries):
         catalog_id = str(e["id"])
         folder_name = str(e["folder_name"])
         rel_posix = str(e["rel_posix"])
         gender_profile = str(e["gender_profile"])
         parent_rel = Path(rel_posix).parent.as_posix()
         photo_path = f"/demo-profiles/{parent_rel}/main.jpg"
+        personality = PERSONALITY_CYCLE[global_idx % len(PERSONALITY_CYCLE)]
 
         if gender_profile == "woman":
             name = FEMALE_NAMES[f_idx % len(FEMALE_NAMES)]
-            personality = FEMALE_PERSONALITIES[f_idx % len(FEMALE_PERSONALITIES)]
             bio_core = FEMALE_BIOS[f_idx % len(FEMALE_BIOS)]
             interested_in = "men"
             f_idx += 1
         else:
             name = MALE_NAMES[m_idx % len(MALE_NAMES)]
-            personality = MALE_PERSONALITIES[m_idx % len(MALE_PERSONALITIES)]
             bio_core = MALE_BIOS[m_idx % len(MALE_BIOS)]
             interested_in = "women"
             m_idx += 1
@@ -481,6 +532,7 @@ def build_profiles_from_scan_entries(entries: list[dict]) -> list[dict]:
                 "photo_main_path": photo_path,
                 "demo_personality": {
                     "personality": personality,
+                    "personality_type": personality,
                     "response_speed": response_speed,
                     "engagement_level": engagement,
                     "opener_examples": ml["opener_examples"],
@@ -519,7 +571,7 @@ def main() -> None:
         log.info("skipped %s: %s", name, reason)
 
     profiles = build_profiles_from_scan_entries(entries)
-    payload = {"version": 5, "profiles": profiles}
+    payload = {"version": 8, "profiles": profiles}
 
     if entries:
         rels = [str(e.get("rel_posix") or "").replace("\\", "/").lower() for e in entries]

@@ -1,5 +1,5 @@
 {
-  "version": 7,
+  "version": 8,
   "profiles": [
     {
       "id": "man_demo_001",
@@ -12,19 +12,116 @@
       "relationship_goal": "relationship",
       "interests": "tech, hiking, running, reading",
       "lifestyle_tags": "easygoing, active, thoughtful",
-      "bio": "Gym, good coffee, and conversations that go past midnight.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-man_demo_001/600/800",
+      "bio": "Gym, good coffee, and conversations that go past midnight.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/men/demo_001/main.jpg",
       "demo_personality": {
-        "personality": "calm",
+        "personality": "playful",
+        "personality_type": "playful",
         "response_speed": "normal",
         "engagement_level": 0.74,
         "opener_examples": {
           "en": [
-            "Hey. I'm Leo. What's been a good moment recently?",
+            "Okay, your profile made me smile — what's your go-to weekend plan?",
+            "Hi 🙂 I'm Leo. Tell me one thing you're oddly picky about."
+          ],
+          "uk": [
+            "Твій профіль змусив посміхнутися — який план на вихідні тобі ближчий?",
+            "Привіт 🙂 Я Leo. Розкажи одну річ, до якої ти дивишся вибірково."
+          ]
+        },
+        "reply_examples": {
+          "en": [
+            "Love that energy 😊 what would you want to do if we met up?",
+            "Okay I'm curious — what's your favorite way to spend a free evening?"
+          ],
+          "uk": [
+            "Класна енергія 😊 що б ти хотіла зробити, якби зустрілися?",
+            "Цікаво — як ти любиш проводити вільний вечір?"
+          ]
+        },
+        "revive_examples": {
+          "en": [
+            "Popping back in 🙂 if you're still curious, I'd like to keep chatting."
+          ],
+          "uk": [
+            "Заглядаю знову 🙂 якщо ще цікаво — хочу продовжити розмову."
+          ]
+        }
+      }
+    },
+    {
+      "id": "woman_demo_001",
+      "gender": "woman",
+      "display_name": "Maya",
+      "age": 19,
+      "city": "Lisbon",
+      "gender_profile": "woman",
+      "interested_in": "men",
+      "relationship_goal": "relationship",
+      "interests": "tech, hiking, running, reading",
+      "lifestyle_tags": "easygoing, active, thoughtful",
+      "bio": "Coffee shops, weekend markets, and playlists that feel like a hug.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/women/demo_001/main.jpg",
+      "demo_personality": {
+        "personality": "deep",
+        "personality_type": "deep",
+        "response_speed": "normal",
+        "engagement_level": 0.74,
+        "opener_examples": {
+          "en": [
+            "Hey — I'm Maya. What's something you've changed your mind about lately?",
+            "Hi. What's a lesson from this year that stuck with you?"
+          ],
+          "uk": [
+            "Привіт — я Maya. Над чим ти нещодавно змінив думку?",
+            "Привіт. Який урок цього року запам'ятався найбільше?"
+          ]
+        },
+        "reply_examples": {
+          "en": [
+            "That resonates. What made it click for you?",
+            "Thanks for sharing — what's one thing you're hoping for next month?"
+          ],
+          "uk": [
+            "Відгукується. Що для тебе стало переломним?",
+            "Дякую, що поділився — на що сподіваєшся в наступному місяці?"
+          ]
+        },
+        "revive_examples": {
+          "en": [
+            "Hey — random check-in. Still around? No pressure either way."
+          ],
+          "uk": [
+            "Привіт — короткий чек-ін. Ти ще тут? Без тиску."
+          ]
+        }
+      }
+    },
+    {
+      "id": "man_demo_002",
+      "gender": "man",
+      "display_name": "Adam",
+      "age": 20,
+      "city": "Rome",
+      "gender_profile": "man",
+      "interested_in": "women",
+      "relationship_goal": "relationship",
+      "interests": "music, yoga, cooking, podcasts, photography",
+      "lifestyle_tags": "curious, thoughtful, spontaneous",
+      "bio": "Cooks on weeknights, explores on weekends, replies thoughtfully.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/men/demo_002/main.jpg",
+      "demo_personality": {
+        "personality": "calm",
+        "personality_type": "calm",
+        "response_speed": "slow",
+        "engagement_level": 0.87,
+        "opener_examples": {
+          "en": [
+            "Hey. I'm Adam. What's been a good moment recently?",
             "Hi — low-pressure question: tea or coffee, and why?"
           ],
           "uk": [
-            "Привіт. Я Leo. Що нещодавно було хорошим моментом?",
+            "Привіт. Я Adam. Що нещодавно було хорошим моментом?",
             "Привіт — питання без тиску: чай чи кава, і чому?"
           ]
         },
@@ -49,100 +146,6 @@
       }
     },
     {
-      "id": "woman_demo_001",
-      "gender": "woman",
-      "display_name": "Maya",
-      "age": 19,
-      "city": "Lisbon",
-      "gender_profile": "woman",
-      "interested_in": "men",
-      "relationship_goal": "relationship",
-      "interests": "tech, hiking, running, reading",
-      "lifestyle_tags": "easygoing, active, thoughtful",
-      "bio": "Coffee shops, weekend markets, and playlists that feel like a hug.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-woman_demo_001/600/800",
-      "demo_personality": {
-        "personality": "flirty",
-        "response_speed": "normal",
-        "engagement_level": 0.74,
-        "opener_examples": {
-          "en": [
-            "Okay, your profile made me smile — what's your go-to weekend plan?",
-            "Hi 🙂 I'm Maya. Tell me one thing you're oddly picky about."
-          ],
-          "uk": [
-            "Твій профіль змусив посміхнутися — який план на вихідні тобі ближчий?",
-            "Привіт 🙂 Я Maya. Розкажи одну річ, до якої ти дивишся вибірково."
-          ]
-        },
-        "reply_examples": {
-          "en": [
-            "Love that energy 😊 what would you want to do if we met up?",
-            "Okay I'm curious — what's your favorite way to spend a free evening?"
-          ],
-          "uk": [
-            "Класна енергія 😊 що б ти хотіла зробити, якби зустрілися?",
-            "Цікаво — як ти любиш проводити вільний вечір?"
-          ]
-        },
-        "revive_examples": {
-          "en": [
-            "Popping back in 🙂 if you're still curious, I'd like to keep chatting."
-          ],
-          "uk": [
-            "Заглядаю знову 🙂 якщо ще цікаво — хочу продовжити розмову."
-          ]
-        }
-      }
-    },
-    {
-      "id": "man_demo_002",
-      "gender": "man",
-      "display_name": "Adam",
-      "age": 20,
-      "city": "Rome",
-      "gender_profile": "man",
-      "interested_in": "women",
-      "relationship_goal": "relationship",
-      "interests": "music, yoga, cooking, podcasts, photography",
-      "lifestyle_tags": "curious, thoughtful, spontaneous",
-      "bio": "Cooks on weeknights, explores on weekends, replies thoughtfully.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-man_demo_002/600/800",
-      "demo_personality": {
-        "personality": "confident",
-        "response_speed": "slow",
-        "engagement_level": 0.87,
-        "opener_examples": {
-          "en": [
-            "Hi — I'm Adam. What's one goal you're working on right now?",
-            "Hey. What would a perfect Sunday look like for you?"
-          ],
-          "uk": [
-            "Привіт — я Adam. Над якою однією ціллю ти зараз працюєш?",
-            "Привіт. Як виглядав би ідеальна неділя для тебе?"
-          ]
-        },
-        "reply_examples": {
-          "en": [
-            "Solid. I'd match that with: what's your non-negotiable in dating?",
-            "Interesting. Tell me one thing you're proud of from this month."
-          ],
-          "uk": [
-            "Сильно. А що для тебе принципово в знайомствах?",
-            "Цікаво. Назви одну річ, яку ти пишаєшся цього місяця."
-          ]
-        },
-        "revive_examples": {
-          "en": [
-            "Hey — random check-in. Still around? No pressure either way."
-          ],
-          "uk": [
-            "Привіт — короткий чек-ін. Ти ще тут? Без тиску."
-          ]
-        }
-      }
-    },
-    {
       "id": "woman_demo_002",
       "gender": "woman",
       "display_name": "Nora",
@@ -153,38 +156,39 @@
       "relationship_goal": "relationship",
       "interests": "music, yoga, cooking, podcasts, photography",
       "lifestyle_tags": "curious, thoughtful, spontaneous",
-      "bio": "Runner, reader, and always up for trying one new restaurant.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-woman_demo_002/600/800",
+      "bio": "Runner, reader, and always up for trying one new restaurant.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/women/demo_002/main.jpg",
       "demo_personality": {
-        "personality": "playful",
+        "personality": "teasing",
+        "personality_type": "teasing",
         "response_speed": "slow",
         "engagement_level": 0.87,
         "opener_examples": {
           "en": [
-            "Okay, your profile made me smile — what's your go-to weekend plan?",
-            "Hi 🙂 I'm Nora. Tell me one thing you're oddly picky about."
+            "Quick vibe check 🙂 are you more spontaneous or do you like planning the week?",
+            "Hey — I'm Nora. What's something small that instantly lifts your mood?"
           ],
           "uk": [
-            "Твій профіль змусив посміхнутися — який план на вихідні тобі ближчий?",
-            "Привіт 🙂 Я Nora. Розкажи одну річ, до якої ти дивишся вибірково."
+            "Хей 🙂 ти більше про спонтанність чи любиш планувати?",
+            "Привіт — я Nora. Що маленьке одразу піднімає настрій?"
           ]
         },
         "reply_examples": {
           "en": [
-            "Love that energy 😊 what would you want to do if we met up?",
-            "Okay I'm curious — what's your favorite way to spend a free evening?"
+            "Haha fair 🙂 I'd push back gently — coffee first or straight to adventure?",
+            "I'm listening — what's one thing you're picky about (in a cute way)?"
           ],
           "uk": [
-            "Класна енергія 😊 що б ти хотіла зробити, якби зустрілися?",
-            "Цікаво — як ти любиш проводити вільний вечір?"
+            "Справедливо 🙂 тоді обережно спитаю — спочатку кава чи одразу пригода?",
+            "Слухаю — будь до чого ти вибірковий (в гарному сенсі)?"
           ]
         },
         "revive_examples": {
           "en": [
-            "Popping back in 🙂 if you're still curious, I'd like to keep chatting."
+            "Still curious about you — no pressure, just checking in 🙂"
           ],
           "uk": [
-            "Заглядаю знову 🙂 якщо ще цікаво — хочу продовжити розмову."
+            "Досі цікаво про тебе — без тиску, просто заглядаю 🙂"
           ]
         }
       }
@@ -200,38 +204,39 @@
       "relationship_goal": "relationship",
       "interests": "film, photography, yoga",
       "lifestyle_tags": "active, social, spontaneous",
-      "bio": "Cycling, documentaries, and dry humor with a soft heart.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-man_demo_003/600/800",
+      "bio": "Cycling, documentaries, and dry humor with a soft heart.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/men/demo_003/main.jpg",
       "demo_personality": {
-        "personality": "curious",
+        "personality": "playful",
+        "personality_type": "playful",
         "response_speed": "fast",
         "engagement_level": 0.85,
         "opener_examples": {
           "en": [
-            "Hey! What's something you're learning or trying lately?",
-            "Hi from Berlin — what's a place here you'd recommend?"
+            "Okay, your profile made me smile — what's your go-to weekend plan?",
+            "Hi 🙂 I'm Milan. Tell me one thing you're oddly picky about."
           ],
           "uk": [
-            "Привіт! Чого ти зараз навчаєшся або що пробуєш?",
-            "Привіт з Berlin — яке місце тут варто порадити?"
+            "Твій профіль змусив посміхнутися — який план на вихідні тобі ближчий?",
+            "Привіт 🙂 Я Milan. Розкажи одну річ, до якої ти дивишся вибірково."
           ]
         },
         "reply_examples": {
           "en": [
-            "That sounds nice — I'd like to hear more. What drew you to that?",
-            "Haha, fair. What would you want to do on a first meetup—coffee or a walk?"
+            "Love that energy 😊 what would you want to do if we met up?",
+            "Okay I'm curious — what's your favorite way to spend a free evening?"
           ],
           "uk": [
-            "Звучить приємно — розкажи більше. Що тебе до цього підштовхнуло?",
-            "Справедливо 🙂 На першу зустріч — кава чи прогулянка?"
+            "Класна енергія 😊 що б ти хотіла зробити, якби зустрілися?",
+            "Цікаво — як ти любиш проводити вільний вечір?"
           ]
         },
         "revive_examples": {
           "en": [
-            "Hey — random check-in. Still around? No pressure either way."
+            "Popping back in 🙂 if you're still curious, I'd like to keep chatting."
           ],
           "uk": [
-            "Привіт — короткий чек-ін. Ти ще тут? Без тиску."
+            "Заглядаю знову 🙂 якщо ще цікаво — хочу продовжити розмову."
           ]
         }
       }
@@ -247,30 +252,31 @@
       "relationship_goal": "relationship",
       "interests": "film, photography, yoga",
       "lifestyle_tags": "active, social, spontaneous",
-      "bio": "Art galleries, long walks, and honest conversation over small talk.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-woman_demo_003/600/800",
+      "bio": "Art galleries, long walks, and honest conversation over small talk.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/women/demo_003/main.jpg",
       "demo_personality": {
-        "personality": "warm",
+        "personality": "deep",
+        "personality_type": "deep",
         "response_speed": "fast",
         "engagement_level": 0.85,
         "opener_examples": {
           "en": [
-            "Hey! I'd love to hear what you're into lately.",
-            "Hi — warm hello from Berlin. What's been on your mind this week?"
+            "Hey — I'm Sofia. What's something you've changed your mind about lately?",
+            "Hi. What's a lesson from this year that stuck with you?"
           ],
           "uk": [
-            "Привіт! Розкажи, чим ти зараз живеш.",
-            "Привіт — тепле привітання з Berlin. Що у тебе на думці цього тижня?"
+            "Привіт — я Sofia. Над чим ти нещодавно змінив думку?",
+            "Привіт. Який урок цього року запам'ятався найбільше?"
           ]
         },
         "reply_examples": {
           "en": [
-            "That sounds nice — I'd like to hear more. What drew you to that?",
-            "Haha, fair. What would you want to do on a first meetup—coffee or a walk?"
+            "That resonates. What made it click for you?",
+            "Thanks for sharing — what's one thing you're hoping for next month?"
           ],
           "uk": [
-            "Звучить приємно — розкажи більше. Що тебе до цього підштовхнуло?",
-            "Справедливо 🙂 На першу зустріч — кава чи прогулянка?"
+            "Відгукується. Що для тебе стало переломним?",
+            "Дякую, що поділився — на що сподіваєшся в наступному місяці?"
           ]
         },
         "revive_examples": {
@@ -294,10 +300,11 @@
       "relationship_goal": "relationship",
       "interests": "art, hiking, design, reading, film",
       "lifestyle_tags": "easygoing, creative, social",
-      "bio": "Board games, craft beer, and loyal friendships.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-man_demo_004/600/800",
+      "bio": "Board games, craft beer, and loyal friendships.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/men/demo_004/main.jpg",
       "demo_personality": {
         "personality": "calm",
+        "personality_type": "calm",
         "response_speed": "slow",
         "engagement_level": 0.9,
         "opener_examples": {
@@ -341,38 +348,39 @@
       "relationship_goal": "relationship",
       "interests": "art, hiking, design, reading, film",
       "lifestyle_tags": "easygoing, creative, social",
-      "bio": "Yoga mornings, spicy food, and friends who show up on time.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-woman_demo_004/600/800",
+      "bio": "Yoga mornings, spicy food, and friends who show up on time.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/women/demo_004/main.jpg",
       "demo_personality": {
-        "personality": "flirty",
+        "personality": "teasing",
+        "personality_type": "teasing",
         "response_speed": "slow",
         "engagement_level": 0.9,
         "opener_examples": {
           "en": [
-            "Okay, your profile made me smile — what's your go-to weekend plan?",
-            "Hi 🙂 I'm Elena. Tell me one thing you're oddly picky about."
+            "Quick vibe check 🙂 are you more spontaneous or do you like planning the week?",
+            "Hey — I'm Elena. What's something small that instantly lifts your mood?"
           ],
           "uk": [
-            "Твій профіль змусив посміхнутися — який план на вихідні тобі ближчий?",
-            "Привіт 🙂 Я Elena. Розкажи одну річ, до якої ти дивишся вибірково."
+            "Хей 🙂 ти більше про спонтанність чи любиш планувати?",
+            "Привіт — я Elena. Що маленьке одразу піднімає настрій?"
           ]
         },
         "reply_examples": {
           "en": [
-            "Love that energy 😊 what would you want to do if we met up?",
-            "Okay I'm curious — what's your favorite way to spend a free evening?"
+            "Haha fair 🙂 I'd push back gently — coffee first or straight to adventure?",
+            "I'm listening — what's one thing you're picky about (in a cute way)?"
           ],
           "uk": [
-            "Класна енергія 😊 що б ти хотіла зробити, якби зустрілися?",
-            "Цікаво — як ти любиш проводити вільний вечір?"
+            "Справедливо 🙂 тоді обережно спитаю — спочатку кава чи одразу пригода?",
+            "Слухаю — будь до чого ти вибірковий (в гарному сенсі)?"
           ]
         },
         "revive_examples": {
           "en": [
-            "Popping back in 🙂 if you're still curious, I'd like to keep chatting."
+            "Still curious about you — no pressure, just checking in 🙂"
           ],
           "uk": [
-            "Заглядаю знову 🙂 якщо ще цікаво — хочу продовжити розмову."
+            "Досі цікаво про тебе — без тиску, просто заглядаю 🙂"
           ]
         }
       }
@@ -388,67 +396,21 @@
       "relationship_goal": "relationship",
       "interests": "travel, volunteering, cooking, nature",
       "lifestyle_tags": "curious, easygoing, creative",
-      "bio": "Photography, football, and making time for people who matter.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-man_demo_005/600/800",
-      "demo_personality": {
-        "personality": "confident",
-        "response_speed": "normal",
-        "engagement_level": 0.59,
-        "opener_examples": {
-          "en": [
-            "Hi — I'm Erik. What's one goal you're working on right now?",
-            "Hey. What would a perfect Sunday look like for you?"
-          ],
-          "uk": [
-            "Привіт — я Erik. Над якою однією ціллю ти зараз працюєш?",
-            "Привіт. Як виглядав би ідеальна неділя для тебе?"
-          ]
-        },
-        "reply_examples": {
-          "en": [
-            "Solid. I'd match that with: what's your non-negotiable in dating?",
-            "Interesting. Tell me one thing you're proud of from this month."
-          ],
-          "uk": [
-            "Сильно. А що для тебе принципово в знайомствах?",
-            "Цікаво. Назви одну річ, яку ти пишаєшся цього місяця."
-          ]
-        },
-        "revive_examples": {
-          "en": [
-            "Hey — random check-in. Still around? No pressure either way."
-          ],
-          "uk": [
-            "Привіт — короткий чек-ін. Ти ще тут? Без тиску."
-          ]
-        }
-      }
-    },
-    {
-      "id": "woman_demo_005",
-      "gender": "woman",
-      "display_name": "Anna",
-      "age": 30,
-      "city": "Warsaw",
-      "gender_profile": "woman",
-      "interested_in": "men",
-      "relationship_goal": "relationship",
-      "interests": "travel, volunteering, cooking, nature",
-      "lifestyle_tags": "curious, easygoing, creative",
-      "bio": "Film nights, city lights, and slow Sunday mornings.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-woman_demo_005/600/800",
+      "bio": "Photography, football, and making time for people who matter.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/men/demo_005/main.jpg",
       "demo_personality": {
         "personality": "playful",
+        "personality_type": "playful",
         "response_speed": "normal",
         "engagement_level": 0.59,
         "opener_examples": {
           "en": [
             "Okay, your profile made me smile — what's your go-to weekend plan?",
-            "Hi 🙂 I'm Anna. Tell me one thing you're oddly picky about."
+            "Hi 🙂 I'm Erik. Tell me one thing you're oddly picky about."
           ],
           "uk": [
             "Твій профіль змусив посміхнутися — який план на вихідні тобі ближчий?",
-            "Привіт 🙂 Я Anna. Розкажи одну річ, до якої ти дивишся вибірково."
+            "Привіт 🙂 Я Erik. Розкажи одну річ, до якої ти дивишся вибірково."
           ]
         },
         "reply_examples": {
@@ -472,6 +434,54 @@
       }
     },
     {
+      "id": "woman_demo_005",
+      "gender": "woman",
+      "display_name": "Anna",
+      "age": 30,
+      "city": "Warsaw",
+      "gender_profile": "woman",
+      "interested_in": "men",
+      "relationship_goal": "relationship",
+      "interests": "travel, volunteering, cooking, nature",
+      "lifestyle_tags": "curious, easygoing, creative",
+      "bio": "Film nights, city lights, and slow Sunday mornings.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/women/demo_005/main.jpg",
+      "demo_personality": {
+        "personality": "deep",
+        "personality_type": "deep",
+        "response_speed": "normal",
+        "engagement_level": 0.59,
+        "opener_examples": {
+          "en": [
+            "Hey — I'm Anna. What's something you've changed your mind about lately?",
+            "Hi. What's a lesson from this year that stuck with you?"
+          ],
+          "uk": [
+            "Привіт — я Anna. Над чим ти нещодавно змінив думку?",
+            "Привіт. Який урок цього року запам'ятався найбільше?"
+          ]
+        },
+        "reply_examples": {
+          "en": [
+            "That resonates. What made it click for you?",
+            "Thanks for sharing — what's one thing you're hoping for next month?"
+          ],
+          "uk": [
+            "Відгукується. Що для тебе стало переломним?",
+            "Дякую, що поділився — на що сподіваєшся в наступному місяці?"
+          ]
+        },
+        "revive_examples": {
+          "en": [
+            "Hey — random check-in. Still around? No pressure either way."
+          ],
+          "uk": [
+            "Привіт — короткий чек-ін. Ти ще тут? Без тиску."
+          ]
+        }
+      }
+    },
+    {
       "id": "woman_demo_006",
       "gender": "woman",
       "display_name": "Giulia",
@@ -482,30 +492,31 @@
       "relationship_goal": "relationship",
       "interests": "cooking, hiking, climbing",
       "lifestyle_tags": "easygoing, creative, calm",
-      "bio": "Photography, thrift finds, and people who ask good questions.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-woman_demo_006/600/800",
+      "bio": "Photography, thrift finds, and people who ask good questions.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/women/demo_006/main.jpg",
       "demo_personality": {
-        "personality": "warm",
+        "personality": "calm",
+        "personality_type": "calm",
         "response_speed": "fast",
         "engagement_level": 0.58,
         "opener_examples": {
           "en": [
-            "Hey! I'd love to hear what you're into lately.",
-            "Hi — warm hello from Split. What's been on your mind this week?"
+            "Hey. I'm Giulia. What's been a good moment recently?",
+            "Hi — low-pressure question: tea or coffee, and why?"
           ],
           "uk": [
-            "Привіт! Розкажи, чим ти зараз живеш.",
-            "Привіт — тепле привітання з Split. Що у тебе на думці цього тижня?"
+            "Привіт. Я Giulia. Що нещодавно було хорошим моментом?",
+            "Привіт — питання без тиску: чай чи кава, і чому?"
           ]
         },
         "reply_examples": {
           "en": [
-            "That sounds nice — I'd like to hear more. What drew you to that?",
-            "Haha, fair. What would you want to do on a first meetup—coffee or a walk?"
+            "Makes sense. Want to keep it simple—coffee or a walk sometime?",
+            "I hear you. What's been taking most of your attention lately?"
           ],
           "uk": [
-            "Звучить приємно — розкажи більше. Що тебе до цього підштовхнуло?",
-            "Справедливо 🙂 На першу зустріч — кава чи прогулянка?"
+            "Логічно. Може простіше — кава чи прогулянка колись?",
+            "Чую. Що зараз займає більшість уваги?"
           ]
         },
         "revive_examples": {
@@ -529,38 +540,39 @@
       "relationship_goal": "relationship",
       "interests": "nature, swimming, podcasts, running",
       "lifestyle_tags": "creative, social, city-minded",
-      "bio": "Startup hours but still saves Sundays for nothing serious.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-man_demo_007/600/800",
+      "bio": "Startup hours but still saves Sundays for nothing serious.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/men/demo_007/main.jpg",
       "demo_personality": {
-        "personality": "curious",
+        "personality": "teasing",
+        "personality_type": "teasing",
         "response_speed": "normal",
         "engagement_level": 0.59,
         "opener_examples": {
           "en": [
-            "Hey! What's something you're learning or trying lately?",
-            "Hi from Split — what's a place here you'd recommend?"
+            "Quick vibe check 🙂 are you more spontaneous or do you like planning the week?",
+            "Hey — I'm Alex. What's something small that instantly lifts your mood?"
           ],
           "uk": [
-            "Привіт! Чого ти зараз навчаєшся або що пробуєш?",
-            "Привіт з Split — яке місце тут варто порадити?"
+            "Хей 🙂 ти більше про спонтанність чи любиш планувати?",
+            "Привіт — я Alex. Що маленьке одразу піднімає настрій?"
           ]
         },
         "reply_examples": {
           "en": [
-            "That sounds nice — I'd like to hear more. What drew you to that?",
-            "Haha, fair. What would you want to do on a first meetup—coffee or a walk?"
+            "Haha fair 🙂 I'd push back gently — coffee first or straight to adventure?",
+            "I'm listening — what's one thing you're picky about (in a cute way)?"
           ],
           "uk": [
-            "Звучить приємно — розкажи більше. Що тебе до цього підштовхнуло?",
-            "Справедливо 🙂 На першу зустріч — кава чи прогулянка?"
+            "Справедливо 🙂 тоді обережно спитаю — спочатку кава чи одразу пригода?",
+            "Слухаю — будь до чого ти вибірковий (в гарному сенсі)?"
           ]
         },
         "revive_examples": {
           "en": [
-            "Hey — random check-in. Still around? No pressure either way."
+            "Still curious about you — no pressure, just checking in 🙂"
           ],
           "uk": [
-            "Привіт — короткий чек-ін. Ти ще тут? Без тиску."
+            "Досі цікаво про тебе — без тиску, просто заглядаю 🙂"
           ]
         }
       }
@@ -576,10 +588,11 @@
       "relationship_goal": "relationship",
       "interests": "nature, swimming, podcasts, running",
       "lifestyle_tags": "creative, social, city-minded",
-      "bio": "Beach person in summer, tea person year-round.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-woman_demo_007/600/800",
+      "bio": "Beach person in summer, tea person year-round.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/women/demo_007/main.jpg",
       "demo_personality": {
-        "personality": "flirty",
+        "personality": "playful",
+        "personality_type": "playful",
         "response_speed": "normal",
         "engagement_level": 0.59,
         "opener_examples": {
@@ -623,19 +636,68 @@
       "relationship_goal": "relationship",
       "interests": "photography, dancing, cooking",
       "lifestyle_tags": "creative, social, city-minded",
-      "bio": "Climbing gym regular; museum pass holder.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-man_demo_008/600/800",
+      "bio": "Climbing gym regular; museum pass holder.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/men/demo_008/main.jpg",
       "demo_personality": {
-        "personality": "calm",
+        "personality": "deep",
+        "personality_type": "deep",
         "response_speed": "fast",
         "engagement_level": 0.73,
         "opener_examples": {
           "en": [
-            "Hey. I'm Oskar. What's been a good moment recently?",
+            "Hey — I'm Oskar. What's something you've changed your mind about lately?",
+            "Hi. What's a lesson from this year that stuck with you?"
+          ],
+          "uk": [
+            "Привіт — я Oskar. Над чим ти нещодавно змінив думку?",
+            "Привіт. Який урок цього року запам'ятався найбільше?"
+          ]
+        },
+        "reply_examples": {
+          "en": [
+            "That resonates. What made it click for you?",
+            "Thanks for sharing — what's one thing you're hoping for next month?"
+          ],
+          "uk": [
+            "Відгукується. Що для тебе стало переломним?",
+            "Дякую, що поділився — на що сподіваєшся в наступному місяці?"
+          ]
+        },
+        "revive_examples": {
+          "en": [
+            "Hey — random check-in. Still around? No pressure either way."
+          ],
+          "uk": [
+            "Привіт — короткий чек-ін. Ти ще тут? Без тиску."
+          ]
+        }
+      }
+    },
+    {
+      "id": "woman_demo_008",
+      "gender": "woman",
+      "display_name": "Freja",
+      "age": 23,
+      "city": "Amsterdam",
+      "gender_profile": "woman",
+      "interested_in": "men",
+      "relationship_goal": "relationship",
+      "interests": "photography, dancing, cooking",
+      "lifestyle_tags": "creative, social, city-minded",
+      "bio": "Dancing when the song is right; quiet when the moment is better.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/women/demo_008/main.jpg",
+      "demo_personality": {
+        "personality": "calm",
+        "personality_type": "calm",
+        "response_speed": "fast",
+        "engagement_level": 0.73,
+        "opener_examples": {
+          "en": [
+            "Hey. I'm Freja. What's been a good moment recently?",
             "Hi — low-pressure question: tea or coffee, and why?"
           ],
           "uk": [
-            "Привіт. Я Oskar. Що нещодавно було хорошим моментом?",
+            "Привіт. Я Freja. Що нещодавно було хорошим моментом?",
             "Привіт — питання без тиску: чай чи кава, і чому?"
           ]
         },
@@ -660,53 +722,6 @@
       }
     },
     {
-      "id": "woman_demo_008",
-      "gender": "woman",
-      "display_name": "Freja",
-      "age": 23,
-      "city": "Amsterdam",
-      "gender_profile": "woman",
-      "interested_in": "men",
-      "relationship_goal": "relationship",
-      "interests": "photography, dancing, cooking",
-      "lifestyle_tags": "creative, social, city-minded",
-      "bio": "Dancing when the song is right; quiet when the moment is better.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-woman_demo_008/600/800",
-      "demo_personality": {
-        "personality": "playful",
-        "response_speed": "fast",
-        "engagement_level": 0.73,
-        "opener_examples": {
-          "en": [
-            "Okay, your profile made me smile — what's your go-to weekend plan?",
-            "Hi 🙂 I'm Freja. Tell me one thing you're oddly picky about."
-          ],
-          "uk": [
-            "Твій профіль змусив посміхнутися — який план на вихідні тобі ближчий?",
-            "Привіт 🙂 Я Freja. Розкажи одну річ, до якої ти дивишся вибірково."
-          ]
-        },
-        "reply_examples": {
-          "en": [
-            "Love that energy 😊 what would you want to do if we met up?",
-            "Okay I'm curious — what's your favorite way to spend a free evening?"
-          ],
-          "uk": [
-            "Класна енергія 😊 що б ти хотіла зробити, якби зустрілися?",
-            "Цікаво — як ти любиш проводити вільний вечір?"
-          ]
-        },
-        "revive_examples": {
-          "en": [
-            "Popping back in 🙂 if you're still curious, I'd like to keep chatting."
-          ],
-          "uk": [
-            "Заглядаю знову 🙂 якщо ще цікаво — хочу продовжити розмову."
-          ]
-        }
-      }
-    },
-    {
       "id": "woman_demo_009",
       "gender": "woman",
       "display_name": "Lena",
@@ -717,38 +732,39 @@
       "relationship_goal": "relationship",
       "interests": "film, volunteering, music",
       "lifestyle_tags": "curious, social, easygoing",
-      "bio": "Loves languages, live music, and plans with room to wander.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-woman_demo_009/600/800",
+      "bio": "Loves languages, live music, and plans with room to wander.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/women/demo_009/main.jpg",
       "demo_personality": {
-        "personality": "warm",
+        "personality": "teasing",
+        "personality_type": "teasing",
         "response_speed": "fast",
         "engagement_level": 0.61,
         "opener_examples": {
           "en": [
-            "Hey! I'd love to hear what you're into lately.",
-            "Hi — warm hello from Copenhagen. What's been on your mind this week?"
+            "Quick vibe check 🙂 are you more spontaneous or do you like planning the week?",
+            "Hey — I'm Lena. What's something small that instantly lifts your mood?"
           ],
           "uk": [
-            "Привіт! Розкажи, чим ти зараз живеш.",
-            "Привіт — тепле привітання з Copenhagen. Що у тебе на думці цього тижня?"
+            "Хей 🙂 ти більше про спонтанність чи любиш планувати?",
+            "Привіт — я Lena. Що маленьке одразу піднімає настрій?"
           ]
         },
         "reply_examples": {
           "en": [
-            "That sounds nice — I'd like to hear more. What drew you to that?",
-            "Haha, fair. What would you want to do on a first meetup—coffee or a walk?"
+            "Haha fair 🙂 I'd push back gently — coffee first or straight to adventure?",
+            "I'm listening — what's one thing you're picky about (in a cute way)?"
           ],
           "uk": [
-            "Звучить приємно — розкажи більше. Що тебе до цього підштовхнуло?",
-            "Справедливо 🙂 На першу зустріч — кава чи прогулянка?"
+            "Справедливо 🙂 тоді обережно спитаю — спочатку кава чи одразу пригода?",
+            "Слухаю — будь до чого ти вибірковий (в гарному сенсі)?"
           ]
         },
         "revive_examples": {
           "en": [
-            "Hey — random check-in. Still around? No pressure either way."
+            "Still curious about you — no pressure, just checking in 🙂"
           ],
           "uk": [
-            "Привіт — короткий чек-ін. Ти ще тут? Без тиску."
+            "Досі цікаво про тебе — без тиску, просто заглядаю 🙂"
           ]
         }
       }
@@ -764,10 +780,11 @@
       "relationship_goal": "relationship",
       "interests": "food, nature, yoga",
       "lifestyle_tags": "outdoorsy, curious, thoughtful",
-      "bio": "Cooking experiments, board games, and cozy chaos.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-woman_demo_010/600/800",
+      "bio": "Cooking experiments, board games, and cozy chaos.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/women/demo_010/main.jpg",
       "demo_personality": {
-        "personality": "flirty",
+        "personality": "playful",
+        "personality_type": "playful",
         "response_speed": "fast",
         "engagement_level": 0.76,
         "opener_examples": {
@@ -811,38 +828,39 @@
       "relationship_goal": "relationship",
       "interests": "nature, tech, swimming, photography, reading",
       "lifestyle_tags": "curious, outdoorsy, thoughtful",
-      "bio": "Hikes, podcasts, and the kind of chemistry that feels easy.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-woman_demo_011/600/800",
+      "bio": "Hikes, podcasts, and the kind of chemistry that feels easy.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/women/demo_011/main.jpg",
       "demo_personality": {
-        "personality": "playful",
+        "personality": "deep",
+        "personality_type": "deep",
         "response_speed": "slow",
         "engagement_level": 0.81,
         "opener_examples": {
           "en": [
-            "Okay, your profile made me smile — what's your go-to weekend plan?",
-            "Hi 🙂 I'm Zoe. Tell me one thing you're oddly picky about."
+            "Hey — I'm Zoe. What's something you've changed your mind about lately?",
+            "Hi. What's a lesson from this year that stuck with you?"
           ],
           "uk": [
-            "Твій профіль змусив посміхнутися — який план на вихідні тобі ближчий?",
-            "Привіт 🙂 Я Zoe. Розкажи одну річ, до якої ти дивишся вибірково."
+            "Привіт — я Zoe. Над чим ти нещодавно змінив думку?",
+            "Привіт. Який урок цього року запам'ятався найбільше?"
           ]
         },
         "reply_examples": {
           "en": [
-            "Love that energy 😊 what would you want to do if we met up?",
-            "Okay I'm curious — what's your favorite way to spend a free evening?"
+            "That resonates. What made it click for you?",
+            "Thanks for sharing — what's one thing you're hoping for next month?"
           ],
           "uk": [
-            "Класна енергія 😊 що б ти хотіла зробити, якби зустрілися?",
-            "Цікаво — як ти любиш проводити вільний вечір?"
+            "Відгукується. Що для тебе стало переломним?",
+            "Дякую, що поділився — на що сподіваєшся в наступному місяці?"
           ]
         },
         "revive_examples": {
           "en": [
-            "Popping back in 🙂 if you're still curious, I'd like to keep chatting."
+            "Hey — random check-in. Still around? No pressure either way."
           ],
           "uk": [
-            "Заглядаю знову 🙂 якщо ще цікаво — хочу продовжити розмову."
+            "Привіт — короткий чек-ін. Ти ще тут? Без тиску."
           ]
         }
       }
@@ -858,30 +876,31 @@
       "relationship_goal": "relationship",
       "interests": "travel, nature, cooking, running",
       "lifestyle_tags": "curious, outdoorsy, creative",
-      "bio": "Jazz bars, early runs, and straightforward kindness.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-man_demo_012/600/800",
+      "bio": "Jazz bars, early runs, and straightforward kindness.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/men/demo_012/main.jpg",
       "demo_personality": {
-        "personality": "confident",
+        "personality": "calm",
+        "personality_type": "calm",
         "response_speed": "normal",
         "engagement_level": 0.71,
         "opener_examples": {
           "en": [
-            "Hi — I'm Mark. What's one goal you're working on right now?",
-            "Hey. What would a perfect Sunday look like for you?"
+            "Hey. I'm Mark. What's been a good moment recently?",
+            "Hi — low-pressure question: tea or coffee, and why?"
           ],
           "uk": [
-            "Привіт — я Mark. Над якою однією ціллю ти зараз працюєш?",
-            "Привіт. Як виглядав би ідеальна неділя для тебе?"
+            "Привіт. Я Mark. Що нещодавно було хорошим моментом?",
+            "Привіт — питання без тиску: чай чи кава, і чому?"
           ]
         },
         "reply_examples": {
           "en": [
-            "Solid. I'd match that with: what's your non-negotiable in dating?",
-            "Interesting. Tell me one thing you're proud of from this month."
+            "Makes sense. Want to keep it simple—coffee or a walk sometime?",
+            "I hear you. What's been taking most of your attention lately?"
           ],
           "uk": [
-            "Сильно. А що для тебе принципово в знайомствах?",
-            "Цікаво. Назви одну річ, яку ти пишаєшся цього місяця."
+            "Логічно. Може простіше — кава чи прогулянка колись?",
+            "Чую. Що зараз займає більшість уваги?"
           ]
         },
         "revive_examples": {
@@ -905,38 +924,39 @@
       "relationship_goal": "relationship",
       "interests": "cooking, film, yoga, art",
       "lifestyle_tags": "spontaneous, easygoing, curious",
-      "bio": "Dog person, pasta person, plans-ahead-but-flexible person.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-man_demo_013/600/800",
+      "bio": "Dog person, pasta person, plans-ahead-but-flexible person.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/men/demo_013/main.jpg",
       "demo_personality": {
-        "personality": "curious",
+        "personality": "teasing",
+        "personality_type": "teasing",
         "response_speed": "normal",
         "engagement_level": 0.65,
         "opener_examples": {
           "en": [
-            "Hey! What's something you're learning or trying lately?",
-            "Hi from Vienna — what's a place here you'd recommend?"
+            "Quick vibe check 🙂 are you more spontaneous or do you like planning the week?",
+            "Hey — I'm Jonas. What's something small that instantly lifts your mood?"
           ],
           "uk": [
-            "Привіт! Чого ти зараз навчаєшся або що пробуєш?",
-            "Привіт з Vienna — яке місце тут варто порадити?"
+            "Хей 🙂 ти більше про спонтанність чи любиш планувати?",
+            "Привіт — я Jonas. Що маленьке одразу піднімає настрій?"
           ]
         },
         "reply_examples": {
           "en": [
-            "That sounds nice — I'd like to hear more. What drew you to that?",
-            "Haha, fair. What would you want to do on a first meetup—coffee or a walk?"
+            "Haha fair 🙂 I'd push back gently — coffee first or straight to adventure?",
+            "I'm listening — what's one thing you're picky about (in a cute way)?"
           ],
           "uk": [
-            "Звучить приємно — розкажи більше. Що тебе до цього підштовхнуло?",
-            "Справедливо 🙂 На першу зустріч — кава чи прогулянка?"
+            "Справедливо 🙂 тоді обережно спитаю — спочатку кава чи одразу пригода?",
+            "Слухаю — будь до чого ти вибірковий (в гарному сенсі)?"
           ]
         },
         "revive_examples": {
           "en": [
-            "Hey — random check-in. Still around? No pressure either way."
+            "Still curious about you — no pressure, just checking in 🙂"
           ],
           "uk": [
-            "Привіт — короткий чек-ін. Ти ще тут? Без тиску."
+            "Досі цікаво про тебе — без тиску, просто заглядаю 🙂"
           ]
         }
       }
@@ -952,38 +972,39 @@
       "relationship_goal": "relationship",
       "interests": "yoga, film, hiking, tech",
       "lifestyle_tags": "city-minded, calm, creative",
-      "bio": "Nature on Saturday, city on Sunday; balance matters.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-man_demo_021/600/800",
+      "bio": "Nature on Saturday, city on Sunday; balance matters.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/men/demo_021/main.jpg",
       "demo_personality": {
-        "personality": "calm",
+        "personality": "playful",
+        "personality_type": "playful",
         "response_speed": "normal",
         "engagement_level": 0.83,
         "opener_examples": {
           "en": [
-            "Hey. I'm Felix. What's been a good moment recently?",
-            "Hi — low-pressure question: tea or coffee, and why?"
+            "Okay, your profile made me smile — what's your go-to weekend plan?",
+            "Hi 🙂 I'm Felix. Tell me one thing you're oddly picky about."
           ],
           "uk": [
-            "Привіт. Я Felix. Що нещодавно було хорошим моментом?",
-            "Привіт — питання без тиску: чай чи кава, і чому?"
+            "Твій профіль змусив посміхнутися — який план на вихідні тобі ближчий?",
+            "Привіт 🙂 Я Felix. Розкажи одну річ, до якої ти дивишся вибірково."
           ]
         },
         "reply_examples": {
           "en": [
-            "Makes sense. Want to keep it simple—coffee or a walk sometime?",
-            "I hear you. What's been taking most of your attention lately?"
+            "Love that energy 😊 what would you want to do if we met up?",
+            "Okay I'm curious — what's your favorite way to spend a free evening?"
           ],
           "uk": [
-            "Логічно. Може простіше — кава чи прогулянка колись?",
-            "Чую. Що зараз займає більшість уваги?"
+            "Класна енергія 😊 що б ти хотіла зробити, якби зустрілися?",
+            "Цікаво — як ти любиш проводити вільний вечір?"
           ]
         },
         "revive_examples": {
           "en": [
-            "Hey — random check-in. Still around? No pressure either way."
+            "Popping back in 🙂 if you're still curious, I'd like to keep chatting."
           ],
           "uk": [
-            "Привіт — короткий чек-ін. Ти ще тут? Без тиску."
+            "Заглядаю знову 🙂 якщо ще цікаво — хочу продовжити розмову."
           ]
         }
       }
@@ -999,30 +1020,31 @@
       "relationship_goal": "relationship",
       "interests": "volunteering, art, nature, podcasts, music",
       "lifestyle_tags": "active, easygoing, city-minded",
-      "bio": "Chess, synth music, and zero patience for games in dating.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-man_demo_022/600/800",
+      "bio": "Chess, synth music, and zero patience for games in dating.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/men/demo_022/main.jpg",
       "demo_personality": {
-        "personality": "confident",
+        "personality": "deep",
+        "personality_type": "deep",
         "response_speed": "slow",
         "engagement_level": 0.81,
         "opener_examples": {
           "en": [
-            "Hi — I'm Damian. What's one goal you're working on right now?",
-            "Hey. What would a perfect Sunday look like for you?"
+            "Hey — I'm Damian. What's something you've changed your mind about lately?",
+            "Hi. What's a lesson from this year that stuck with you?"
           ],
           "uk": [
-            "Привіт — я Damian. Над якою однією ціллю ти зараз працюєш?",
-            "Привіт. Як виглядав би ідеальна неділя для тебе?"
+            "Привіт — я Damian. Над чим ти нещодавно змінив думку?",
+            "Привіт. Який урок цього року запам'ятався найбільше?"
           ]
         },
         "reply_examples": {
           "en": [
-            "Solid. I'd match that with: what's your non-negotiable in dating?",
-            "Interesting. Tell me one thing you're proud of from this month."
+            "That resonates. What made it click for you?",
+            "Thanks for sharing — what's one thing you're hoping for next month?"
           ],
           "uk": [
-            "Сильно. А що для тебе принципово в знайомствах?",
-            "Цікаво. Назви одну річ, яку ти пишаєшся цього місяця."
+            "Відгукується. Що для тебе стало переломним?",
+            "Дякую, що поділився — на що сподіваєшся в наступному місяці?"
           ]
         },
         "revive_examples": {
@@ -1046,66 +1068,20 @@
       "relationship_goal": "relationship",
       "interests": "swimming, volunteering, podcasts, design",
       "lifestyle_tags": "active, calm, outdoorsy",
-      "bio": "Volunteer shifts, audiobooks, and real follow-through.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-man_demo_023/600/800",
+      "bio": "Volunteer shifts, audiobooks, and real follow-through.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/men/demo_023/main.jpg",
       "demo_personality": {
-        "personality": "curious",
+        "personality": "calm",
+        "personality_type": "calm",
         "response_speed": "normal",
         "engagement_level": 0.77,
         "opener_examples": {
           "en": [
-            "Hey! What's something you're learning or trying lately?",
-            "Hi from Geneva — what's a place here you'd recommend?"
-          ],
-          "uk": [
-            "Привіт! Чого ти зараз навчаєшся або що пробуєш?",
-            "Привіт з Geneva — яке місце тут варто порадити?"
-          ]
-        },
-        "reply_examples": {
-          "en": [
-            "That sounds nice — I'd like to hear more. What drew you to that?",
-            "Haha, fair. What would you want to do on a first meetup—coffee or a walk?"
-          ],
-          "uk": [
-            "Звучить приємно — розкажи більше. Що тебе до цього підштовхнуло?",
-            "Справедливо 🙂 На першу зустріч — кава чи прогулянка?"
-          ]
-        },
-        "revive_examples": {
-          "en": [
-            "Hey — random check-in. Still around? No pressure either way."
-          ],
-          "uk": [
-            "Привіт — короткий чек-ін. Ти ще тут? Без тиску."
-          ]
-        }
-      }
-    },
-    {
-      "id": "man_demo_024",
-      "gender": "man",
-      "display_name": "Hugo",
-      "age": 30,
-      "city": "Tallinn",
-      "gender_profile": "man",
-      "interested_in": "women",
-      "relationship_goal": "relationship",
-      "interests": "travel, food, yoga, nature",
-      "lifestyle_tags": "city-minded, outdoorsy, curious",
-      "bio": "Night owl with a morning coffee ritual—work in progress.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-man_demo_024/600/800",
-      "demo_personality": {
-        "personality": "calm",
-        "response_speed": "normal",
-        "engagement_level": 0.89,
-        "opener_examples": {
-          "en": [
-            "Hey. I'm Hugo. What's been a good moment recently?",
+            "Hey. I'm Victor. What's been a good moment recently?",
             "Hi — low-pressure question: tea or coffee, and why?"
           ],
           "uk": [
-            "Привіт. Я Hugo. Що нещодавно було хорошим моментом?",
+            "Привіт. Я Victor. Що нещодавно було хорошим моментом?",
             "Привіт — питання без тиску: чай чи кава, і чому?"
           ]
         },
@@ -1130,6 +1106,54 @@
       }
     },
     {
+      "id": "man_demo_024",
+      "gender": "man",
+      "display_name": "Hugo",
+      "age": 30,
+      "city": "Tallinn",
+      "gender_profile": "man",
+      "interested_in": "women",
+      "relationship_goal": "relationship",
+      "interests": "travel, food, yoga, nature",
+      "lifestyle_tags": "city-minded, outdoorsy, curious",
+      "bio": "Night owl with a morning coffee ritual—work in progress.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/men/demo_024/main.jpg",
+      "demo_personality": {
+        "personality": "teasing",
+        "personality_type": "teasing",
+        "response_speed": "normal",
+        "engagement_level": 0.89,
+        "opener_examples": {
+          "en": [
+            "Quick vibe check 🙂 are you more spontaneous or do you like planning the week?",
+            "Hey — I'm Hugo. What's something small that instantly lifts your mood?"
+          ],
+          "uk": [
+            "Хей 🙂 ти більше про спонтанність чи любиш планувати?",
+            "Привіт — я Hugo. Що маленьке одразу піднімає настрій?"
+          ]
+        },
+        "reply_examples": {
+          "en": [
+            "Haha fair 🙂 I'd push back gently — coffee first or straight to adventure?",
+            "I'm listening — what's one thing you're picky about (in a cute way)?"
+          ],
+          "uk": [
+            "Справедливо 🙂 тоді обережно спитаю — спочатку кава чи одразу пригода?",
+            "Слухаю — будь до чого ти вибірковий (в гарному сенсі)?"
+          ]
+        },
+        "revive_examples": {
+          "en": [
+            "Still curious about you — no pressure, just checking in 🙂"
+          ],
+          "uk": [
+            "Досі цікаво про тебе — без тиску, просто заглядаю 🙂"
+          ]
+        }
+      }
+    },
+    {
       "id": "man_demo_025",
       "gender": "man",
       "display_name": "Leo",
@@ -1140,38 +1164,39 @@
       "relationship_goal": "relationship",
       "interests": "travel, reading, photography, art",
       "lifestyle_tags": "city-minded, easygoing, curious",
-      "bio": "Gym, good coffee, and conversations that go past midnight.",
-      "photo_main_path": "https://picsum.photos/seed/neyra-man_demo_025/600/800",
+      "bio": "Gym, good coffee, and conversations that go past midnight.\n\nDemo profile 🤖 — AI simulation. Just testing how the app works.",
+      "photo_main_path": "/demo-profiles/men/demo_025/main.jpg",
       "demo_personality": {
-        "personality": "confident",
+        "personality": "playful",
+        "personality_type": "playful",
         "response_speed": "normal",
         "engagement_level": 0.77,
         "opener_examples": {
           "en": [
-            "Hi — I'm Leo. What's one goal you're working on right now?",
-            "Hey. What would a perfect Sunday look like for you?"
+            "Okay, your profile made me smile — what's your go-to weekend plan?",
+            "Hi 🙂 I'm Leo. Tell me one thing you're oddly picky about."
           ],
           "uk": [
-            "Привіт — я Leo. Над якою однією ціллю ти зараз працюєш?",
-            "Привіт. Як виглядав би ідеальна неділя для тебе?"
+            "Твій профіль змусив посміхнутися — який план на вихідні тобі ближчий?",
+            "Привіт 🙂 Я Leo. Розкажи одну річ, до якої ти дивишся вибірково."
           ]
         },
         "reply_examples": {
           "en": [
-            "Solid. I'd match that with: what's your non-negotiable in dating?",
-            "Interesting. Tell me one thing you're proud of from this month."
+            "Love that energy 😊 what would you want to do if we met up?",
+            "Okay I'm curious — what's your favorite way to spend a free evening?"
           ],
           "uk": [
-            "Сильно. А що для тебе принципово в знайомствах?",
-            "Цікаво. Назви одну річ, яку ти пишаєшся цього місяця."
+            "Класна енергія 😊 що б ти хотіла зробити, якби зустрілися?",
+            "Цікаво — як ти любиш проводити вільний вечір?"
           ]
         },
         "revive_examples": {
           "en": [
-            "Hey — random check-in. Still around? No pressure either way."
+            "Popping back in 🙂 if you're still curious, I'd like to keep chatting."
           ],
           "uk": [
-            "Привіт — короткий чек-ін. Ти ще тут? Без тиску."
+            "Заглядаю знову 🙂 якщо ще цікаво — хочу продовжити розмову."
           ]
         }
       }

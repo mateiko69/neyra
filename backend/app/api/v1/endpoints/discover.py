@@ -35,8 +35,11 @@ from app.services.demo_mode import (
     DEMO_PROFILE_LABEL,
     ensure_demo_profiles,
     is_demo_mode_enabled,
+    is_demo_premium_feed_enabled,
     is_demo_profile,
+    repair_demo_profile_photos,
 )
+from app.utils.demo_catalog_paths import is_demo_catalog_primary_photo_url
 from app.services.discover_visibility import internal_test_discover_match, internal_test_discover_match_loose
 
 router = APIRouter()
@@ -118,6 +121,7 @@ def _incoming_like_profiles_for_discover(
     matched_partner_ids: set[int],
     recent_swiped_ids: set[int],
     demo_enabled: bool,
+    premium_demo_feed: bool = False,
 ) -> list[Profile]:
     rows = (
         db.query(Swipe.swiper_id)
@@ -150,7 +154,9 @@ def _incoming_like_profiles_for_discover(
         .filter(User.is_deleted == False)  # noqa: E712
         .filter(User.is_banned == False)  # noqa: E712
     )
-    if not demo_enabled:
+    if premium_demo_feed:
+        q = q.filter(Profile.is_demo_profile == True).filter(User.is_demo == True)  # noqa: E712
+    elif not demo_enabled:
         q = q.filter(Profile.is_demo_profile == False).filter(User.is_demo == False)  # noqa: E712
     try:
         admin_emails = set(settings.admin_emails_list())
@@ -262,6 +268,17 @@ def _profile_has_valid_photo(profile: Profile | None) -> bool:
         if normalize_photo_url(p, demo_profile_gender=getattr(profile, "gender", None)):
             return True
     return False
+
+
+def _profile_has_demo_folder_photo(profile: Profile | None) -> bool:
+    """Strict: primary photo must be `/demo-profiles/(men|women)/…/main.jpg` (bundled catalog assets)."""
+    if not profile:
+        return False
+    parts = [x.strip() for x in (getattr(profile, "photo_urls", "") or "").split(",") if x.strip()]
+    if not parts:
+        return False
+    primary = normalize_photo_url(parts[0], demo_profile_gender=getattr(profile, "gender", None))
+    return is_demo_catalog_primary_photo_url(primary)
 
 
 def _get_profile_age(profile: Profile | None) -> int | None:
@@ -623,9 +640,14 @@ def discover_feed(
     )
     ai_boost = has_premium_access(db, current_user.id, "ai_match_boost")
     demo_enabled = is_demo_mode_enabled(db)
+    premium_demo_feed = is_demo_premium_feed_enabled()
+    if premium_demo_feed:
+        demo_enabled = True
     if demo_enabled:
         try:
             ensure_demo_profiles(db)
+            if premium_demo_feed:
+                repair_demo_profile_photos(db)
         except Exception:
             # Demo seeding must never break real discovery.
             pass
@@ -688,6 +710,7 @@ def discover_feed(
             "advanced": bool(advanced),
             "ai_boost": bool(ai_boost),
             "demo": bool(demo_enabled),
+            "premium_demo": bool(premium_demo_feed),
             "gender_sig": gender_sig,
             "day": day_sig,
             "session": first_session_sig,
@@ -768,6 +791,8 @@ def discover_feed(
                     continue
                 if banned_ids and uid in banned_ids:
                     continue
+                if premium_demo_feed and not bool(card.get("is_demo_profile")):
+                    continue
                 if not demo_enabled and bool(card.get("is_demo_profile")):
                     continue
                 if str(card.get("display_name") or "").strip() == "Admin":
@@ -794,7 +819,9 @@ def discover_feed(
         .filter(User.is_banned == False)  # noqa: E712
     )
     # Keep base query broad; apply matching + fallback ladder below.
-    if not demo_enabled:
+    if premium_demo_feed:
+        q_base = q_base.filter(Profile.is_demo_profile == True).filter(User.is_demo == True)  # noqa: E712
+    elif not demo_enabled:
         q_base = q_base.filter(Profile.is_demo_profile == False).filter(User.is_demo == False)  # noqa: E712
     # Never show admin/system profiles in Discover for normal users.
     try:
@@ -902,6 +929,7 @@ def discover_feed(
         matched_partner_ids=matched_partner_ids,
         recent_swiped_ids=recent_swiped_ids,
         demo_enabled=demo_enabled,
+        premium_demo_feed=premium_demo_feed,
     )
 
     debug: dict[str, object] = {
@@ -1622,6 +1650,9 @@ def discover_feed(
             vlevel = "none"
         badge_visible = bool(getattr(profile, "verification_badge_visible", True))
         show_verified_badge = should_show_verified_badge(profile)
+        if premium_demo_feed and is_demo_profile(profile):
+            show_verified_badge = False
+            badge_visible = False
         pu = premium_until_raw.get(int(profile.user_id))
         vibe_raw = (getattr(profile, "vibe", None) or "").strip()
         card = {
@@ -1657,7 +1688,9 @@ def discover_feed(
             "discover_fallback_used": bool(fallback_used_final),
             "discover_fallback_stage": str(fallback_stage_final) if fallback_used_final else None,
             "discover_profile_incomplete": bool(not getattr(profile, "onboarding_completed", False)),
-            "discover_missing_photo": bool(not _profile_has_valid_photo(profile)),
+            "discover_missing_photo": bool(
+                not (_profile_has_demo_folder_photo(profile) if premium_demo_feed and is_demo_profile(profile) else _profile_has_valid_photo(profile))
+            ),
         }
         try:
             card["boost_active"] = bool(is_boost_active(int(profile.user_id)))
@@ -1665,8 +1698,18 @@ def discover_feed(
             card["boost_active"] = False
         demo_card = is_demo_profile(profile)
         card["is_demo_profile"] = demo_card
+        card["demo_premium_showcase"] = bool(premium_demo_feed) and bool(demo_card)
         card["demo_label"] = DEMO_PROFILE_LABEL if demo_card else None
         card["demo_disclaimer"] = (getattr(profile, "demo_disclaimer", "") or DEMO_PROFILE_DISCLAIMER) if demo_card else None
+        if demo_card:
+            try:
+                _dp = json.loads(getattr(profile, "demo_personality_json", "") or "{}")
+                if isinstance(_dp, dict):
+                    card["demo_personality_type"] = str(
+                        _dp.get("personality_type") or _dp.get("personality") or "calm"
+                    )
+            except Exception:
+                card["demo_personality_type"] = "calm"
         # Safe, human UI flags (no internal reasons exposed).
         card["trusted"] = "high" if quality.quality_flag == "ok" else "low"
         card["profile_quality"] = "high" if quality.quality_flag == "ok" else "low"
@@ -1788,6 +1831,25 @@ def discover_feed(
     demo_out = [c for c in cards if isinstance(c, dict) and bool(c.get("is_demo_profile"))]
     if strict_count > 0:
         demo_out = []
+    if premium_demo_feed:
+        out = demo_out[:limit]
+        demo_count = sum(1 for card in out if bool(card.get("is_demo_profile")))
+        real_count = sum(1 for card in out if not bool(card.get("is_demo_profile")))
+        logger.info("discover_candidate_source", extra={"real_count": int(real_count), "demo_count": int(demo_count), "strict_count": int(strict_count)})
+        if demo_count:
+            track_event(db, "demo_mode_started", user_id=current_user.id, payload={"surface": "discover_feed", "count": demo_count})
+        env = (settings.ENV or "").strip().lower()
+        ttl = 60 if env in ("production", "prod") else 25
+        try:
+            debug["returned_ids"] = [int(card.get("user_id") or 0) for card in out if isinstance(card, dict) and card.get("user_id")]
+            logger.info(json.dumps({"event": "discover_feed_debug", **debug}, default=str))
+        except Exception:
+            pass
+        if not debug_response:
+            cache_set(ck, out, ttl)
+        if debug_response:
+            return {"feed": out, "debug": debug}
+        return out
     liked_real_out: list[dict] = []
     recent_pass_real_out: list[dict] = []
     unliked_non_recent_pass_real_out: list[dict] = []

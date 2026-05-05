@@ -4,6 +4,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 from fastapi import APIRouter, Depends
 from app.api.deps import get_db, get_current_user
+from app.core.config import settings
 from app.models.user import User
 from app.models.match import Match
 from app.models.message import Message
@@ -44,6 +45,7 @@ def _last_message_preview(db: Session, me: int, partner: int) -> tuple[str | Non
 def list_matches(limit: int = 50, offset: int = 0, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     limit = max(1, min(limit, 200))
     offset = max(0, offset)
+    premium_demo = bool(getattr(settings, "DEMO_PREMIUM_ONLY_MODE", False))
     blocked = blocked_user_ids(db, current_user.id)
     rows = (
         db.query(Match)
@@ -76,6 +78,9 @@ def list_matches(limit: int = 50, offset: int = 0, current_user: User = Depends(
     for row in rows:
         partner_id = row.user_b_id if row.user_a_id == current_user.id else row.user_a_id
         if blocked and partner_id in blocked:
+            continue
+        u_row = users_by_id.get(partner_id)
+        if premium_demo and u_row is not None and not bool(getattr(u_row, "is_demo", False)):
             continue
         if partner_ids and partner_id not in profiles:
             # Deleted or missing profile; hide from matches list.

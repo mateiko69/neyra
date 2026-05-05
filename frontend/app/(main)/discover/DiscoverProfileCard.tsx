@@ -11,7 +11,9 @@ import { useT } from "../../components/i18n/I18nProvider";
 import { VerifiedBadge } from "../../components/trust/VerifiedBadge";
 import { PremiumBadge } from "../../components/trust/PremiumBadge";
 import { Badge, Chip } from "../../components/ui";
+import { DemoProfileImg } from "../../components/DemoProfileImg";
 import { SafeImg } from "../../components/SafeImg";
+import { isBundledDemoMainPhotoPath } from "../../../lib/demoProfiles";
 import { DiscoverInlineOpeners } from "./DiscoverInlineOpeners";
 
 export type DiscoverCardData = {
@@ -38,6 +40,9 @@ export type DiscoverCardData = {
   is_premium?: boolean;
   premium_until?: string | null;
   is_demo_profile?: boolean;
+  /** Premium AI showcase feed — no verification chrome; strict bundled photos. */
+  demo_premium_showcase?: boolean;
+  demo_personality_type?: string | null;
   demo_label?: string | null;
   demo_disclaimer?: string | null;
   gender?: string;
@@ -64,6 +69,8 @@ type Props = {
   onPass: () => void;
   onIgnore: () => void;
   onPeek: () => void;
+  /** Primary photo failed twice — parent removes card from deck. */
+  onMediaFatal?: () => void;
 };
 
 const SWIPE_COMMIT_PX = 96;
@@ -82,6 +89,7 @@ function DiscoverProfileCardInner({
   onPass,
   onIgnore,
   onPeek,
+  onMediaFatal,
 }: Props) {
   const { t } = useT("DiscoverProfileCard");
   const photos = photosFromList(card.photo_urls);
@@ -206,6 +214,10 @@ function DiscoverProfileCardInner({
   useEffect(() => {
     let cancelled = false;
     setAiCompat(null);
+    if (card.demo_premium_showcase) {
+      setAiLoading(false);
+      return;
+    }
     const vp = viewerProfileId != null ? Math.trunc(Number(viewerProfileId)) : 0;
     const cp = card.profile_id != null ? Math.trunc(Number(card.profile_id)) : 0;
     if (!Number.isFinite(vp) || vp < 1 || !Number.isFinite(cp) || cp < 1) return;
@@ -222,7 +234,7 @@ function DiscoverProfileCardInner({
     return () => {
       cancelled = true;
     };
-  }, [card.profile_id, card.user_id, viewerProfileId]);
+  }, [card.profile_id, card.user_id, card.demo_premium_showcase, viewerProfileId]);
 
   const aiBlock = useMemo(() => {
     const fallbackScore = Number.isFinite(Number(card.compatibility_score)) ? Math.max(0, Math.min(100, Math.round(Number(card.compatibility_score)))) : 72;
@@ -257,9 +269,19 @@ function DiscoverProfileCardInner({
   const replySpeedTone = useMemo(() => discoverReplySpeedTone(card), [card.active_today, card.last_active_at]);
 
   const isVerified = Boolean(card.is_verified);
-  const showVerifiedBadge = isVerified && card.verification_badge_visible !== false;
+  const demoPremiumShowcase = Boolean(card.demo_premium_showcase);
+  const showVerifiedBadge = isVerified && card.verification_badge_visible !== false && !demoPremiumShowcase;
   const isPremium = Boolean(card.is_premium);
   const isDemoProfile = Boolean(card.is_demo_profile);
+  const demoPersonality = String(card.demo_personality_type || "").trim() || "calm";
+  const useStrictDemoPhoto =
+    demoPremiumShowcase || (isDemoProfile && isBundledDemoMainPhotoPath(String(photos[0] || "")));
+
+  useEffect(() => {
+    if (demoPremiumShowcase && isDemoProfile && (!photos.length || !String(photos[0] || "").trim())) {
+      onMediaFatal?.();
+    }
+  }, [demoPremiumShowcase, isDemoProfile, photos.length, photos, onMediaFatal]);
   const vrTag = card.variable_reward ?? null;
   const vrDelay = card.variable_reward_delay_ms != null && Number.isFinite(Number(card.variable_reward_delay_ms)) ? Math.max(0, Math.trunc(Number(card.variable_reward_delay_ms))) : 0;
   const [showVariableReward, setShowVariableReward] = useState(false);
@@ -321,15 +343,25 @@ function DiscoverProfileCardInner({
               {photos.length ? (
                 photos.map((url, index) => (
                   <div key={`${card.user_id}-p-${index}`} className="discover-card__photo-slide">
-                    <SafeImg
-                      className="discover-card__img"
-                      loading={index === 0 ? "eager" : "lazy"}
-                      src={url}
-                      alt={index === 0 ? name : t("discover.card.photoAlt", { name, index: index + 1 })}
-                    />
+                    {useStrictDemoPhoto && index === 0 ? (
+                      <DemoProfileImg
+                        className="discover-card__img"
+                        loading={index === 0 ? "eager" : "lazy"}
+                        src={url}
+                        alt={index === 0 ? name : t("discover.card.photoAlt", { name, index: index + 1 })}
+                        onFatalError={onMediaFatal}
+                      />
+                    ) : (
+                      <SafeImg
+                        className="discover-card__img"
+                        loading={index === 0 ? "eager" : "lazy"}
+                        src={url}
+                        alt={index === 0 ? name : t("discover.card.photoAlt", { name, index: index + 1 })}
+                      />
+                    )}
                   </div>
                 ))
-              ) : (
+              ) : demoPremiumShowcase && isDemoProfile ? null : (
                 <div className="discover-card__photo-slide">
                   <SafeImg className="discover-card__img" src="" alt={name} />
                 </div>
@@ -337,12 +369,18 @@ function DiscoverProfileCardInner({
             </div>
             <div className="discover-card__hover-glow" aria-hidden />
             <div className="discover-card__shade discover-card__shade--vignette" aria-hidden />
+            {(demoPremiumShowcase || isDemoProfile) && (
+              <div className="discover-card__demo-ribbon" role="status">
+                <div className="discover-card__demo-ribbon-title">{t("demo.showcase.badgeTitle")}</div>
+                <div className="discover-card__demo-ribbon-sub">{t("demo.showcase.badgeSub")}</div>
+              </div>
+            )}
             {showVariableReward && variableRewardLabel ? (
               <div className="discover-card__variable-reward" aria-hidden>
                 {variableRewardLabel}
               </div>
             ) : null}
-            {isDemoProfile ? (
+            {isDemoProfile && !demoPremiumShowcase ? (
               <div
                 className="discover-card__demo-corner"
                 style={{
@@ -356,7 +394,9 @@ function DiscoverProfileCardInner({
                 <Badge tone="premium">{t("demo.badge")}</Badge>
               </div>
             ) : null}
-            <div className={`discover-card__micro-top${isDemoProfile ? " discover-card__micro-top--demo" : ""}`.trim()}>
+            <div
+              className={`discover-card__micro-top${isDemoProfile ? " discover-card__micro-top--demo discover-card__micro-top--ribbon" : ""}`.trim()}
+            >
               <div className="discover-card__micro-top-left">
                 <div
                   className="discover-card__micro-pill discover-card__micro-pill--match"
@@ -481,7 +521,7 @@ function DiscoverProfileCardInner({
                   </p>
                 </div>
                 <h2 className="discover-card__name">
-                  <span className="discover-card__name-text">{t("errors.validation.fieldFallbackName")}</span>
+                  <span className="discover-card__name-text">{name}</span>
                   {showVerifiedBadge ? <VerifiedBadge title={t("trust.verified.tooltip")} /> : null}
                   {isPremium ? <PremiumBadge title={t("premium.badge")} /> : null}
                   <span className="discover-card__name-sep" aria-hidden>
@@ -535,7 +575,18 @@ function DiscoverProfileCardInner({
               }}
               role="status"
             >
-              {t("demo.notice")}
+              {demoPremiumShowcase ? t("demo.showcase.notice") : t("demo.notice")}
+            </div>
+          ) : null}
+          {isDemoProfile ? (
+            <div className="discover-card__personality-pill">
+              <Badge tone="premium">
+                {t(
+                  ["playful", "deep", "calm", "teasing"].includes(demoPersonality)
+                    ? (`demo.personality.${demoPersonality}` as const)
+                    : "demo.personality.calm",
+                )}
+              </Badge>
             </div>
           ) : null}
           <div
@@ -641,6 +692,12 @@ function DiscoverProfileCardInner({
           <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
             <path d="M12 21s-6.2-4.8-8.5-9.5C2.5 8.2 5.4 5 8.8 5c1.8 0 3.4.9 4.2 2.3C13.8 5.9 15.4 5 17.2 5 20.6 5 23.5 8.2 21.7 11.5 19.4 16.2 12 21 12 21Z" />
           </svg>
+        </button>
+      </div>
+
+      <div className="discover-card__ignore-text-row">
+        <button type="button" className="discover-card__ignore-text" disabled={disabled || !!exiting} onClick={onIgnore}>
+          {t("discover.actions.ignoreFull")}
         </button>
       </div>
 

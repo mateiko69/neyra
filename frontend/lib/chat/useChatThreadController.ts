@@ -801,7 +801,7 @@ export function useChatThreadController() {
         });
       } else if (extras?.length) {
         setPartnerTyping(true);
-        const delayMs = 800 + Math.floor(Math.random() * 1700);
+        const delayMs = 1000 + Math.floor(Math.random() * 1000);
         demoReplyDelayTimerRef.current = setTimeout(() => {
           demoReplyDelayTimerRef.current = null;
           setPartnerTyping(false);
@@ -907,7 +907,7 @@ export function useChatThreadController() {
           });
         } else if (extras?.length) {
           setPartnerTyping(true);
-          const delayMs = 800 + Math.floor(Math.random() * 1700);
+          const delayMs = 1000 + Math.floor(Math.random() * 1000);
           demoReplyDelayTimerRef.current = setTimeout(() => {
             demoReplyDelayTimerRef.current = null;
             setPartnerTyping(false);
@@ -1030,7 +1030,7 @@ export function useChatThreadController() {
         setMessages((current) => mergeDeliveredThreadMessage(current, clientTempId, result.message));
         if (voiceExtras?.length) {
           setPartnerTyping(true);
-          const delayMs = 800 + Math.floor(Math.random() * 1700);
+          const delayMs = 1000 + Math.floor(Math.random() * 1000);
           demoReplyDelayTimerRef.current = setTimeout(() => {
             demoReplyDelayTimerRef.current = null;
             setPartnerTyping(false);
@@ -1139,7 +1139,7 @@ export function useChatThreadController() {
         setMessages((current) => mergeDeliveredThreadMessage(current, clientTempId, result.message));
         if (voiceExtrasRetry?.length) {
           setPartnerTyping(true);
-          const delayMs = 800 + Math.floor(Math.random() * 1700);
+          const delayMs = 1000 + Math.floor(Math.random() * 1000);
           demoReplyDelayTimerRef.current = setTimeout(() => {
             demoReplyDelayTimerRef.current = null;
             setPartnerTyping(false);
@@ -1206,7 +1206,7 @@ export function useChatThreadController() {
         setMessages((current) => mergeDeliveredThreadMessage(current, clientTempId, result.message));
         if (retryExtras?.length) {
           setPartnerTyping(true);
-          const delayMs = 800 + Math.floor(Math.random() * 1700);
+          const delayMs = 1000 + Math.floor(Math.random() * 1000);
           demoReplyDelayTimerRef.current = setTimeout(() => {
             demoReplyDelayTimerRef.current = null;
             setPartnerTyping(false);

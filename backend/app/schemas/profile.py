@@ -348,6 +348,7 @@ class ProfileOut(ProfileBase):
     is_verified: bool = False
     is_premium: bool = False
     premium_until: datetime | None = None
+    demo_premium_feed_active: bool = False
 
     class Config:
         from_attributes = True

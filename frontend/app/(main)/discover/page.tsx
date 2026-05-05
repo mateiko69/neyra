@@ -5,24 +5,25 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useRouter } from "next/navigation";
 import { ApiThrottleSkipError, RateLimitError, apiFetch, getToken, invalidateApiGetCache } from "../../../lib/api";
 import { fetchDiscoverFeed } from "../../../lib/discoverFeed";
-import { pickDiscoverReasons } from "../../../lib/aiSurfaceCopy";
 import { photosFromList } from "../../../lib/media";
+import { preloadDiscoverPhotoUrls } from "../../../lib/demoProfiles";
 import { getAiOpeners, type AiOpenerMatchContext } from "../../../lib/chat/api";
 import { discoverSwipeFeedback } from "../../../lib/discoverSwipeFeedback";
 import { acquireDiscoverSwipe, releaseDiscoverSwipe, type DiscoverSwipeAction } from "../../../lib/discoverSwipeGuard";
 import { PageShell } from "../../components/PageShell";
 import { SafeImg } from "../../components/SafeImg";
-import { VerifiedBadge } from "../../components/trust/VerifiedBadge";
-import { Button, Chip, Toast } from "../../components/ui";
+import { Button, Toast } from "../../components/ui";
 import { useT } from "../../components/i18n/I18nProvider";
 import { DiscoverGuestPreview } from "../../components/discover/DiscoverGuestPreview";
 import { setNavBadgesFromServer } from "../../../lib/navBadgesStore";
 import { trackAnalyticsEvent } from "../../../lib/analytics";
 import { localStorageDayShown, localStorageMarkDay, utcDayKey } from "../../../lib/retention/dedupe";
 import { hasValueMoment, recordMatchMoment, recordOutboundLikeMoment } from "../../../lib/monetization/valueMoments";
+import { DiscoverProfileCard, type DiscoverCardData } from "./DiscoverProfileCard";
 
 type DiscoverCard = {
   user_id: number;
+  profile_id?: number | null;
   display_name?: string;
   age?: number | null;
   city?: string | null;
@@ -43,7 +44,58 @@ type DiscoverCard = {
   discover_fallback_stage?: string | null;
   discover_profile_incomplete?: boolean | null;
   discover_missing_photo?: boolean | null;
+  is_demo_profile?: boolean | null;
+  demo_premium_showcase?: boolean | null;
+  demo_personality_type?: string | null;
+  gender?: string | null;
+  distance_km?: number | null;
+  last_active_at?: string | null;
+  active_today?: boolean | null;
+  ai_match?: boolean | null;
+  visual_compatibility?: number | null;
+  trusted?: string | null;
+  is_verified?: boolean | null;
+  verification_badge_visible?: boolean | null;
+  is_premium?: boolean | null;
+  premium_until?: string | null;
+  variable_reward?: DiscoverCardData["variable_reward"];
+  variable_reward_delay_ms?: number | null;
+  they_liked_you?: boolean | null;
 };
+
+function mapDiscoverCardToProfileData(card: DiscoverCard, viewerDemoPremiumFromMe: boolean): DiscoverCardData {
+  const demoPremiumShowcase = Boolean(card.demo_premium_showcase ?? (viewerDemoPremiumFromMe && card.is_demo_profile));
+  return {
+    user_id: card.user_id,
+    profile_id: card.profile_id ?? null,
+    display_name: card.display_name ?? undefined,
+    age: card.age ?? null,
+    city: card.city ?? undefined,
+    distance_km: card.distance_km ?? null,
+    last_active_at: card.last_active_at ?? null,
+    active_today: card.active_today ?? null,
+    bio: card.bio ?? undefined,
+    photo_urls: card.photo_urls ?? undefined,
+    verified: undefined,
+    interests: Array.isArray(card.interests) ? card.interests : undefined,
+    top_reasons: Array.isArray(card.top_reasons) ? card.top_reasons : undefined,
+    compatibility_score: card.compatibility_score ?? null,
+    ai_match: card.ai_match ?? undefined,
+    visual_compatibility: card.visual_compatibility ?? null,
+    trusted: (card.trusted as DiscoverCardData["trusted"]) ?? undefined,
+    is_verified: card.is_verified ?? undefined,
+    verification_badge_visible: card.verification_badge_visible ?? undefined,
+    is_premium: card.is_premium ?? undefined,
+    premium_until: card.premium_until ?? null,
+    is_demo_profile: Boolean(card.is_demo_profile),
+    demo_premium_showcase: demoPremiumShowcase,
+    demo_personality_type: card.demo_personality_type ?? null,
+    gender: card.gender ?? undefined,
+    they_liked_you: card.they_liked_you ?? undefined,
+    variable_reward: card.variable_reward ?? null,
+    variable_reward_delay_ms: card.variable_reward_delay_ms ?? null,
+  };
+}
 
 function clamp(n: number, a: number, b: number) {
   return Math.max(a, Math.min(b, n));
@@ -410,16 +462,28 @@ export default function DiscoverPage() {
   const topCardValid = Boolean(topCard && Number(topCard.user_id) > 0);
   /** Mobile: only top 2 stack slots — reduces overlap artifacts during rapid swipes. */
   const deckVisible = useMemo(() => cards.slice(0, 2), [cards]);
-  const nextCards = cards.slice(1, 4);
 
-  const [drag, setDrag] = useState({ x: 0, y: 0, active: false });
-  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
-  const rafRef = useRef<number | null>(null);
+  const [viewerProfileId, setViewerProfileId] = useState<number | null>(null);
+  const [demoPremiumFeedActive, setDemoPremiumFeedActive] = useState(false);
+  useEffect(() => {
+    if (!getToken()) return;
+    let cancelled = false;
+    void apiFetch("/profiles/me", { metaReason: "discover-viewer-profile", skipThrottle: true, softFail: true }).then((r: unknown) => {
+      if (cancelled || !r || typeof r !== "object") return;
+      const o = r as { id?: number; profile_id?: number; demo_premium_feed_active?: boolean };
+      const pid = typeof o.id === "number" ? o.id : typeof o.profile_id === "number" ? o.profile_id : null;
+      setViewerProfileId(pid);
+      setDemoPremiumFeedActive(Boolean(o.demo_premium_feed_active));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const [swipeExit, setSwipeExit] = useState<DiscoverSwipeExitState | null>(null);
   /** Mirrors exitUiLockRef for render (refs don’t re-render) — keeps Like/Pass disabled during the pre-paint exit window on rapid mobile taps. */
   const [exitUiHold, setExitUiHold] = useState(false);
-  const [isNarrowSwipe, setIsNarrowSwipe] = useState(false);
-  /** True → no drag on cards; Like/Pass/Undo/Boost only (touch drag caused deck desync in production). */
+  /** True → coarse-pointer layout returns early (touch MVP). */
   const [discoverButtonOnly, setDiscoverButtonOnly] = useState(false);
   const pendingSwipeReleaseRef = useRef<{ targetId: number; action: DiscoverSwipeAction } | null>(null);
   const exitFinishHandledRef = useRef(false);
@@ -432,14 +496,16 @@ export default function DiscoverPage() {
   const exitUiLockRef = useRef(false);
   const stuckExitWatchdogRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
 
-  const preloadQueue = useMemo(() => {
-    const out: string[] = [];
-    for (const c of nextCards) {
-      const photos = photosFromList(String(c.photo_urls || ""));
-      out.push(...photos.slice(0, 2));
-    }
-    return out;
-  }, [nextCards]);
+  const preloadQueue = useMemo(
+    () =>
+      preloadDiscoverPhotoUrls(
+        (c) => photosFromList(String((c as DiscoverCard).photo_urls || "")),
+        cards,
+        1,
+        3,
+      ),
+    [cards],
+  );
 
   useEffect(() => {
     preloadImages(preloadQueue);
@@ -450,7 +516,6 @@ export default function DiscoverPage() {
     const mqTouch = window.matchMedia("(max-width: 768px)");
     const mqCoarse = window.matchMedia("(pointer: coarse)");
     const apply = () => {
-      setIsNarrowSwipe(mqTouch.matches);
       setDiscoverButtonOnly(mqTouch.matches || mqCoarse.matches);
     };
     apply();
@@ -571,52 +636,6 @@ export default function DiscoverPage() {
     };
   }, [probeEmptyDiscoverDebug, loading, topCard]);
 
-  const aiPercent = topCard?.compatibility_score != null ? clamp(Math.round(Number(topCard.compatibility_score)), 0, 99) : null;
-  const aiHint = useMemo(() => {
-    const raw = Array.isArray(topCard?.top_reasons) ? (topCard?.top_reasons as string[]) : [];
-    const picked = pickDiscoverReasons(raw, t, 2);
-    return picked.join(" · ");
-  }, [topCard?.top_reasons, t]);
-
-  const topInterests = useMemo(() => {
-    const raw = (topCard as any)?.top_interests;
-    return toInterestsList(raw ?? topCard?.interests).slice(0, 3);
-  }, [topCard]);
-  const sharedInterests = useMemo(() => {
-    const raw = (topCard as any)?.shared_interests;
-    const list = toInterestsList(raw);
-    return list.slice(0, 3);
-  }, [topCard]);
-  const vibeTags = useMemo(() => {
-    if (!topCard) return [] as string[];
-    const tags: string[] = [];
-    const v = String(topCard.vibe || "").trim();
-    if (v) tags.push(v);
-    const raw = topCard.lifestyle_tags;
-    const list = Array.isArray(raw) ? raw : [];
-    for (const x of list) {
-      const s = String(x || "").trim();
-      if (!s) continue;
-      if (tags.some((t) => t.toLowerCase() === s.toLowerCase())) continue;
-      tags.push(s);
-    }
-    return tags.slice(0, 5);
-  }, [topCard]);
-
-  const bioExcerpt = useMemo(() => {
-    if (!topCard) return "";
-    const b = String(topCard.bio || "")
-      .trim()
-      .replace(/\s+/g, " ");
-    if (!b) return "";
-    return b.length > 140 ? `${b.slice(0, 137)}…` : b;
-  }, [topCard]);
-
-  const boostActive = Boolean(topCard?.boost_active);
-  const badges = (topCard && typeof (topCard as any).badges === "object" ? ((topCard as any).badges as any) : null) as
-    | { new?: boolean; active_now?: boolean; verified?: boolean }
-    | null;
-
   const swipeInteractionLocked = Boolean(swipeExit) || exitUiHold;
 
   const finalizeSwipeExitOnce = useCallback(() => {
@@ -666,7 +685,6 @@ export default function DiscoverPage() {
     }
     exitFinishHandledRef.current = false;
     setSwipeExit(null);
-    setDrag({ x: 0, y: 0, active: false });
     const rel = pendingSwipeReleaseRef.current;
     pendingSwipeReleaseRef.current = null;
     if (rel) releaseDiscoverSwipe(rel.targetId, rel.action);
@@ -839,53 +857,7 @@ export default function DiscoverPage() {
   }
 
   /**
-   * Desktop / pointer fine only: drag-to-swipe. Disabled when `discoverButtonOnly` (mobile MVP uses buttons only).
-   */
-  const performSwipe = useCallback(
-    (profileId: number, action: DiscoverSwipeAction, fromDrag?: { x: number; y: number }) => {
-      if (discoverButtonOnly) return;
-      if (exitUiLockRef.current || swipeExit) return;
-      const card = cards[0];
-      if (!card || Number(card.user_id) !== profileId) return;
-      const targetId = profileId;
-      const liked = action === "like";
-      if (!acquireDiscoverSwipe(targetId, action)) return;
-
-      const snapshot = card;
-      removingForUndoRef.current = { card: snapshot, liked };
-      exitFinishHandledRef.current = false;
-      exitUiLockRef.current = true;
-      setExitUiHold(true);
-      pendingSwipeReleaseRef.current = { targetId, action };
-
-      discoverSwipeFeedback(liked ? "like" : "pass");
-      setSwipeExit({
-        liked,
-        startX: fromDrag?.x ?? 0,
-        startY: fromDrag?.y ?? 0,
-        fly: false,
-      });
-      setDrag({ x: 0, y: 0, active: false });
-
-      if (advanceDeckTimerRef.current) {
-        clearTimeout(advanceDeckTimerRef.current);
-        advanceDeckTimerRef.current = null;
-      }
-      advanceDeckTimerRef.current = globalThis.setTimeout(() => {
-        advanceDeckTimerRef.current = null;
-        finalizeSwipeExitOnce();
-      }, DISCOVER_SWIPE_ADVANCE_MS);
-
-      requestAnimationFrame(() => {
-        void runDiscoverSwipeApi(snapshot, targetId, liked);
-      });
-    },
-    [cards, swipeExit, discoverButtonOnly, finalizeSwipeExitOnce],
-  );
-
-  /**
-   * Like / Pass from buttons only: one code path, optimistic deck advance, `/swipes` in background.
-   * Drag swipes use `performSwipe` (desktop); mobile is button-only when `discoverButtonOnly` is true.
+   * Like / Pass from card buttons: optimistic deck advance, `/swipes` in background.
    */
   const advanceProfile = useCallback(
     (action: DiscoverSwipeAction) => {
@@ -907,7 +879,6 @@ export default function DiscoverPage() {
 
       discoverSwipeFeedback(liked ? "like" : "pass");
       setSwipeExit({ liked, startX: 0, startY: 0, fly: false, simple: true });
-      setDrag({ x: 0, y: 0, active: false });
 
       if (advanceDeckTimerRef.current) {
         clearTimeout(advanceDeckTimerRef.current);
@@ -986,54 +957,29 @@ export default function DiscoverPage() {
     }
   }
 
-  function onPointerDown(e: React.PointerEvent) {
-    if (discoverButtonOnly) return;
-    if (exitUiLockRef.current || !topCardValid || swipeInteractionLocked) return;
-    pointerStartRef.current = { x: e.clientX, y: e.clientY };
-    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    setDrag({ x: 0, y: 0, active: true });
-  }
+  /** Bundled demo photo failed twice — drop card and sync pass without blocking UX. */
+  const swipeAwayBrokenPhoto = useCallback(() => {
+    setCards((prev) => {
+      const snap = prev[0];
+      if (!snap || Number(snap.user_id) <= 0) return prev;
+      const uid = Number(snap.user_id);
+      void apiFetch("/swipes", {
+        method: "POST",
+        metaReason: "discover-pass-broken-photo",
+        body: JSON.stringify({ target_user_id: uid, liked: false }),
+        softFail: true,
+      }).catch(() => {});
+      void trackAnalyticsEvent("discover_demo_photo_dropped", { target_user_id: uid, surface: "discover" });
+      const next = prev.slice(1);
+      if (!swipeRefreshPaused && next.length <= 4) {
+        queueMicrotask(() => void loadFeed("discover-after-photo-drop"));
+      }
+      return next;
+    });
+  }, [loadFeed, swipeRefreshPaused]);
 
-  function onPointerMove(e: React.PointerEvent) {
-    if (discoverButtonOnly) return;
-    if (!pointerStartRef.current || !drag.active || exitUiLockRef.current || swipeInteractionLocked) return;
-    const dx = e.clientX - pointerStartRef.current.x;
-    const dy = e.clientY - pointerStartRef.current.y;
-    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    rafRef.current = requestAnimationFrame(() => setDrag({ x: dx, y: dy, active: true }));
-  }
-
-  function onPointerUp() {
-    if (discoverButtonOnly) {
-      pointerStartRef.current = null;
-      return;
-    }
-    if (exitUiLockRef.current || swipeInteractionLocked) {
-      pointerStartRef.current = null;
-      return;
-    }
-    if (!pointerStartRef.current) return;
-    const dx = drag.x;
-    const dy = drag.y;
-    pointerStartRef.current = null;
-    const threshold = 120;
-    const pid = Number(topCard?.user_id);
-    if (!pid) return;
-    if (dx > threshold) {
-      void performSwipe(pid, "like", { x: dx, y: dy });
-      return;
-    }
-    if (dx < -threshold) {
-      void performSwipe(pid, "pass", { x: dx, y: dy });
-      return;
-    }
-    setDrag({ x: 0, y: 0, active: false });
-  }
-
-  const photoList = useMemo(() => (topCard ? photosFromList(String(topCard.photo_urls || "")) : []), [topCard]);
-  const mainPhoto = photoList[0] || "";
-  const maxRot = isNarrowSwipe ? 4 : 12;
-  const rotDiv = isNarrowSwipe ? 42 : 18;
+  const maxRot = 12;
+  const rotDiv = 18;
   const exiting = Boolean(swipeExit);
   const exitFly = Boolean(swipeExit?.fly);
   const simpleExit = Boolean(swipeExit?.simple);
@@ -1062,9 +1008,6 @@ export default function DiscoverPage() {
       cardTransform = `translate3d(${xw}, ${yfly}px, 0) rotate(${endRot}deg)`;
       cardOpacity = 0;
     }
-  } else if (!discoverButtonOnly) {
-    const r = clamp(drag.x / rotDiv, -maxRot, maxRot);
-    cardTransform = `translate3d(${drag.x}px, ${drag.y}px, 0) rotate(${r}deg)`;
   } else {
     cardTransform = "translate3d(0,0,0)";
   }
@@ -1077,11 +1020,7 @@ export default function DiscoverPage() {
           ? `transform ${DISCOVER_SWIPE_EXIT_MS}ms cubic-bezier(0.22, 1, 0.36, 1), opacity ${DISCOVER_SWIPE_EXIT_MS}ms ease`
           : exiting && !exitFly && !simpleExit
             ? "none"
-            : drag.active
-              ? "none"
-              : "transform 340ms cubic-bezier(0.22, 1, 0.36, 1)";
-  const likeOpacity = discoverButtonOnly || exiting ? 0 : clamp((drag.x - 40) / 140, 0, 1);
-  const passOpacity = discoverButtonOnly || exiting ? 0 : clamp((-drag.x - 40) / 140, 0, 1);
+            : "transform 340ms cubic-bezier(0.22, 1, 0.36, 1)";
   const lowDeckCandidates = Boolean(
     !loading &&
       topCardValid &&
@@ -1128,64 +1067,22 @@ export default function DiscoverPage() {
               </div>
             </div>
           ) : (
-            <div className="surface discover-mobile-card-mvp" style={{ borderRadius: 20, overflow: "hidden" }}>
-              {mainPhoto ? (
-                <SafeImg className="discover-mobile-card-mvp__img" src={mainPhoto} alt="" loading="eager" style={{ width: "100%", height: 260, objectFit: "cover" } as any} />
-              ) : (
-                <SafeImg className="discover-mobile-card-mvp__img" src={null} alt="" loading="eager" style={{ width: "100%", height: 260, objectFit: "cover" } as any} />
-              )}
-              <div style={{ padding: 14, display: "grid", gap: 10 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <div className="h2" style={{ fontSize: 24, margin: 0, fontWeight: 900, letterSpacing: "-0.03em" }}>
-                    {String(topCard.display_name || t("discover.card.profileFallback"))}
-                    {topCard.age != null ? `, ${String(topCard.age)}` : ""}
-                  </div>
-                  {badges?.verified ? <VerifiedBadge size="md" title={t("discover.badge.verified")} /> : null}
-                </div>
-                {topCard.city ? <div className="subtitle" style={{ opacity: 0.88 }}>{String(topCard.city)}</div> : null}
-                {Boolean((topCard as any)?.is_demo_profile) ? (
-                  <div className="caption" style={{ opacity: 0.96, fontWeight: 760 }}>
-                    {t("demo.profile.label")}
-                  </div>
-                ) : null}
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {boostActive ? <Chip>{t("discover.badge.boosted")}</Chip> : null}
-                  {badges?.active_now ? <Chip>{t("discover.badge.activeNow")}</Chip> : null}
-                  {badges?.new ? <Chip>{t("discover.badge.new")}</Chip> : null}
-                  {vibeTags.map((tag) => <Chip key={`vibe-mobile-${tag}`}>{tag}</Chip>)}
-                  {topInterests.map((tag) => <Chip key={`interest-mobile-${tag}`}>{t(`profile.interests.${String(tag).toLowerCase()}`)}</Chip>)}
-                </div>
-                {bioExcerpt ? <div className="caption" style={{ opacity: 0.92, lineHeight: 1.45 }}>{bioExcerpt}</div> : null}
-                {sharedInterests.length ? (
-                  <div className="caption" style={{ opacity: 0.9, lineHeight: 1.35 }}>
-                    {t("discover.why.shared", { items: sharedInterests.map((x) => t(`profile.interests.${String(x).toLowerCase()}`)).join(", ") })}
-                  </div>
-                ) : null}
-                <div className="caption" style={{ opacity: 0.88, lineHeight: 1.4 }}>
-                  {aiPercent != null ? t("discover.ai.percent", { score: aiPercent }) : t("discover.ai.percentMissing")}
-                  {aiHint ? ` - ${aiHint}` : ""}
-                </div>
-              </div>
+            <div className="discover-mobile-embed-card">
+              <DiscoverProfileCard
+                card={mapDiscoverCardToProfileData(topCard, demoPremiumFeedActive)}
+                planTier="free"
+                viewerProfileId={viewerProfileId}
+                disabled={swipeInteractionLocked}
+                exiting={null}
+                onLike={() => void advanceProfile("like")}
+                onPass={() => void advanceProfile("pass")}
+                onIgnore={() => void ignoreCurrentProfile()}
+                onPeek={() => router.push(`/people/${topCard.user_id}`)}
+                onMediaFatal={swipeAwayBrokenPhoto}
+              />
             </div>
           )}
           <div className="discover-actions-mvp">
-            <Button
-              type="button"
-              variant="secondary"
-              className="discover-action-tap discover-action-tap--pass discover-action-tap--mvp"
-              disabled={!topCardValid || swipeInteractionLocked}
-              onClick={() => void advanceProfile("pass")}
-            >
-              ❌ {t("discover.actions.pass")}
-            </Button>
-            <Button
-              type="button"
-              className="discover-action-tap discover-action-tap--like discover-action-tap--mvp"
-              disabled={!topCardValid || swipeInteractionLocked}
-              onClick={() => void advanceProfile("like")}
-            >
-              ❤️ {t("discover.actions.like")}
-            </Button>
             <Button
               type="button"
               variant="secondary"
@@ -1194,15 +1091,6 @@ export default function DiscoverPage() {
               onClick={() => void activateBoost()}
             >
               ⭐ {t("discover.actions.boostProfile")}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="discover-action-tap discover-action-tap--ignore discover-action-tap--mvp"
-              disabled={!topCardValid || swipeInteractionLocked}
-              onClick={() => void ignoreCurrentProfile()}
-            >
-              🙈 {t("discover.actions.ignore")}
             </Button>
             <Button
               type="button"
@@ -1472,239 +1360,75 @@ export default function DiscoverPage() {
               ) : null}
 
               <div
-                className="surface"
-                onPointerDown={discoverButtonOnly ? undefined : onPointerDown}
-                onPointerMove={discoverButtonOnly ? undefined : onPointerMove}
-                onPointerUp={discoverButtonOnly ? undefined : onPointerUp}
-                onPointerCancel={discoverButtonOnly ? undefined : onPointerUp}
+                className="surface discover-embed-card-wrap"
                 onTransitionEnd={onSwipeExitTransitionEnd}
                 style={{
                   position: "absolute",
                   inset: 0,
                   zIndex: exiting ? 12 : 2,
                   borderRadius: 22,
-                  overflow: "hidden",
-                  touchAction: discoverButtonOnly ? "manipulation" : swipeInteractionLocked ? "none" : "pan-y",
+                  overflow: "auto",
+                  touchAction: "manipulation",
                   transform: cardTransform,
                   opacity: cardOpacity,
                   transition: cardTransition,
                   willChange: exiting ? "transform, opacity" : "transform",
                   pointerEvents: swipeInteractionLocked ? "none" : "auto",
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "transparent",
+                  border: "none",
                 }}
               >
-                {mainPhoto ? (
-                  <SafeImg
-                    className="discover-card__img"
-                    src={mainPhoto}
-                    alt=""
-                    loading="eager"
-                    style={{ width: "100%", height: "100%", objectFit: "cover" } as any}
+                {topCard ? (
+                  <DiscoverProfileCard
+                    card={mapDiscoverCardToProfileData(topCard, demoPremiumFeedActive)}
+                    planTier="free"
+                    viewerProfileId={viewerProfileId}
+                    disabled={swipeInteractionLocked}
+                    exiting={swipeExit ? { liked: swipeExit.liked } : null}
+                    onLike={() => void advanceProfile("like")}
+                    onPass={() => void advanceProfile("pass")}
+                    onIgnore={() => void ignoreCurrentProfile()}
+                    onPeek={() => router.push(`/people/${topCard.user_id}`)}
+                    onMediaFatal={swipeAwayBrokenPhoto}
                   />
-                ) : (
-                  <SafeImg
-                    className="discover-card__img"
-                    src={null}
-                    alt=""
-                    loading="eager"
-                    style={{ width: "100%", height: "100%", objectFit: "cover" } as any}
-                  />
-                )}
-
-                <div style={{ position: "absolute", top: 14, left: 14, opacity: passOpacity }}>
-                  <div style={{ border: "2px solid rgba(255,120,120,0.95)", color: "rgba(255,120,120,0.95)", borderRadius: 12, padding: "6px 10px", fontWeight: 950 }}>
-                    {t("discover.swipe.pass")}
-                  </div>
-                </div>
-                <div style={{ position: "absolute", top: 14, right: 14, opacity: likeOpacity }}>
-                  <div style={{ border: "2px solid rgba(120,255,200,0.95)", color: "rgba(120,255,200,0.95)", borderRadius: 12, padding: "6px 10px", fontWeight: 950 }}>
-                    {t("discover.swipe.like")}
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    background:
-                      "linear-gradient(to top, rgba(10,10,14,0.97) 0%, rgba(10,10,14,0.42) 52%, rgba(10,10,14,0.06) 78%)",
-                  }}
-                />
-
-                <div
-                  className="discover-card__copy"
-                  style={{
-                    position: "absolute",
-                    left: 14,
-                    right: 14,
-                    bottom: 14,
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                    <div className="h2" style={{ fontSize: 26, fontWeight: 950, letterSpacing: "-0.04em", margin: 0, lineHeight: 1.15 }}>
-                      {String(topCard.display_name || t("discover.card.profileFallback"))}
-                      {topCard.age != null ? `, ${String(topCard.age)}` : ""}
-                    </div>
-                    {badges?.verified && !topCard.discover_missing_photo && Boolean(mainPhoto) ? (
-                      <VerifiedBadge size="md" title={t("discover.badge.verified")} />
-                    ) : null}
-                  </div>
-                  {topCard.city ? (
-                    <div className="subtitle" style={{ marginTop: 6, opacity: 0.88 }}>
-                      {String(topCard.city)}
-                    </div>
-                  ) : null}
-                  {Boolean((topCard as any)?.is_demo_profile) ? (
-                    <div className="caption" style={{ marginTop: 8, opacity: 0.96, fontWeight: 760 }}>
-                      {t("demo.profile.label")}
-                    </div>
-                  ) : null}
-
-                  <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                    {boostActive ? <Chip>{t("discover.badge.boosted")}</Chip> : null}
-                    {badges?.active_now ? <Chip>{t("discover.badge.activeNow")}</Chip> : null}
-                    {badges?.new ? <Chip>{t("discover.badge.new")}</Chip> : null}
-                    {vibeTags.map((tag) => (
-                      <Chip key={`vibe-${tag}`}>{tag}</Chip>
-                    ))}
-                    {topInterests.map((tag) => (
-                      <Chip key={tag}>{t(`profile.interests.${String(tag).toLowerCase()}`)}</Chip>
-                    ))}
-                  </div>
-
-                  {bioExcerpt ? (
-                    <div
-                      className="caption discover-card__bio"
-                      style={{
-                        marginTop: 10,
-                        opacity: 0.92,
-                        lineHeight: 1.45,
-                      }}
-                    >
-                      {bioExcerpt}
-                    </div>
-                  ) : null}
-
-                  {sharedInterests.length ? (
-                    <div className="caption" style={{ marginTop: 10, opacity: 0.9, lineHeight: 1.35 }}>
-                      {t("discover.why.shared", {
-                        items: sharedInterests.map((x) => t(`profile.interests.${String(x).toLowerCase()}`)).join(", "),
-                      })}
-                    </div>
-                  ) : null}
-
-                  <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
-                    <div className="caption" style={{ opacity: 0.9, fontWeight: 750 }}>
-                      {aiPercent != null ? t("discover.ai.percent", { score: aiPercent }) : t("discover.ai.percentMissing")}
-                    </div>
-                    {aiHint ? (
-                      <div className="caption" style={{ opacity: 0.78, lineHeight: 1.4 }}>
-                        {aiHint}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
+                ) : null}
               </div>
             </>
           )}
           </div>
         </div>
 
-        {!loading && topCardValid ? (
+        {!loading &&
+        topCardValid &&
+        !demoPremiumFeedActive &&
+        !topCard?.is_demo_profile &&
+        !topCard?.discover_missing_photo ? (
           <div className="caption" style={{ marginTop: 12, textAlign: "center", opacity: 0.82, lineHeight: 1.4 }}>
             💡 {t("discover.swipe.verifiedRespondMore")}
           </div>
         ) : null}
 
-        <div
-          className={
-            discoverButtonOnly
-              ? "discover-swipe-actions discover-swipe-actions--mobile"
-              : "discover-swipe-actions discover-swipe-actions--desktop"
-          }
-        >
-          {discoverButtonOnly ? (
-            <div className="discover-actions-mobile">
-              <div className="discover-actions-primary">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="discover-action-tap discover-action-tap--pass"
-                  disabled={!topCardValid || swipeInteractionLocked}
-                  onClick={() => void advanceProfile("pass")}
-                >
-                  {t("discover.actions.pass")}
-                </Button>
-                <Button
-                  type="button"
-                  className="discover-action-tap discover-action-tap--like"
-                  disabled={!topCardValid || swipeInteractionLocked}
-                  onClick={() => void advanceProfile("like")}
-                >
-                  {t("discover.actions.like")}
-                </Button>
-              </div>
-              <div className="discover-actions-secondary">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="discover-action-tap discover-action-tap--sub"
-                  disabled={undoBusy || !lastSwipeRef.current || swipeInteractionLocked}
-                  onClick={() => void undoSwipe()}
-                >
-                  {t("discover.actions.undo")}
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="discover-action-tap discover-action-tap--sub"
-                  disabled={busy || swipeInteractionLocked || !topCardValid}
-                  onClick={() => void activateBoost()}
-                >
-                  {t("discover.actions.boostProfile")}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="discover-actions-desktop">
-              <Button
-                type="button"
-                variant="secondary"
-                className="discover-action-tap"
-                disabled={undoBusy || !lastSwipeRef.current || swipeInteractionLocked}
-                onClick={() => void undoSwipe()}
-              >
-                ↩ {t("discover.actions.undo")}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                className="discover-action-tap"
-                disabled={!topCardValid || swipeInteractionLocked}
-                onClick={() => void advanceProfile("pass")}
-              >
-                ❌ {t("discover.actions.pass")}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                className="discover-action-tap"
-                disabled={busy || swipeInteractionLocked || !topCardValid}
-                onClick={() => void activateBoost()}
-              >
-                ⭐ {t("discover.actions.boostProfile")}
-              </Button>
-              <Button
-                type="button"
-                className="discover-action-tap"
-                disabled={!topCardValid || swipeInteractionLocked}
-                onClick={() => void advanceProfile("like")}
-              >
-                ❤️ {t("discover.actions.like")}
-              </Button>
-            </div>
-          )}
+        <div className="discover-swipe-actions discover-swipe-actions--desktop">
+          <div className="discover-actions-desktop">
+            <Button
+              type="button"
+              variant="secondary"
+              className="discover-action-tap"
+              disabled={undoBusy || !lastSwipeRef.current || swipeInteractionLocked}
+              onClick={() => void undoSwipe()}
+            >
+              ↩ {t("discover.actions.undo")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="discover-action-tap"
+              disabled={busy || swipeInteractionLocked || !topCardValid}
+              onClick={() => void activateBoost()}
+            >
+              ⭐ {t("discover.actions.boostProfile")}
+            </Button>
+          </div>
         </div>
       </div>
     </PageShell>

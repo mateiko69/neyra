@@ -117,9 +117,9 @@ export function ChatHeader({ partnerUserId, partner, seed, showSkeleton, planTie
           {displayName}
           {isVerified ? <VerifiedBadge size="md" title={t("trust.verified.tooltip")} className="chat-header__verified-icon" /> : null}
         </div>
-        <div className="chat-header__subtitle">{isDemoProfile ? t("demo.profile.label") : subtitle}</div>
+        <div className="chat-header__subtitle">{isDemoProfile ? t("chat.header.aiDemoCompanion") : subtitle}</div>
         <div className="caption" style={{ marginTop: 6, opacity: 0.88 }}>
-          {isDemoProfile ? t("demo.chat.disclaimer") : isVerified ? t("trust.chat.verifiedLine") : t("trust.chat.unverifiedLine")}
+          {isDemoProfile ? t("chat.header.aiDemoSub") : isVerified ? t("trust.chat.verifiedLine") : t("trust.chat.unverifiedLine")}
         </div>
       </div>
 
