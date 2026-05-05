@@ -1,10 +1,13 @@
 import time
+import logging
 from sqlalchemy import text
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 from app.db.base import Base
 import app.models  # noqa: F401
+
+_log = logging.getLogger("neyra.db.startup")
 
 connect_args = {}
 if settings.DATABASE_URL.startswith("sqlite"):
@@ -49,8 +52,8 @@ def _create_engine_with_retry():
                 last_err = e
                 time.sleep(delay_s)
         if last_err is not None:
-            # Fail loudly after retries; compose healthchecks should normally prevent this path.
-            raise last_err
+            # Production resilience: do not crash process if DB is slow/unready during import.
+            _log.warning("db_eager_connect_unavailable_starting_anyway: %s", last_err)
     return engine
 
 

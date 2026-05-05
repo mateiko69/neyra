@@ -391,7 +391,14 @@ def _startup_diagnostics() -> None:
 
 @app.on_event("startup")
 def _startup_schema_guard() -> None:
-    _assert_alembic_head_and_user_columns()
+    try:
+        _assert_alembic_head_and_user_columns()
+    except Exception as e:
+        # Never block API boot in production due to DB warm-up/migration race.
+        if _is_production_env():
+            _startup_log.warning("startup_schema_guard_soft_failed_production: %s", e)
+            return
+        raise
 
 
 @app.on_event("startup")
