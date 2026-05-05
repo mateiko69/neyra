@@ -21,7 +21,7 @@ from app.middleware.rate_limit import RateLimitMiddleware
 from app.models.profile import Profile
 from app.models.user import User
 from sqlalchemy import inspect, text
-from app.services.demo_mode import demo_profiles_public_dir
+from app.services.demo_mode import demo_profiles_public_dir, ensure_demo_profiles, repair_demo_profile_photos
 from app.services.system.errors import record_api_error, record_system_error
 from app.services.system.uptime import uptime_seconds
 
@@ -392,6 +392,24 @@ def _startup_diagnostics() -> None:
 @app.on_event("startup")
 def _startup_schema_guard() -> None:
     _assert_alembic_head_and_user_columns()
+
+
+@app.on_event("startup")
+def _startup_demo_profile_repair() -> None:
+    """Best-effort startup repair so demo profiles always have canonical bundled photo URLs."""
+    db = SessionLocal()
+    try:
+        ensure_demo_profiles(db)
+        repaired = repair_demo_profile_photos(db)
+        _startup_log.info(
+            "startup_demo_profile_repair done repaired=%s scanned=%s",
+            int(repaired.get("repaired", 0) or 0),
+            int(repaired.get("scanned", 0) or 0),
+        )
+    except Exception as e:
+        _startup_log.warning("startup_demo_profile_repair skipped: %s", e)
+    finally:
+        db.close()
 
 
 @app.on_event("startup")

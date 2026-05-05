@@ -45,7 +45,10 @@ def _last_message_preview(db: Session, me: int, partner: int) -> tuple[str | Non
 def list_matches(limit: int = 50, offset: int = 0, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     limit = max(1, min(limit, 200))
     offset = max(0, offset)
-    premium_demo = bool(getattr(settings, "DEMO_PREMIUM_ONLY_MODE", False))
+    premium_demo = bool(
+        getattr(settings, "DEMO_ONLY_MODE", False)
+        or getattr(settings, "DEMO_PREMIUM_ONLY_MODE", False)
+    )
     blocked = blocked_user_ids(db, current_user.id)
     rows = (
         db.query(Match)

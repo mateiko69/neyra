@@ -1,4 +1,4 @@
-export type DiscoverSwipeAction = "like" | "pass";
+export type DiscoverSwipeAction = "like" | "pass" | "ignore";
 
 /** Short per-card lock to block double-submit; does not block the rest of the deck. */
 export const DISCOVER_SWIPE_DEDUPE_MS = 650;

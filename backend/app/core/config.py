@@ -26,11 +26,10 @@ def _demo_bot_default_enabled() -> bool:
 
 
 def _default_demo_premium_only_mode() -> bool:
-    """Non-production: Discover/Matches are demo-only by default (override with env). Tests stay opt-in False."""
+    """MVP default: Discover/Matches are demo-only unless explicitly disabled."""
     if _running_tests():
         return False
-    env = str(os.environ.get("ENV", "") or "").strip().lower()
-    return env not in {"production", "prod"}
+    return True
 
 def _is_weak_secret(value: str) -> bool:
     v = str(value or "").strip()
@@ -156,7 +155,9 @@ class Settings(BaseSettings):
     DEMO_MODE: bool = True
     DEMO_MODE_DEFAULT_ENABLED: bool = True
     # When true: Discover + Matches show **only** catalog demo users (`is_demo`); real profiles are excluded.
-    # Default ON for dev/staging; set DEMO_PREMIUM_ONLY_MODE=false to mix real users locally. Force true in prod via env.
+    # MVP default ON; set false explicitly to re-enable mixed/real-user mode.
+    DEMO_ONLY_MODE: bool = Field(default_factory=_default_demo_premium_only_mode)
+    # Backward-compatible alias used across existing endpoints/services.
     DEMO_PREMIUM_ONLY_MODE: bool = Field(default_factory=_default_demo_premium_only_mode)
     AI_STRICT_MONETIZATION: bool = False
     QA_AGENT_ENABLED: bool = False

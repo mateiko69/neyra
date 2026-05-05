@@ -892,6 +892,21 @@ export default function DiscoverPage() {
       requestAnimationFrame(() => {
         void runDiscoverSwipeApi(snapshot, profileId, liked);
       });
+
+      if (action === "ignore") {
+        void apiFetch(`/users/${profileId}/ignore`, {
+          method: "POST",
+          metaReason: "discover-ignore-profile",
+          body: JSON.stringify({}),
+          softFail: true,
+        })
+          .then(() => {
+            void trackAnalyticsEvent("discover_profile_ignored", { target_user_id: profileId, surface: "discover" });
+          })
+          .catch(() => {
+            void trackAnalyticsEvent("discover_profile_ignored_local_only", { target_user_id: profileId, surface: "discover" });
+          });
+      }
     },
     [cards, swipeExit, finalizeSwipeExitOnce],
   );
@@ -940,21 +955,8 @@ export default function DiscoverPage() {
 
   async function ignoreCurrentProfile() {
     if (swipeInteractionLocked) return;
-    const pid = Number(topCard?.user_id);
-    if (!pid) return;
-    try {
-      await apiFetch(`/users/${pid}/ignore`, {
-        method: "POST",
-        metaReason: "discover-ignore-profile",
-        body: JSON.stringify({}),
-      });
-      void trackAnalyticsEvent("discover_profile_ignored", { target_user_id: pid, surface: "discover" });
-    } catch {
-      void trackAnalyticsEvent("discover_profile_ignored_local_only", { target_user_id: pid, surface: "discover" });
-    } finally {
-      void advanceProfile("pass");
-      setToast(t("discover.actions.ignoredToast"));
-    }
+    void advanceProfile("ignore");
+    setToast(t("discover.actions.ignoredToast"));
   }
 
   /** Bundled demo photo failed twice — drop card and sync pass without blocking UX. */

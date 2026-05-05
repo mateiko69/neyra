@@ -51,7 +51,10 @@ _log_demo = logging.getLogger("neyra.demo_seed")
 
 def is_demo_premium_feed_enabled() -> bool:
     """Discover/Matches only AI catalog demos when True (see README / DEPLOYMENT)."""
-    return bool(getattr(settings, "DEMO_PREMIUM_ONLY_MODE", False))
+    return bool(
+        getattr(settings, "DEMO_ONLY_MODE", False)
+        or getattr(settings, "DEMO_PREMIUM_ONLY_MODE", False)
+    )
 
 
 def demo_bundled_photo_url(*, catalog_id: str, gender: str | None = None) -> str:
@@ -110,12 +113,12 @@ def _demo_email_catalog_id(catalog_id: str) -> str:
 
 
 def _apply_demo_trust_showcase_no_verify(user: User, profile: Profile, index: int, now: datetime) -> None:
-    """Premium demo deck: no verification badges; optional premium flair."""
-    profile.verification_status = "none"
-    profile.verification_level = "none"
-    profile.verified = False
-    profile.verified_at = None
-    profile.verification_badge_visible = False
+    """Premium demo deck: demos are always verified and bypass human verification flow."""
+    profile.verification_status = "verified"
+    profile.verification_level = "photo"
+    profile.verified = True
+    profile.verified_at = now
+    profile.verification_badge_visible = True
     premium_roll = ((index * 31 + 7) % 100) < 35
     if premium_roll:
         user.premium_until = now + timedelta(days=180)

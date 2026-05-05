@@ -945,6 +945,25 @@ def verification_status(current_user: User = Depends(get_current_user), db: Sess
     profile = db.query(Profile).filter(Profile.user_id == current_user.id).first()
     if not profile:
         raise HTTPException(status_code=404, detail=api_error("profile.not_found"))
+    # Stabilization guard: pending should never linger forever in MVP.
+    try:
+        if (
+            not bool(getattr(profile, "is_demo_profile", False))
+            and normalize_verification_status(getattr(profile, "verification_status", "none")) == "pending"
+        ):
+            updated_at = getattr(profile, "verification_updated_at", None)
+            if updated_at is not None:
+                if getattr(updated_at, "tzinfo", None) is None:
+                    updated_at = updated_at.replace(tzinfo=UTC)
+                if (datetime.now(UTC) - updated_at).total_seconds() > 30.0:
+                    profile.verification_status = "pending_manual_review"
+                    profile.verification_updated_at = datetime.now(UTC)
+                    db.add(profile)
+                    db.commit()
+                    db.refresh(profile)
+    except Exception:
+        db.rollback()
+
     status_value = normalize_verification_status(getattr(profile, "verification_status", "none"))
     api_status = verification_status_for_api(profile)
     verified = is_verified_profile(profile)
