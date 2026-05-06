@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -21,6 +22,8 @@ from app.services.trust.verification_state import is_verified_profile
 from app.api.v1.endpoints.swipes import create_swipe as create_swipe_endpoint
 
 router = APIRouter()
+
+_log = logging.getLogger(__name__)
 
 MAX_INCOMING_SCAN = 800
 
@@ -390,7 +393,17 @@ def likes_respond(
         raise HTTPException(status_code=400, detail="invalid_action")
 
     # Reuse the canonical swipe creation logic (limits, match creation, demo behavior).
-    out = create_swipe_endpoint({"target_user_id": admirer_id, "liked": True}, current_user=current_user, db=db)
+    try:
+        out = create_swipe_endpoint({"target_user_id": admirer_id, "liked": True}, current_user=current_user, db=db)
+    except HTTPException:
+        raise
+    except Exception:
+        _log.exception(
+            "likes_respond_swipe_failed admirer_id=%s viewer_id=%s",
+            admirer_id,
+            getattr(current_user, "id", None),
+        )
+        raise HTTPException(status_code=503, detail="likes_respond_unavailable") from None
     # Normalize response to the Likes flow contract.
     obj = out if isinstance(out, dict) else {}
     conversation_id = None

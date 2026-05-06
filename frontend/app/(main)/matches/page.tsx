@@ -594,7 +594,13 @@ export default function MatchesPage() {
                   }}
                 >
                   <div className="match-row__main">
-                    <SafeImg className="match-row__avatar" src={partnerPhoto} alt="" loading="lazy" />
+                    <SafeImg
+                      className="match-row__avatar"
+                      src={partnerPhoto}
+                      alt=""
+                      loading="lazy"
+                      photoTestId="match-avatar-img"
+                    />
                     <div className="match-row__text">
                       <div className="match-row__title-line">
                         <span className="match-row__name">

@@ -57,6 +57,7 @@ function collectPhotoCandidates(profile: Record<string, unknown>): string[] {
     profile.primary_photo_url,
     profile.partner_photo,
     profile.partner_photo_url,
+    profile.partner_avatar_url,
     profile.demo_photo,
     profile.photoUrl,
     profile.imageUrl,
@@ -64,6 +65,7 @@ function collectPhotoCandidates(profile: Record<string, unknown>): string[] {
     profile.primaryPhotoUrl,
     profile.partnerPhoto,
     profile.partnerPhotoUrl,
+    profile.partnerAvatarUrl,
     profile.demoPhoto,
   ]
     .map((v) => String(v ?? "").trim())
@@ -77,6 +79,20 @@ function collectPhotoCandidates(profile: Record<string, unknown>): string[] {
       profile.photo_urls_str) as any,
   );
   return [...direct, ...list.map((v) => String(v || "").trim()).filter(Boolean)];
+}
+
+/** Flatten nested partner_profile / partnerProfile so match rows resolve photos consistently. */
+function mergePartnerProfileFields(profile: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...profile };
+  const nested = profile.partner_profile ?? profile.partnerProfile;
+  if (nested && typeof nested === "object") {
+    for (const [k, v] of Object.entries(nested as Record<string, unknown>)) {
+      const cur = out[k];
+      const empty = cur === undefined || cur === null || String(cur).trim() === "";
+      if (empty && v !== undefined && v !== null) out[k] = v;
+    }
+  }
+  return out;
 }
 
 function deriveDemoPath(profile: Record<string, unknown>, genderFolder: "men" | "women"): string | null {
@@ -113,17 +129,18 @@ function deriveDemoPath(profile: Record<string, unknown>, genderFolder: "men" | 
 export function resolveDemoProfilePhoto(profile: unknown): string {
   if (!profile || typeof profile !== "object") return "";
   const p = profile as Record<string, unknown>;
+  const merged = mergePartnerProfileFields(p);
   const isDemo = Boolean(
-    p.is_demo_profile ??
-      p.isDemoProfile ??
-      p.partner_is_demo_profile ??
-      p.partnerIsDemoProfile ??
-      p.is_demo ??
-      p.isDemo ??
-      String(p.demo_mode ?? "").trim() === "1",
+    merged.is_demo_profile ??
+      merged.isDemoProfile ??
+      merged.partner_is_demo_profile ??
+      merged.partnerIsDemoProfile ??
+      merged.is_demo ??
+      merged.isDemo ??
+      String(merged.demo_mode ?? "").trim() === "1",
   );
-  const genderFolder = normalizeGenderFolder(p.gender ?? p.sex ?? p.partner_gender);
-  const allCandidates = collectPhotoCandidates(p);
+  const genderFolder = normalizeGenderFolder(merged.gender ?? merged.sex ?? merged.partner_gender);
+  const allCandidates = collectPhotoCandidates(merged);
 
   for (const raw of allCandidates) {
     if (!raw) continue;
@@ -138,7 +155,7 @@ export function resolveDemoProfilePhoto(profile: unknown): string {
   }
 
   if (isDemo) {
-    const derived = deriveDemoPath(p, genderFolder);
+    const derived = deriveDemoPath(merged, genderFolder);
     if (derived) return derived;
     return DEMO_FALLBACK_BY_GENDER[genderFolder];
   }

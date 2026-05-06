@@ -307,6 +307,7 @@ export function ChatComposer({
 
       <textarea
         ref={textareaRef}
+        data-testid="chat-composer-input"
         className={[
           "chat-composer__input",
           "w-full text-white placeholder:text-gray-400 bg-[#0f0f12] caret-white",
@@ -382,6 +383,7 @@ export function ChatComposer({
         <Button
           type="button"
           variant="primary"
+          data-testid="chat-send-button"
           className={["chat-composer__send", pulseSend ? "chat-composer__send--pulse" : ""].filter(Boolean).join(" ")}
           onClick={() => void handleSendClick()}
           disabled={disabled || sending || isSendingVoice || (!value.trim() && !voiceDraft)}

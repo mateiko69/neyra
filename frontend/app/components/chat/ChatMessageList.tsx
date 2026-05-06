@@ -518,7 +518,10 @@ export function ChatMessageList({
   const compactEmpty = !showLoadingSkeleton && visibleMessages.length === 0 && emptyState == null;
 
   return (
-    <div className={["chat-thread-body", compactEmpty ? "chat-thread-body--empty-compact" : ""].filter(Boolean).join(" ")}>
+    <div
+      data-testid="chat-messages"
+      className={["chat-thread-body", compactEmpty ? "chat-thread-body--empty-compact" : ""].filter(Boolean).join(" ")}
+    >
       <div ref={scrollerRef} className="chat-thread-scroller" aria-label={historyAria.text}>
         {showLoadingSkeleton ? (
           <div className="chat-thread-skeleton" aria-busy>

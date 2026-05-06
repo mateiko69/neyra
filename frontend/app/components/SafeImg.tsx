@@ -11,6 +11,8 @@ type Props = {
   className?: string;
   style?: CSSProperties;
   loading?: "lazy" | "eager";
+  /** Applied to inner <img> for E2E (wrapper still receives `className`). */
+  photoTestId?: string;
   /** Shown when the image cannot be loaded (neutral — never an auth/session message). */
   previewUnavailableText?: string;
 };
@@ -21,6 +23,7 @@ export function SafeImg({
   src,
   alt,
   className,
+  photoTestId,
   style,
   loading = "lazy",
   previewUnavailableText,
@@ -50,6 +53,7 @@ export function SafeImg({
   return (
     <span className={className} style={{ position: "relative", display: "block", ...style }}>
       <img
+        data-testid={photoTestId}
         src={displaySrc || PRIMARY_IMAGE_PLACEHOLDER}
         alt={alt}
         style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}

@@ -351,6 +351,7 @@ function DiscoverProfileCardInner({
                         loading={index === 0 ? "eager" : "lazy"}
                         src={url}
                         alt={index === 0 ? name : t("discover.card.photoAlt", { name, index: index + 1 })}
+                        photoTestId={index === 0 ? "discover-photo" : undefined}
                         onFatalError={onMediaFatal}
                       />
                     ) : (
@@ -359,13 +360,14 @@ function DiscoverProfileCardInner({
                         loading={index === 0 ? "eager" : "lazy"}
                         src={url}
                         alt={index === 0 ? name : t("discover.card.photoAlt", { name, index: index + 1 })}
+                        photoTestId={index === 0 ? "discover-photo" : undefined}
                       />
                     )}
                   </div>
                 ))
               ) : demoPremiumShowcase && isDemoProfile ? null : (
                 <div className="discover-card__photo-slide">
-                  <SafeImg className="discover-card__img" src="" alt={name} />
+                  <SafeImg className="discover-card__img" src="" alt={name} photoTestId="discover-photo" />
                 </div>
               )}
             </div>

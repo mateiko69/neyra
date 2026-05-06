@@ -1,7 +1,10 @@
 import json
+import logging
 import time
 import redis
 from app.core.config import settings
+
+_log = logging.getLogger(__name__)
 
 # Named queues for scaling and separation of concerns.
 DEFAULT_QUEUE = "notifications"
@@ -20,7 +23,10 @@ def enqueue(event_name: str, payload: dict, queue: str = DEFAULT_QUEUE, attempt:
     key = QUEUES.get(queue, queue)
     if client is None:
         return
-    client.rpush(key, json.dumps({"event_name": event_name, "payload": payload, "attempt": attempt}))
+    try:
+        client.rpush(key, json.dumps({"event_name": event_name, "payload": payload, "attempt": attempt}))
+    except Exception as exc:  # noqa: BLE001 - queue must never take down swipe/match HTTP paths
+        _log.warning("queue_enqueue_failed queue=%s event=%s error=%s", key, event_name, exc)
 
 
 def dequeue(queue: str = DEFAULT_QUEUE, block_seconds: int = 5):

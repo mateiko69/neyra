@@ -1425,7 +1425,8 @@ export function useChatThreadController() {
     [partnerUserId, localizeChatMessage],
   );
 
-  const canCompose = !blockedThread && !((loading && messages.length === 0) || (Boolean(loadError) && messages.length === 0));
+  // Allow drafting while messages load — blocking only empty-state hard errors avoids a dead composer during boot.
+  const canCompose = !blockedThread && !(Boolean(loadError) && messages.length === 0);
 
   return {
     partnerUserId,

@@ -1081,6 +1081,7 @@ export default function DiscoverPage() {
                 <div className="discover-mobile-mvp-card__photo-wrap">
                   {mobileMainPhoto ? (
                     <img
+                      data-testid="discover-photo"
                       className="discover-mobile-mvp-card__photo"
                       src={mobileMainPhoto}
                       alt={mobileName}

@@ -10,6 +10,7 @@ type Props = {
   className?: string;
   style?: CSSProperties;
   loading?: "lazy" | "eager";
+  photoTestId?: string;
   /** After one failed load + one same-URL retry, parent drops the profile from the deck. */
   onFatalError?: () => void;
 };
@@ -18,7 +19,7 @@ type Props = {
  * Loads demo primary photo: same URL is attempted twice (browser cache may recover).
  * No placeholder surface — parent must remove card if `onFatalError` fires.
  */
-export function DemoProfileImg({ src, alt, className, style, loading = "lazy", onFatalError }: Props) {
+export function DemoProfileImg({ src, alt, className, style, loading = "lazy", photoTestId, onFatalError }: Props) {
   const resolved = useMemo(() => resolveMediaUrl(String(src || "").trim()), [src]);
   const [attempt, setAttempt] = useState(0);
   const reportedRef = useRef(false);
@@ -60,6 +61,7 @@ export function DemoProfileImg({ src, alt, className, style, loading = "lazy", o
   return (
     <span className={className} style={{ position: "relative", display: "block", ...style }}>
       <img
+        data-testid={photoTestId}
         src={imgSrc}
         alt={alt}
         style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}

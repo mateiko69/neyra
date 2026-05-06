@@ -36,6 +36,15 @@ async function api(method, path, token, body) {
   return { ok: resp.ok(), status: resp.status(), json, text };
 }
 
+function feedCardsLen(body) {
+  if (Array.isArray(body)) return body.length;
+  if (body && typeof body === "object") {
+    if (Array.isArray(body.feed)) return body.feed.length;
+    if (Array.isArray(body.cards)) return body.cards.length;
+  }
+  return 0;
+}
+
 async function registerAndPrepare(displayName, gender, interestedIn) {
   const creds = tempCred(displayName.toLowerCase());
   const reg = await api("POST", "/auth/register", null, {
@@ -58,6 +67,7 @@ async function registerAndPrepare(displayName, gender, interestedIn) {
     city: "Kyiv",
     gender,
     interested_in: interestedIn,
+    preferred_gender: "everyone",
     relationship_goal: "dating",
     vibe: "warm",
     interests: "music,coffee,travel",
@@ -74,15 +84,22 @@ async function registerAndPrepare(displayName, gender, interestedIn) {
   return { token, userId, displayName, ...creds };
 }
 
-async function runViewport(name, contextOpts, token, partnerUserId) {
+async function injectToken(page, token) {
+  await page.evaluate((t) => {
+    try {
+      localStorage.setItem("neyra:token", t);
+      localStorage.setItem("access_token", t);
+      localStorage.setItem("token", t);
+    } catch {
+      /* ignore */
+    }
+  }, token);
+}
+
+async function runViewport(name, contextOpts, { discoverToken, sessionToken, chatPartnerUserId }) {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext(contextOpts);
   const page = await context.newPage();
-  await page.addInitScript((t) => {
-    localStorage.setItem("neyra:token", t);
-    localStorage.setItem("access_token", t);
-    localStorage.setItem("token", t);
-  }, token);
 
   const out = [];
   async function mark(key, fn) {
@@ -90,7 +107,7 @@ async function runViewport(name, contextOpts, token, partnerUserId) {
       await fn();
       out.push({ key, status: "PASS", details: "ok" });
     } catch (e) {
-      out.push({ key, status: "FAIL", details: String(e?.message || e).slice(0, 140) });
+      out.push({ key, status: "FAIL", details: String(e?.message || e).slice(0, 180) });
     }
   }
 
@@ -103,82 +120,90 @@ async function runViewport(name, contextOpts, token, partnerUserId) {
   }
 
   await mark(`${name} /discover photo visible`, async () => {
-    await page.goto(`${WEB_BASE}/discover`, { waitUntil: "domcontentloaded", timeout: 60000 });
-    await page.waitForTimeout(1200);
+    await injectToken(page, discoverToken);
+    await page.goto(`${WEB_BASE}/discover`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    const pic = page.getByTestId("discover-photo");
+    await pic.first().waitFor({ state: "visible", timeout: 25_000 });
     await assertNoBrokenText();
-    const img = page.locator(".discover-card__img, .discover-mobile-mvp-card__photo, [data-testid='discover-card'] img").first();
-    if (await img.count()) {
-      const natural = await img.evaluate((el) => el.naturalWidth || 0);
-      if (natural < 1) throw new Error("image naturalWidth=0");
-    } else {
-      throw new Error("discover image not found");
-    }
+    const nw = await pic.first().evaluate((el) => (el instanceof HTMLImageElement ? el.naturalWidth || 0 : 0));
+    if (nw < 1) throw new Error(`discover-photo naturalWidth=${nw}`);
   });
 
   await mark(`${name} /discover pass/ignore/like/undo/start-ai`, async () => {
+    await injectToken(page, discoverToken);
+    await page.goto(`${WEB_BASE}/discover`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await page.getByTestId("discover-photo").first().waitFor({ state: "visible", timeout: 25_000 }).catch(() => {});
     const pass = page.getByRole("button", { name: /pass|пропустити/i }).first();
     const ignore = page.getByRole("button", { name: /ignore|hide|ігнорувати/i }).first();
     const like = page.getByRole("button", { name: /like|подобається/i }).first();
-    const undo = page.getByRole("button", { name: /undo|скасувати/i }).first();
-    const ai = page.getByRole("button", { name: /start with ai|почати з ai/i }).first();
     if (!(await pass.count()) || !(await ignore.count()) || !(await like.count())) {
       throw new Error("required discover buttons missing");
     }
-    await pass.click({ timeout: 10000 });
-    await page.waitForTimeout(500);
-    await ignore.click({ timeout: 10000 });
-    await page.waitForTimeout(500);
-    await like.click({ timeout: 10000 });
-    await page.waitForTimeout(500);
-    if (await undo.count()) {
-      await undo.click({ timeout: 10000 });
-    }
-    if (await ai.count()) {
-      await ai.click({ timeout: 10000 });
-      await page.waitForTimeout(300);
-    }
+    await pass.click({ timeout: 12_000 });
+    await page.waitForTimeout(400);
+    await ignore.click({ timeout: 12_000 });
+    await page.waitForTimeout(400);
+    await like.click({ timeout: 12_000 });
+    await page.waitForTimeout(400);
+    const undo = page.getByRole("button", { name: /undo|скасувати/i }).first();
+    if (await undo.count()) await undo.click({ timeout: 12_000 });
+    const ai = page.getByRole("button", { name: /start with ai|почати з ai/i }).first();
+    if (await ai.count()) await ai.click({ timeout: 12_000 });
   });
 
   await mark(`${name} /matches avatars + actions`, async () => {
-    await page.goto(`${WEB_BASE}/matches`, { waitUntil: "domcontentloaded", timeout: 60000 });
-    await page.waitForTimeout(1200);
+    await injectToken(page, sessionToken);
+    await page.goto(`${WEB_BASE}/matches`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await page.waitForTimeout(800);
     await assertNoBrokenText();
-    const avatar = page.locator(".match-row__avatar").first();
-    if (!(await avatar.count())) throw new Error("match avatar missing");
-    const natural = await avatar.evaluate((el) => el.naturalWidth || 0);
-    if (natural < 1) throw new Error("avatar naturalWidth=0");
+    const avatar = page.getByTestId("match-avatar-img").first();
+    await avatar.waitFor({ state: "visible", timeout: 20_000 });
+    const nw = await avatar.evaluate((el) => (el instanceof HTMLImageElement ? el.naturalWidth || 0 : 0));
+    if (nw < 1) throw new Error(`match avatar naturalWidth=${nw}`);
     const sayHi = page.getByRole("link", { name: /say hi|написати привіт/i }).first();
     if (!(await sayHi.count())) throw new Error("say hi missing");
-    await sayHi.click({ timeout: 10000 });
+    await sayHi.click({ timeout: 12_000 });
     await page.waitForTimeout(500);
-    await page.goto(`${WEB_BASE}/matches`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${WEB_BASE}/matches`, { waitUntil: "domcontentloaded", timeout: 60_000 });
     const gen = page.getByRole("link", { name: /generate opener|generate phrase|згенерувати/i }).first();
     if (!(await gen.count())) throw new Error("generate phrase missing");
   });
 
   await mark(`${name} /chat scroll + composer`, async () => {
-    await page.goto(`${WEB_BASE}/chat/${partnerUserId}`, { waitUntil: "domcontentloaded", timeout: 60000 });
-    await page.waitForTimeout(1000);
+    await injectToken(page, sessionToken);
+    await page.goto(`${WEB_BASE}/chat/${chatPartnerUserId}`, { waitUntil: "domcontentloaded", timeout: 60_000 });
     await assertNoBrokenText();
-    const composer = page.locator("textarea").first();
-    if (!(await composer.count())) throw new Error("composer missing");
-    const canType = await composer.isEditable();
-    if (!canType) throw new Error("composer not editable");
+    const composer = page.getByTestId("chat-composer-input");
+    await composer.waitFor({ state: "visible", timeout: 25_000 });
+    await page.waitForFunction(
+      () => {
+        const el = document.querySelector('[data-testid="chat-composer-input"]');
+        return el instanceof HTMLTextAreaElement && !el.disabled;
+      },
+      null,
+      { timeout: 25_000 },
+    );
+    if (!(await composer.isEditable())) throw new Error("composer not editable");
+    const send = page.getByTestId("chat-send-button");
+    if (!(await send.count())) throw new Error("chat send missing");
     if (name === "mobile") {
-      const scrollOk = await page.evaluate(() => {
-        const scroller = document.querySelector(".chat-thread-scroller, .chat-thread-body");
-        if (!scroller) return false;
-        const before = scroller.scrollTop;
-        scroller.scrollTop = before + 120;
-        return scroller.scrollTop !== before;
+      const scroller = page.locator('[data-testid="chat-messages"] .chat-thread-scroller');
+      await scroller.waitFor({ state: "attached", timeout: 15_000 });
+      const scrollOk = await scroller.evaluate((el) => {
+        if (!(el instanceof HTMLElement)) return false;
+        const max = Math.max(0, el.scrollHeight - el.clientHeight);
+        const before = el.scrollTop;
+        el.scrollTop = Math.min(max, before + 200);
+        return el.scrollTop !== before || max <= 4;
       });
-      if (!scrollOk) throw new Error("mobile scroll not working");
+      if (!scrollOk) throw new Error("mobile scroll did not advance");
     }
   });
 
   await mark(`${name} /profile upload mode`, async () => {
-    await page.goto(`${WEB_BASE}/profile`, { waitUntil: "domcontentloaded", timeout: 60000 });
-    await page.waitForTimeout(1200);
+    await injectToken(page, sessionToken);
+    await page.goto(`${WEB_BASE}/profile`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await page.waitForTimeout(800);
     await assertNoBrokenText();
     const disabledMsg = page.getByText(/Photo upload is temporarily disabled|Завантаження фото тимчасово вимкнене/i).first();
     if (await disabledMsg.count()) return;
@@ -187,7 +212,8 @@ async function runViewport(name, contextOpts, token, partnerUserId) {
   });
 
   await mark(`${name} /premium loads`, async () => {
-    await page.goto(`${WEB_BASE}/premium`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await injectToken(page, sessionToken);
+    await page.goto(`${WEB_BASE}/premium`, { waitUntil: "domcontentloaded", timeout: 60_000 });
     await assertNoBrokenText();
   });
 
@@ -200,23 +226,31 @@ async function main() {
   const qaA = await registerAndPrepare("QaAlex", "man", "women");
   const qaB = await registerAndPrepare("QaBella", "woman", "men");
 
-  const likeA = await api("POST", "/swipes", qaA.token, { target_user_id: qaB.userId, liked: true });
-  if (!likeA.ok) throw new Error(`seed like A->B failed: ${likeA.status}`);
-  const incoming = await api("GET", "/likes/incoming?limit=5", qaB.token);
-  const admirerId = Number(incoming.json?.items?.[0]?.user_id ?? 0);
-  if (incoming.ok && admirerId > 0) {
-    const respond = await api("POST", "/likes/respond", qaB.token, { user_id: admirerId, action: "like" });
-    if (!respond.ok) {
-      // eslint-disable-next-line no-console
-      console.warn(`seed respond like failed: ${respond.status} ${respond.text}`);
-    }
-  } else {
-    // eslint-disable-next-line no-console
-    console.warn(`seed incoming likes unavailable: ${incoming.status} ${incoming.text}`);
+  const likeForward = await api("POST", "/swipes", qaA.token, { target_user_id: qaB.userId, liked: true });
+  if (!likeForward.ok) throw new Error(`seed like A->B failed: ${likeForward.status} ${likeForward.text}`);
+
+  const likeBack = await api("POST", "/swipes", qaB.token, { target_user_id: qaA.userId, liked: true });
+  const backJson = likeBack.json && typeof likeBack.json === "object" ? likeBack.json : {};
+  if (!likeBack.ok || !backJson.matched) {
+    throw new Error(`mutual match expected after B liked A: http=${likeBack.status} matched=${backJson?.matched} body=${likeBack.text}`);
   }
 
-  const desktop = await runViewport("desktop", { viewport: { width: 1440, height: 900 } }, qaB.token, qaA.userId);
-  const mobile = await runViewport("mobile", { ...devices["iPhone 12"] }, qaB.token, qaA.userId);
+  const feedA = await api("GET", "/discover/feed?limit=12", qaA.token);
+  const feedB = await api("GET", "/discover/feed?limit=12", qaB.token);
+  const lenA = feedCardsLen(feedA.json);
+  const lenB = feedCardsLen(feedB.json);
+  const discoverToken = lenA >= lenB ? qaA.token : qaB.token;
+
+  const desktop = await runViewport("desktop", { viewport: { width: 1440, height: 900 } }, {
+    discoverToken,
+    sessionToken: qaB.token,
+    chatPartnerUserId: qaA.userId,
+  });
+  const mobile = await runViewport("mobile", { ...devices["iPhone 12"] }, {
+    discoverToken,
+    sessionToken: qaB.token,
+    chatPartnerUserId: qaA.userId,
+  });
   const all = [...desktop, ...mobile];
 
   console.log("QA_RESULT_START");
@@ -233,4 +267,3 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
-

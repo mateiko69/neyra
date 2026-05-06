@@ -6652,7 +6652,14 @@ html[data-i18n-debug="true"] {
   transition: transform 0.6s var(--discover-ease-out);
 }
 
-.discover-card--front:not(.discover-card--skeleton):hover .discover-card__img {
+.discover-card__img img {
+  object-position: center 28%;
+  transform: scale(1.02);
+  transition: transform 0.6s var(--discover-ease-out);
+}
+
+.discover-card--front:not(.discover-card--skeleton):hover .discover-card__img,
+.discover-card--front:not(.discover-card--skeleton):hover .discover-card__img img {
   transform: scale(1.05);
 }
 
@@ -9256,11 +9263,20 @@ button.profile-chip:not(:disabled) {
     overflow: hidden;
   }
 
-  .chat-thread-body,
+  /* Single scroll surface: outer flex column fills height; inner scroller owns overflow */
+  .chat-thread-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
   .chat-thread-scroller {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
+    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     padding-bottom: 0;
