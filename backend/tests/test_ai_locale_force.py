@@ -216,7 +216,7 @@ def test_ai_improve_reply_passes_through_ui_locale_tag(monkeypatch):
             },
         )
         assert r.status_code == 200
-        assert captured.get("locale") == "en"
+        assert captured.get("locale") == "de"
         rows = r.json().get("variants") or []
         assert len(rows) >= 1
     finally:
@@ -254,7 +254,7 @@ def test_ai_timed_replies_fallback_french_normalizes_to_en():
 
 
 @pytest.mark.parametrize("tag", [("zh"), ("zh-TW")])
-def test_ai_timed_replies_zh_normalizes_to_en(tag: str):
+def test_ai_timed_replies_zh_respects_requested_locale(tag: str):
     from app.core import config
 
     db = _memory_db()
@@ -279,13 +279,13 @@ def test_ai_timed_replies_zh_normalizes_to_en(tag: str):
         assert r.status_code == 200
         rows = r.json().get("options") or []
         joined = " ".join(str(x.get("text") or "") for x in rows)
-        assert (r.json() or {}).get("locale") == "en"
-        assert text_matches_requested_locale(joined, "en")
+        assert (r.json() or {}).get("locale") == tag
+        assert text_matches_requested_locale(joined, tag)
     finally:
         db.close()
 
 
-def test_ai_timed_replies_arabic_normalizes_to_en():
+def test_ai_timed_replies_arabic_respects_requested_locale():
     from app.core import config
 
     db = _memory_db()
@@ -310,8 +310,8 @@ def test_ai_timed_replies_arabic_normalizes_to_en():
         assert r.status_code == 200
         rows = r.json().get("options") or []
         joined = " ".join(str(x.get("text") or "") for x in rows)
-        assert (r.json() or {}).get("locale") == "en"
-        assert text_matches_requested_locale(joined, "en")
+        assert (r.json() or {}).get("locale") == "ar"
+        assert text_matches_requested_locale(joined, "ar")
     finally:
         db.close()
 
@@ -393,7 +393,7 @@ def test_ai_timed_replies_defaults_to_en_when_locale_and_native_missing(monkeypa
         db.close()
 
 
-def test_timed_replies_latest_message_uk_overrides_ui_en(monkeypatch):
+def test_timed_replies_keeps_ui_locale_even_when_message_is_uk(monkeypatch):
     from app.core import config
 
     monkeypatch.setattr(config.settings, "ENABLE_AI_SUGGESTIONS", False, raising=False)
@@ -417,12 +417,12 @@ def test_timed_replies_latest_message_uk_overrides_ui_en(monkeypatch):
             },
         )
         assert r.status_code == 200
-        assert (r.json() or {}).get("locale") == "uk"
+        assert (r.json() or {}).get("locale") == "en"
     finally:
         db.close()
 
 
-def test_timed_replies_latest_message_en_overrides_ui_uk(monkeypatch):
+def test_timed_replies_keeps_ui_locale_even_when_message_is_en(monkeypatch):
     from app.core import config
 
     monkeypatch.setattr(config.settings, "ENABLE_AI_SUGGESTIONS", False, raising=False)
@@ -446,7 +446,7 @@ def test_timed_replies_latest_message_en_overrides_ui_uk(monkeypatch):
             },
         )
         assert r.status_code == 200
-        assert (r.json() or {}).get("locale") == "en"
+        assert (r.json() or {}).get("locale") == "uk"
     finally:
         db.close()
 

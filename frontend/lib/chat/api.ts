@@ -72,6 +72,13 @@ export type AiLanguageToneContext = {
   overrideTone?: ChatTone | null;
 };
 
+function normalizeAiLocaleTag(raw: string | null | undefined): string {
+  const s = String(raw || "").trim().toLowerCase();
+  if (!s) return "en";
+  if (s.startsWith("zh")) return "zh";
+  return s.slice(0, 2) || "en";
+}
+
 function resolveAiLocaleOverride(ctx: AiLanguageToneContext | undefined | null): string {
   const raw = String(ctx?.overrideLanguage ?? "").trim();
   if (!raw) return "auto";
@@ -172,6 +179,7 @@ export type ChatCopilotResponse = {
   /** Server used deterministic copy while live AI was unavailable — still a normal 200 response. */
   fallback?: boolean;
   source?: string | null;
+  locale?: string | null;
 };
 
 export type StartStrategyOpener = { style: "light" | "flirty" | "curious"; text: string };
@@ -254,6 +262,10 @@ export async function fetchChatCopilot(options: {
                 : [],
             }
           : null;
+      const responseLocale = normalizeAiLocaleTag(typeof obj.locale === "string" ? obj.locale : resolved.language);
+      if (responseLocale !== normalizeAiLocaleTag(resolved.language)) {
+        throw new Error("ai_locale_mismatch");
+      }
       return {
         strategy: typeof obj.strategy === "string" ? obj.strategy : null,
         meeting_readiness: Number.isFinite(obj.meeting_readiness) ? Number(obj.meeting_readiness) : null,
@@ -270,6 +282,7 @@ export async function fetchChatCopilot(options: {
         stall,
         fallback: Boolean(obj.fallback),
         source: typeof obj.source === "string" ? obj.source : obj.source == null ? null : String(obj.source),
+        locale: responseLocale,
       };
     },
     (pack) => (pack?.options ?? []).map((o) => o.text).join(" "),
@@ -862,7 +875,7 @@ export async function fetchNextStep(): Promise<NextStepOption[]> {
 }
 
 export type TimedReplyOption = { style: "light" | "flirty" | "deep"; text: string };
-export type TimedRepliesFetchResult = { options: TimedReplyOption[]; source: string };
+export type TimedRepliesFetchResult = { options: TimedReplyOption[]; source: string; locale: string };
 export async function fetchTimedReplies(options: {
   messages: { role: "me" | "them"; text: string }[];
   nudgeType: "now" | "wait" | "reengage" | "revive";
@@ -872,9 +885,10 @@ export async function fetchTimedReplies(options: {
   /** Chat thread id (partner user id) for dev logs / cache scoping. */
   partnerUserId?: number | null;
 }): Promise<TimedRepliesFetchResult> {
-  if (options.nudgeType === "wait") return { options: [], source: "ai" };
+  if (options.nudgeType === "wait") return { options: [], source: "ai", locale: normalizeAiLocaleTag(options.aiCtx?.overrideLanguage || options.aiCtx?.uiLocale || "en") };
   const { locale: defaultAiLocale, language_hint } = getAiLocalePayload();
   const uiLocale = (options.aiCtx?.uiLocale ?? defaultAiLocale) as string;
+  const requestedLocale = normalizeAiLocaleTag(options.aiCtx?.overrideLanguage || uiLocale);
   neyraAiLocaleRequestingSuggestions({ locale: uiLocale, threadId: options.partnerUserId ?? null });
   neyraAiLocaleDevLog("requesting suggestions", {
     endpoint: "timed-replies",
@@ -892,12 +906,12 @@ export async function fetchTimedReplies(options: {
       nudge_type: options.nudgeType,
       interest_stage: options.interestStage ?? null,
       mutuality_score: options.mutualityScore ?? null,
-      locale: uiLocale,
+      locale: requestedLocale,
       ai_locale: resolveAiLocaleOverride(options.aiCtx),
       language_hint,
     }),
   });
-  if (raw === undefined || raw === null || typeof raw !== "object") return { options: [], source: "fallback" };
+  if (raw === undefined || raw === null || typeof raw !== "object") return { options: [], source: "fallback", locale: requestedLocale };
   const obj = raw as any;
   const rows = Array.isArray(obj.options) ? obj.options : [];
   const source = typeof obj.source === "string" ? String(obj.source).trim() : "ai";
@@ -908,13 +922,17 @@ export async function fetchTimedReplies(options: {
     }))
     .filter((o: any) => o.text)
     .slice(0, 3);
+  const responseLocale = normalizeAiLocaleTag(typeof obj.locale === "string" ? obj.locale : requestedLocale);
+  if (responseLocale !== requestedLocale) {
+    throw new Error("ai_locale_mismatch");
+  }
   neyraAiLocaleDevLog("received suggestions", {
     endpoint: "timed-replies",
     locale: uiLocale,
     nudgeType: options.nudgeType,
     count: out.length,
   });
-  return { options: out, source: source || "ai" };
+  return { options: out, source: source || "ai", locale: responseLocale };
 }
 
 export type MeetingReadinessMessage = { role: "me" | "them"; text: string; ts_ms?: number | null };
@@ -1514,16 +1532,18 @@ export type AiOpenerStyle =
 
 export async function fetchAiOpeners(
   targetUserId: number,
-  options: { conversationContext?: string[]; languageHint?: string; style?: AiOpenerStyle } = {},
+  options: { conversationContext?: string[]; languageHint?: string; style?: AiOpenerStyle; aiCtx?: AiLanguageToneContext } = {},
 ): Promise<string[]> {
   try {
     const { locale: aiLoc, language_hint: defaultHint } = getAiLocalePayload();
+    const requestedLocale = normalizeAiLocaleTag(options.aiCtx?.overrideLanguage || options.aiCtx?.uiLocale || aiLoc);
     const raw = await apiFetch(`/ai/openers/${targetUserId}`, {
       method: "POST",
       metaReason: "ai-chat-openers",
       body: JSON.stringify({
         conversation_context: options.conversationContext ?? [],
-        locale: aiLoc,
+        locale: requestedLocale,
+        ai_locale: resolveAiLocaleOverride(options.aiCtx),
         language_hint: options.languageHint ?? defaultHint,
         style: options.style ?? "default",
       }),
@@ -1589,14 +1609,16 @@ export function clearAiOpenersMemoryCache() {
 function openerCacheKey(input: {
   threadId: number | string;
   matchName: string;
-  locale: string;
+  uiLocale: string;
+  aiLocale: string;
   style: string | null;
 }): string {
   const tid = String(input.threadId);
   const nm = input.matchName.trim().toLowerCase();
-  const loc = String(input.locale || "en").trim();
+  const uiLoc = String(input.uiLocale || "en").trim();
+  const aiLoc = String(input.aiLocale || "en").trim();
   const st = String(input.style || "").trim().toLowerCase();
-  return `${SESSION_OPENERS_CACHE_PREFIX}${tid}:${loc}:${st}:${nm}`;
+  return `${SESSION_OPENERS_CACHE_PREFIX}${tid}:${uiLoc}:${aiLoc}:${st}:${nm}`;
 }
 
 export async function getAiOpeners(
@@ -1616,11 +1638,12 @@ export async function getAiOpeners(
     : [];
   try {
     const uiLocale = (options.aiCtx?.uiLocale ?? getCurrentUiLocale() ?? getUiLocaleForAiRequests()) as string;
+    const aiLocale = normalizeAiLocaleTag(options.aiCtx?.overrideLanguage || uiLocale);
     if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
       console.info("[neyra-ai-locale]", { endpoint: "/ai/opener", locale: uiLocale });
     }
     const styleKey = openerStyleForV1(options.style);
-    const ck = openerCacheKey({ threadId, matchName: match_name, locale: uiLocale, style: styleKey });
+    const ck = openerCacheKey({ threadId, matchName: match_name, uiLocale, aiLocale, style: styleKey });
     const memHit = openerSessionMem.get(ck);
     if (memHit) return memHit;
     try {
@@ -1648,7 +1671,7 @@ export async function getAiOpeners(
         tags,
         conversation_context: options.conversationContext ?? [],
         style: styleKey,
-        locale: uiLocale,
+        locale: aiLocale,
         ai_locale: resolveAiLocaleOverride(options.aiCtx),
         language_hint,
       }),
@@ -1657,6 +1680,9 @@ export async function getAiOpeners(
     // Ignore stale responses if locale changed mid-flight.
     if (String(getCurrentUiLocale()) !== localeAtStart) return { items: [], suggestions: [], bestIndex: 0 };
     logAiData("ai/opener", raw);
+    if (normalizeAiLocaleTag((raw as any)?.locale ?? aiLocale) !== aiLocale) {
+      throw new Error("ai_locale_mismatch");
+    }
     const rows = raw && typeof raw === "object" ? ((raw as any).suggestions as any) : null;
     const itemRows = raw && typeof raw === "object" ? ((raw as any).items as any) : null;
     let bestIndex = 1;
@@ -1727,12 +1753,13 @@ export type AiRewriteMode =
 
 export async function fetchAiRewriteVariants(
   draft: string,
-  options: { conversationContext?: string[]; mode?: AiRewriteMode } = {},
+  options: { conversationContext?: string[]; mode?: AiRewriteMode; aiCtx?: AiLanguageToneContext } = {},
 ): Promise<string[]> {
   const trimmed = (draft ?? "").trim();
   if (!trimmed) return [];
   try {
     const { locale: aiLoc, language_hint } = getAiLocalePayload();
+    const requestedLocale = normalizeAiLocaleTag(options.aiCtx?.overrideLanguage || options.aiCtx?.uiLocale || aiLoc);
     const raw = await apiFetch("/ai/improve-reply", {
       method: "POST",
       metaReason: "ai-chat-rewrite",
@@ -1741,7 +1768,8 @@ export async function fetchAiRewriteVariants(
         conversation_context: options.conversationContext ?? [],
         user_style: "chill",
         mode: options.mode ?? "polish",
-        locale: aiLoc,
+        locale: requestedLocale,
+        ai_locale: resolveAiLocaleOverride(options.aiCtx),
         language_hint,
       }),
       skipThrottle: true,
@@ -1777,6 +1805,7 @@ export async function getAiRewriteVariants(
   try {
     const { locale: defaultAiLocale, language_hint } = getAiLocalePayload();
     const uiLocale = (options.aiCtx?.uiLocale ?? defaultAiLocale) as string;
+    const aiLocale = normalizeAiLocaleTag(options.aiCtx?.overrideLanguage || uiLocale);
     // Canonical rewrite endpoint: /ai/rewrite → { options: string[3] }
     try {
       const raw = await apiFetch("/ai/rewrite", {
@@ -1787,7 +1816,7 @@ export async function getAiRewriteVariants(
           conversation_context: options.conversationContext ?? [],
           user_style: "chill",
           mode: options.mode ?? "polish",
-          locale: uiLocale,
+          locale: aiLocale,
           ai_locale: resolveAiLocaleOverride(options.aiCtx),
           language_hint,
         }),
@@ -1795,6 +1824,9 @@ export async function getAiRewriteVariants(
       });
       logAiData("ai/rewrite", raw);
       const rows = raw && typeof raw === "object" ? ((raw as any).options as any) : null;
+      if (normalizeAiLocaleTag((raw as any)?.locale ?? aiLocale) !== aiLocale) {
+        throw new Error("ai_locale_mismatch");
+      }
       if (Array.isArray(rows)) {
         return rows.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 3);
       }
@@ -1809,13 +1841,16 @@ export async function getAiRewriteVariants(
         conversation_context: options.conversationContext ?? [],
         user_style: "chill",
         mode: options.mode ?? "polish",
-        locale: uiLocale,
+        locale: aiLocale,
         ai_locale: resolveAiLocaleOverride(options.aiCtx),
         language_hint,
       }),
       skipThrottle: true,
     });
     logAiData("ai/improve-reply", legacy);
+    if (normalizeAiLocaleTag((legacy as any)?.locale ?? aiLocale) !== aiLocale) {
+      throw new Error("ai_locale_mismatch");
+    }
     const rows = legacy && typeof legacy === "object" ? ((legacy as any).variants as any) : null;
     if (!Array.isArray(rows)) return [];
     return rows

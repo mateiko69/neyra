@@ -42,6 +42,13 @@ function prefKey(viewerUserId: number) {
   return `ai:copilot_pref_tone:${viewerUserId}`;
 }
 
+function normalizeAiLocale(raw: string | null | undefined): string {
+  const s = String(raw || "").trim().toLowerCase();
+  if (!s) return "en";
+  if (s.startsWith("zh")) return "zh";
+  return s.slice(0, 2) || "en";
+}
+
 export function ChatCopilotInline({ viewerUserId, partnerUserId, messages, draft, disabled = false, timingNudgeType = null, aiCtx, aiTier = "premium", onInsertDraft, onMeta }: Props) {
   const { t, locale: uiLocaleTag } = useT("ChatCopilotInline");
   const lastPartnerPlainEarly = useMemo(() => {
@@ -79,10 +86,20 @@ export function ChatCopilotInline({ viewerUserId, partnerUserId, messages, draft
   const cacheRef = useRef(new Map<string, ChatCopilotResponse>());
   const copilotLimitHitRef = useRef(false);
   const [abAiLimit, setAbAiLimit] = useState<AbCopyMap>({});
+  const suppressAutoUntilManualRef = useRef(false);
+  const activeAiLocale = useMemo(
+    () => normalizeAiLocale((aiCtx as any)?.overrideLanguage || (aiCtx as any)?.uiLocale || uiLocaleTag),
+    [aiCtx, uiLocaleTag],
+  );
 
   useEffect(() => {
+    suppressAutoUntilManualRef.current = true;
     cacheRef.current.clear();
-  }, [uiLocaleTag]);
+    setData(null);
+    setLoading(false);
+    setFallbackActive(false);
+    setQuotaMessage("");
+  }, [activeAiLocale]);
 
   const ctx = useMemo(() => conversationContext(messages, aiChatContextMessageLimit(aiTier)), [messages, aiTier]);
 
@@ -138,7 +155,7 @@ export function ChatCopilotInline({ viewerUserId, partnerUserId, messages, draft
 
   function expectedLanguage(): string {
     const lang = String((aiCtx as any)?.overrideLanguage || (aiCtx as any)?.language || (aiCtx as any)?.uiLocale || "").trim();
-    return lang || "en";
+    return normalizeAiLocale(lang || "en");
   }
 
   function validatePack(pack: ChatCopilotResponse | null): boolean {
@@ -162,6 +179,7 @@ export function ChatCopilotInline({ viewerUserId, partnerUserId, messages, draft
     setFallbackActive(false);
     setLoading(true);
     setData(null);
+    suppressAutoUntilManualRef.current = false;
 
     const preferredTone = typeof window !== "undefined" ? (localStorage.getItem(prefKey(viewerUserId)) || "").trim() : "";
     void trackAnalyticsEvent("ai_copilot_requested", { tier: "unknown", context_messages_count: ctx.length });
@@ -174,7 +192,7 @@ export function ChatCopilotInline({ viewerUserId, partnerUserId, messages, draft
 
     try {
       if (timingNudgeType) {
-        const { options: timed } = await fetchTimedReplies({
+        const timedResult = await fetchTimedReplies({
           messages: (messages || [])
             .slice(-30)
             .map((m) => ({
@@ -188,6 +206,7 @@ export function ChatCopilotInline({ viewerUserId, partnerUserId, messages, draft
           aiCtx,
           partnerUserId,
         });
+        const timed = timedResult.options;
         if (genRef.current !== gen) return;
         const labels = [replyPack.easyLabel, replyPack.flirtyLabel, replyPack.deepLabel];
         const options = timed.map((o, idx) => ({
@@ -197,6 +216,12 @@ export function ChatCopilotInline({ viewerUserId, partnerUserId, messages, draft
         const next = options.length
           ? ({ strategy: null, meeting_readiness: null, meeting_suggestion: null, options, safety_notes: [] } as any)
           : fallbackCopilot;
+        const timedLocale = normalizeAiLocale(timedResult.locale || "");
+        if (timedLocale && timedLocale !== expectedLanguage()) {
+          setQuotaMessage(t("chat.suggestions.languageMismatchRetry"));
+          setData(null);
+          return;
+        }
         sourceRef.current = "timed_replies";
         if (validatePack(next)) {
           neyraAiLocaleDevLog("received suggestions", { endpoint: "timed-replies", locale: uiLocaleTag, partnerUserId });
@@ -217,6 +242,11 @@ export function ChatCopilotInline({ viewerUserId, partnerUserId, messages, draft
           aiCtx,
         });
         if (genRef.current !== gen) return;
+        if (normalizeAiLocale(res?.locale || "") !== expectedLanguage()) {
+          setQuotaMessage(t("chat.suggestions.languageMismatchRetry"));
+          setData(null);
+          return;
+        }
         const next = res && res.options.length ? res : fallbackCopilot;
         sourceRef.current = "chat_copilot";
         if (aiTier === "free" && res && res.options.length && !(res as any)?.limited) {
@@ -277,6 +307,7 @@ export function ChatCopilotInline({ viewerUserId, partnerUserId, messages, draft
     if (!incomingId) return;
     const toneKey = String((aiCtx as any)?.overrideTone || (aiCtx as any)?.tone || "").trim() || "auto";
     const key = `${partnerUserId}:${incomingId}:${timingNudgeType || "now"}:${uiLocaleTag}:${expectedLanguage()}:${toneKey}`;
+    if (suppressAutoUntilManualRef.current) return;
     if (cacheRef.current.has(key)) {
       const cached = cacheRef.current.get(key)!;
       setData(cached);

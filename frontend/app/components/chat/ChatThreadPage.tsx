@@ -66,6 +66,7 @@ import type { ChatBrainMode, ChatBrainVariantKey, MessageAssistMeta } from "../.
 import { fetchAiCoach, fetchReadinessScore } from "../../../lib/chat/api";
 import { messageFeelsEngagingHeuristic } from "../../../lib/chat/messageEngagement";
 import { getStoredLocale } from "../../../lib/i18n";
+import { clearAiSuggestionCaches } from "../../../lib/aiSuggestionCache";
 import { trackAnalyticsEvent } from "../../../lib/analytics";
 import { fetchAbCopy, trackAbMetric, type AbCopyMap } from "../../../lib/abCopy";
 import { trackPremiumPlusHookClicked, trackPremiumPlusHookSeen } from "../../../lib/premiumPlusHooks";
@@ -2373,9 +2374,11 @@ export function ChatThreadPage() {
             aiLoading={aiComposerBusy}
             aiSuggestionLocale={aiSuggestionLocale}
             onAiSuggestionLocaleChange={(next) => {
-              setAiSuggestionLocale(next);
+              const normalized = String(next || "auto").trim() || "auto";
+              setAiSuggestionLocale(normalized);
+              clearAiSuggestionCaches();
               try {
-                window.localStorage.setItem(AI_SUGGESTION_LOCALE_KEY, next || "auto");
+                window.localStorage.setItem(AI_SUGGESTION_LOCALE_KEY, normalized);
               } catch {
                 // ignore
               }

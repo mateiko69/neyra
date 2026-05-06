@@ -56,6 +56,29 @@ function variantLabel(t: (k: string, vars?: any) => string, key: ChatBrainVarian
   return t("chat.aiBar.variant.playful");
 }
 
+function normalizeAiLocale(raw: string | null | undefined): string {
+  const s = String(raw || "").trim().toLowerCase();
+  if (!s) return "en";
+  if (s.startsWith("zh")) return "zh";
+  if (s.startsWith("pt")) return "pt";
+  if (s.startsWith("es")) return "es";
+  if (s.startsWith("fr")) return "fr";
+  if (s.startsWith("de")) return "de";
+  if (s.startsWith("it")) return "it";
+  if (s.startsWith("pl")) return "pl";
+  if (s.startsWith("cs")) return "cs";
+  if (s.startsWith("nl")) return "nl";
+  if (s.startsWith("tr")) return "tr";
+  if (s.startsWith("ar")) return "ar";
+  if (s.startsWith("he")) return "he";
+  if (s.startsWith("hi")) return "hi";
+  if (s.startsWith("ja")) return "ja";
+  if (s.startsWith("ko")) return "ko";
+  if (s.startsWith("ru")) return "ru";
+  if (s.startsWith("uk")) return "uk";
+  return s.slice(0, 2) || "en";
+}
+
 function modeForThread(input: {
   partnerUserId: number | null;
   viewerUserId: number | null;
@@ -145,6 +168,10 @@ export const ChatAiBar = forwardRef<ChatAiBarHandle, Props>(function ChatAiBar({
   const typingTimerRef = useRef<number | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const requestNonceRef = useRef(0);
+  const activeAiLocale = useMemo(
+    () => normalizeAiLocale(aiCtx?.overrideLanguage || aiCtx?.uiLocale || uiLocaleTag),
+    [aiCtx?.overrideLanguage, aiCtx?.uiLocale, uiLocaleTag],
+  );
 
   useEffect(() => {
     return () => {
@@ -167,7 +194,7 @@ export const ChatAiBar = forwardRef<ChatAiBarHandle, Props>(function ChatAiBar({
     setTyping(false);
     setLoading(false);
     setNonBlockingError("");
-  }, [uiLocaleTag]);
+  }, [activeAiLocale, uiLocaleTag]);
 
   async function requestSuggestions() {
     if (!partnerUserId || !viewerUserId) return;
@@ -186,12 +213,17 @@ export const ChatAiBar = forwardRef<ChatAiBarHandle, Props>(function ChatAiBar({
         // Explicit user action: let server decide best mode, but always return 3 variants.
         mode: "auto",
         tone: "auto",
-        language: uiLocaleTag,
-        aiCtx: { ...(aiCtx ?? {}), uiLocale: uiLocaleTag },
+        language: activeAiLocale,
+        aiCtx: { ...(aiCtx ?? {}), uiLocale: uiLocaleTag, overrideLanguage: aiCtx?.overrideLanguage ?? activeAiLocale },
         signal: controller.signal,
       });
       if (!res?.ok) {
         setNonBlockingError(t("common.tryAgain"));
+        return;
+      }
+      const responseLocale = normalizeAiLocale(res.meta?.language || "");
+      if (responseLocale && responseLocale !== activeAiLocale) {
+        setNonBlockingError(t("chat.suggestions.languageMismatchRetry"));
         return;
       }
       const nextPack = {

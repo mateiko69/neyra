@@ -1,3 +1,5 @@
+import pytest
+
 from app.services.ai.locale_decision import detect_message_locale, resolve_ai_locale_decision
 
 
@@ -23,6 +25,20 @@ def test_detect_message_locale_chinese():
 
 def test_detect_message_locale_russian_cyrillic():
     assert detect_message_locale("Привет как дела") == "ru"
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Bonjour, ça va?", "fr"),
+        ("Merhaba, nasılsın?", "tr"),
+        ("你好", "zh"),
+        ("こんにちは", "ja"),
+        ("안녕", "ko"),
+    ],
+)
+def test_detect_message_locale_multilingual_smoke(text: str, expected: str):
+    assert detect_message_locale(text) == expected
 
 
 def test_resolve_ai_locale_prefers_message_over_interface():
