@@ -38,6 +38,8 @@ type ChatMessageListProps = {
   onLoadOlder?: () => void;
   /** Brief glow on this message id (e.g. new partner reply). */
   partnerReplyGlowId?: string | null;
+  /** Optional non-overlay content rendered in the same scroll flow below messages. */
+  afterMessagesContent?: ReactNode;
 };
 
 function dayKey(value: string | null): string {
@@ -130,6 +132,7 @@ export function ChatMessageList({
   olderLoading = false,
   onLoadOlder,
   partnerReplyGlowId = null,
+  afterMessagesContent = null,
 }: ChatMessageListProps) {
   const { t, locale } = useT("ChatMessageList");
   const visibleMessages = useMemo(() => {
@@ -902,6 +905,8 @@ export function ChatMessageList({
             ) : null}
           </div>
         )}
+
+        {afterMessagesContent ? <div className="chat-thread-scroller-tail">{afterMessagesContent}</div> : null}
 
         <div ref={bottomAnchorRef} aria-hidden />
 

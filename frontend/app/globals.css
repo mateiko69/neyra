@@ -9308,7 +9308,8 @@ button.profile-chip:not(:disabled) {
   .chat-module.chat-thread-module {
     display: flex;
     flex-direction: column;
-    min-height: min(100dvh, 900px);
+    min-height: 100dvh;
+    height: 100dvh;
     max-height: none;
     overflow: hidden;
   }
@@ -9326,6 +9327,12 @@ button.profile-chip:not(:disabled) {
   }
 
   /* Single scroll surface: outer flex column fills height; inner scroller owns overflow */
+  .chat-thread-messages-slot {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
   .chat-thread-body {
     flex: 1 1 auto;
     min-height: 0;
@@ -9341,9 +9348,9 @@ button.profile-chip:not(:disabled) {
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
+    padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px));
+    scroll-padding-bottom: calc(196px + env(safe-area-inset-bottom, 0px));
     touch-action: pan-y;
-    padding-bottom: 0;
-    scroll-padding-bottom: 0;
   }
 
   .chat-thread-module > .chat-thread-ai-helpers {

@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.utils.media_urls import normalize_photo_url
-from app.utils.demo_catalog_paths import demo_catalog_main_photo_url
+from app.utils.demo_catalog_paths import demo_catalog_main_photo_url, demo_safe_primary_photo_url
 from app.models.ai_interaction_event import AiInteractionEvent
 from app.models.ai_trial_usage import AiTrialUsage
 from app.models.analytics_event import AnalyticsEvent
@@ -276,32 +276,34 @@ def repair_demo_profile_photos(db: Session) -> dict:
     Idempotent repair for existing demo profiles with missing or unstable photo URLs.
     Prefers `/demo-profiles/{men|women}/…/main.jpg` derived from `demo+<id>@neyra.local`.
     """
+    # Scan by profile flag first (covers older rows where User.is_demo may be stale).
     rows = (
         db.query(Profile, User)
         .join(User, User.id == Profile.user_id)
-        .filter(User.is_demo == True, Profile.is_demo_profile == True)  # noqa: E712
+        .filter(Profile.is_demo_profile == True)  # noqa: E712
         .all()
     )
-    updated = 0
+    repaired = 0
+    scanned = len(rows)
     for index, (profile, user) in enumerate(rows):
         current_parts = [normalize_photo_url(p.strip(), demo_profile_gender=profile.gender) for p in str(profile.photo_urls or "").split(",") if p.strip()]
         has_unstable_upload = any(p.startswith("/uploads/") for p in current_parts)
         has_remote_placeholder = any(p.startswith(("http://", "https://")) for p in current_parts)
         has_shared_only = bool(current_parts) and all("/demo-profiles/shared/" in p for p in current_parts)
-        if current_parts and not has_unstable_upload and not has_remote_placeholder and not has_shared_only:
+        has_primary_demo = bool(current_parts) and current_parts[0].startswith("/demo-profiles/")
+        if current_parts and has_primary_demo and not has_unstable_upload and not has_remote_placeholder and not has_shared_only:
             continue
         cid = _demo_catalog_id_from_email(getattr(user, "email", None))
         if cid and ("_demo_" in cid or cid.startswith("man_") or cid.startswith("woman_")):
             profile.photo_urls = demo_catalog_main_photo_url(cid)
         else:
-            slug = (cid or f"repair_{int(profile.user_id)}").strip() or "demo"
-            folder = "men" if str(getattr(profile, "gender", "") or "").strip().lower() == "man" else "women"
-            profile.photo_urls = f"/demo-profiles/{folder}/{slug}/main.jpg"
+            # Never emit non-existent synthetic slugs in production; choose known-safe bundled fallbacks.
+            profile.photo_urls = demo_safe_primary_photo_url(getattr(profile, "gender", None), seed=int(getattr(profile, "user_id", 0) or index))
         db.add(profile)
-        updated += 1
-    if updated:
+        repaired += 1
+    if repaired:
         db.commit()
-    return {"ok": True, "updated": updated, "total_demo_profiles": len(rows)}
+    return {"ok": True, "repaired": repaired, "scanned": scanned, "total_demo_profiles": scanned}
 
 
 DEMO_PROFILE_SPECS: list[dict[str, object]] = [

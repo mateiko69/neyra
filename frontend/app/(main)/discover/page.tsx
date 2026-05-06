@@ -143,7 +143,8 @@ function discoverCardHeroPhotoUrl(card: DiscoverCard): string {
   const raw = primaryPhotoFromList(card.photo_urls);
   const resolved = raw ? resolveMediaUrl(raw) : "";
   if (resolved) return resolved;
-  return resolveDemoProfilePhoto(card);
+  const demoResolved = resolveDemoProfilePhoto(card);
+  return demoResolved || "/demo-profiles/women/demo_001/main.jpg";
 }
 
 function toInterestsList(raw: unknown): string[] {

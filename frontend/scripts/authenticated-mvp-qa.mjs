@@ -284,7 +284,7 @@ async function runViewport(name, contextOpts, { discoverToken, sessionToken, cha
     const send = page.getByTestId("chat-send-button");
     if (!(await send.count())) throw new Error("chat send missing");
     if (name === "mobile") {
-      const scroller = page.locator('[data-testid="chat-messages"] .chat-thread-scroller');
+      const scroller = page.locator('[data-testid="chat-messages"]').first();
       await scroller.waitFor({ state: "attached", timeout: 15_000 });
       const scrollOk = await scroller.evaluate((el) => {
         if (!(el instanceof HTMLElement)) return false;
@@ -294,6 +294,16 @@ async function runViewport(name, contextOpts, { discoverToken, sessionToken, cha
         return el.scrollTop !== before || max <= 4;
       });
       if (!scrollOk) throw new Error("mobile scroll did not advance");
+
+      // Send message and capture post-send mobile chat state.
+      const draft = `qa mobile send ${Date.now()}`;
+      await composer.fill(draft);
+      await send.click({ timeout: 12_000 });
+      await page.getByText(draft).first().waitFor({ state: "visible", timeout: 20_000 }).catch(() => {});
+      await page.waitForTimeout(1800);
+      const chatShot = path.join(QA_ARTIFACT_DIR, `${name}-chat-after-send.png`);
+      await page.screenshot({ path: chatShot, fullPage: false });
+      if (!fs.existsSync(chatShot)) throw new Error(`screenshot missing ${chatShot}`);
     }
   });
 

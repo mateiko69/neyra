@@ -39,7 +39,7 @@ from app.services.demo_mode import (
     is_demo_profile,
     repair_demo_profile_photos,
 )
-from app.utils.demo_catalog_paths import is_demo_catalog_primary_photo_url
+from app.utils.demo_catalog_paths import is_demo_catalog_primary_photo_url, demo_safe_primary_photo_url
 from app.services.discover_visibility import internal_test_discover_match, internal_test_discover_match_loose
 
 router = APIRouter()
@@ -1655,6 +1655,21 @@ def discover_feed(
             badge_visible = False
         pu = premium_until_raw.get(int(profile.user_id))
         vibe_raw = (getattr(profile, "vibe", None) or "").strip()
+        normalized_photo_urls = [
+            normalize_photo_url(x.strip(), demo_profile_gender=getattr(profile, "gender", None))
+            for x in (getattr(profile, "photo_urls", "") or "").split(",")
+            if x.strip()
+        ]
+        demo_card = is_demo_profile(profile)
+        if demo_card:
+            primary_demo = (
+                normalized_photo_urls[0]
+                if normalized_photo_urls and normalized_photo_urls[0].startswith("/demo-profiles/")
+                else demo_safe_primary_photo_url(getattr(profile, "gender", None), seed=int(getattr(profile, "user_id", 0) or 0))
+            )
+            normalized_photo_urls = [primary_demo]
+        primary_photo_url = normalized_photo_urls[0] if normalized_photo_urls else ""
+
         card = {
             "user_id": profile.user_id,
             "profile_id": getattr(profile, "id", None),
@@ -1668,11 +1683,12 @@ def discover_feed(
             "top_interests": interests_list[:3],
             "shared_interests": shared_interests,
             "lifestyle_tags": [x.strip() for x in (getattr(profile, "lifestyle_tags", None) or "").split(",") if x.strip()],
-            "photo_urls": [
-                normalize_photo_url(x.strip(), demo_profile_gender=getattr(profile, "gender", None))
-                for x in (getattr(profile, "photo_urls", "") or "").split(",")
-                if x.strip()
-            ],
+            "photo_urls": normalized_photo_urls,
+            # Back-compat fields used by different frontend/mobile clients.
+            "primary_photo_url": primary_photo_url or None,
+            "photo_url": primary_photo_url or None,
+            "image_url": primary_photo_url or None,
+            "photos": [{"url": primary_photo_url, "is_primary": True}] if primary_photo_url else [],
             "compatibility_score": compat.compatibility_score,
             "score_breakdown": compat.score_breakdown,
             "top_reasons": compat.top_reasons,
@@ -1696,7 +1712,6 @@ def discover_feed(
             card["boost_active"] = bool(is_boost_active(int(profile.user_id)))
         except Exception:
             card["boost_active"] = False
-        demo_card = is_demo_profile(profile)
         card["is_demo_profile"] = demo_card
         card["demo_premium_showcase"] = bool(premium_demo_feed) and bool(demo_card)
         card["demo_label"] = DEMO_PROFILE_LABEL if demo_card else None

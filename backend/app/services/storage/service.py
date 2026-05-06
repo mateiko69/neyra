@@ -20,9 +20,11 @@ def s3_fully_configured() -> bool:
     """True when required vars for durable public URLs are present (R2 or AWS S3)."""
     if not (settings.S3_BUCKET or "").strip():
         return False
-    if not (settings.S3_ACCESS_KEY_ID or "").strip():
+    access_key = (settings.S3_ACCESS_KEY_ID or "").strip() or (getattr(settings, "AWS_ACCESS_KEY_ID", None) or "").strip()
+    if not access_key:
         return False
-    if not (settings.S3_SECRET_ACCESS_KEY or "").strip():
+    secret_key = (settings.S3_SECRET_ACCESS_KEY or "").strip() or (getattr(settings, "AWS_SECRET_ACCESS_KEY", None) or "").strip()
+    if not secret_key:
         return False
     if not (getattr(settings, "S3_PUBLIC_BASE_URL", None) or "").strip():
         return False

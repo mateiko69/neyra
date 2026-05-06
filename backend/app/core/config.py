@@ -233,8 +233,12 @@ class Settings(BaseSettings):
     S3_REGION: str = ""
     S3_ACCESS_KEY_ID: str = ""
     S3_SECRET_ACCESS_KEY: str = ""
+    # AWS-compatible aliases frequently used in Railway/Vercel environments.
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
     # Cloudflare R2 / custom S3: e.g. https://<accountid>.r2.cloudflarestorage.com
     S3_ENDPOINT_URL: str = ""
+    S3_ENDPOINT: str = ""
     # Public origin for objects (R2 public bucket URL, R2 custom domain, or CloudFront). No trailing slash.
     S3_PUBLIC_BASE_URL: str = ""
 
@@ -315,6 +319,18 @@ class Settings(BaseSettings):
         sbn = str(getattr(self, "S3_BUCKET_NAME", None) or "").strip()
         if sbn and not sb:
             object.__setattr__(self, "S3_BUCKET", sbn)
+        if not str(self.S3_ACCESS_KEY_ID or "").strip():
+            aws_key = str(getattr(self, "AWS_ACCESS_KEY_ID", None) or "").strip()
+            if aws_key:
+                object.__setattr__(self, "S3_ACCESS_KEY_ID", aws_key)
+        if not str(self.S3_SECRET_ACCESS_KEY or "").strip():
+            aws_secret = str(getattr(self, "AWS_SECRET_ACCESS_KEY", None) or "").strip()
+            if aws_secret:
+                object.__setattr__(self, "S3_SECRET_ACCESS_KEY", aws_secret)
+        if not str(self.S3_ENDPOINT_URL or "").strip():
+            endpoint_alias = str(getattr(self, "S3_ENDPOINT", None) or "").strip()
+            if endpoint_alias:
+                object.__setattr__(self, "S3_ENDPOINT_URL", endpoint_alias)
         return self
 
     @field_validator("PUBLIC_BACKEND_URL", mode="before")
