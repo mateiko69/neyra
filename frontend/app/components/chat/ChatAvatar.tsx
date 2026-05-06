@@ -1,6 +1,7 @@
 "use client";
 
 import { resolveMediaUrl } from "../../../lib/media";
+import { resolveDemoProfilePhoto } from "../../../lib/resolvePhoto";
 import { SafeImg } from "../SafeImg";
 import { useState } from "react";
 
@@ -18,7 +19,8 @@ function initialForName(name: string): string {
 
 export function ChatAvatar({ name, src, className = "", alt = "" }: ChatAvatarProps) {
   const raw = src?.trim() || "";
-  const resolved = raw ? resolveMediaUrl(raw) : "";
+  const likelyDemo = raw.includes("/demo-profiles/") || /(?:^|[_/])demo[_-]?\d+/i.test(raw);
+  const resolved = raw ? resolveDemoProfilePhoto({ photo_url: raw, avatar_url: raw, image_url: raw, is_demo_profile: likelyDemo }) || resolveMediaUrl(raw) : "";
   const [imgFailed, setImgFailed] = useState(false);
   const showNativeImg = Boolean(resolved) && !imgFailed;
   return (

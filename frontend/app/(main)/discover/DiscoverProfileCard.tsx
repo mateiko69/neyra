@@ -264,13 +264,9 @@ function DiscoverProfileCardInner({
 
   const displayMatchPct = aiBlock.score;
   const microHook = useMemo(() => {
-    const aiReasons =
-      aiCompat && Array.isArray(aiCompat.reasons) && aiCompat.reasons.length
-        ? aiCompat.reasons.map((r) => String(r || "").trim()).filter(Boolean)
-        : [];
-    const raw = buildDiscoverMicroHook(card, [...aiReasons, ...surfaceReasons]);
+    const raw = buildDiscoverMicroHook(card, surfaceReasons);
     return raw || t("discover.card.microHook.fallback");
-  }, [aiCompat, card.bio, card.city, card.interests, card.top_reasons, surfaceReasons, t]);
+  }, [card, surfaceReasons, t]);
 
   const replySpeedTone = useMemo(() => discoverReplySpeedTone(card), [card.active_today, card.last_active_at]);
 
@@ -635,76 +631,10 @@ function DiscoverProfileCardInner({
         </div>
       </div>
 
-      <div className="discover-card__actions discover-card__actions--round" aria-label={t("discover.card.actionsAria")}>
-        <button
-          type="button"
-          data-testid="pass-button"
-          className="discover-action discover-action--pass"
-          disabled={disabled || !!exiting}
-          onClick={onPass}
-          aria-label={t("discover.card.pass")}
-          title={t("discover.card.pass")}
-        >
-          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          className="discover-action discover-action--ignore"
-          disabled={disabled || !!exiting}
-          onClick={onIgnore}
-          aria-label={t("discover.card.hide")}
-          title={t("discover.card.hide")}
-        >
-          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <path
-              d="M3 12s3.5-7 9-7 9 7 9 7-3.5 7-9 7-9-7-9-7Z"
-              stroke="currentColor"
-              strokeWidth="1.8"
-            />
-            <path d="M4 4l16 16" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-          </svg>
-        </button>
-        {onSuperLike ? (
-          <button
-            type="button"
-            className="discover-action discover-action--super"
-            disabled={disabled || !!exiting}
-            onClick={onSuperLike}
-            aria-label={t("discover.superLike.aria")}
-            title={t("discover.superLike.aria")}
-          >
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-              <path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 17.8 5.7 21l2.3-7-6-4.6h7.6L12 2z" />
-            </svg>
-          </button>
-        ) : null}
-        <button
-          type="button"
-          data-testid="like-button"
-          className="discover-action discover-action--like"
-          disabled={disabled || !!exiting}
-          onClick={onLike}
-          aria-label={`❤️ ${t("discover.card.like")}`}
-          title={`❤️ ${t("discover.card.like")}`}
-        >
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-            <path d="M12 21s-6.2-4.8-8.5-9.5C2.5 8.2 5.4 5 8.8 5c1.8 0 3.4.9 4.2 2.3C13.8 5.9 15.4 5 17.2 5 20.6 5 23.5 8.2 21.7 11.5 19.4 16.2 12 21 12 21Z" />
-          </svg>
-        </button>
-      </div>
-
-      <div className="discover-card__ignore-text-row">
-        <button type="button" className="discover-card__ignore-text" disabled={disabled || !!exiting} onClick={onIgnore}>
-          {t("discover.actions.ignoreFull")}
-        </button>
-      </div>
-
       {aiBlock?.opener ? (
         <div style={{ marginTop: 10 }}>
           <button type="button" className="btn btn-primary" onClick={onPeek}>
-            ✨ {t("discover.card.startWithAi")}
+            ✨ {t("discover.ai.startWithAI")}
           </button>
         </div>
       ) : null}

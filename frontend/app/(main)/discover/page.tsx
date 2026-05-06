@@ -20,6 +20,7 @@ import { trackAnalyticsEvent } from "../../../lib/analytics";
 import { localStorageDayShown, localStorageMarkDay, utcDayKey } from "../../../lib/retention/dedupe";
 import { hasValueMoment, recordMatchMoment, recordOutboundLikeMoment } from "../../../lib/monetization/valueMoments";
 import { DiscoverProfileCard, type DiscoverCardData } from "./DiscoverProfileCard";
+import { resolveDemoProfilePhoto } from "../../../lib/resolvePhoto";
 
 type DiscoverCard = {
   user_id: number;
@@ -426,6 +427,7 @@ export default function DiscoverPage() {
         userId: number;
         name: string;
         photoUrl: string | null;
+        isDemoProfile?: boolean;
         chatUrl: string | null;
         matchContext: AiOpenerMatchContext;
       }
@@ -771,6 +773,7 @@ export default function DiscoverPage() {
           userId: Number(snapshot.user_id),
           name: String(snapshot.display_name || t("discover.card.profileFallback")),
           photoUrl: photos[0] || null,
+          isDemoProfile: Boolean(snapshot.is_demo_profile),
           chatUrl: typeof (res as any).chat_url === "string" ? (res as any).chat_url : null,
           matchContext,
         });
@@ -1047,8 +1050,7 @@ export default function DiscoverPage() {
   }
 
   if (discoverButtonOnly) {
-    const mobilePhotos = topCard ? photosFromList(topCard.photo_urls) : [];
-    const mobileMainPhoto = String(mobilePhotos[0] ? resolveMediaUrl(String(mobilePhotos[0]).trim()) : "").trim();
+    const mobileMainPhoto = topCard ? resolveDemoProfilePhoto(topCard) : "";
     const mobileName = String(topCard?.display_name || t("discover.card.profileFallback")).trim();
     const mobileAge = topCard?.age != null ? `, ${topCard.age}` : "";
     const mobileCity = String(topCard?.city || "").trim();
@@ -1109,7 +1111,7 @@ export default function DiscoverPage() {
                 disabled={swipeInteractionLocked || !topCardValid}
                 onClick={() => void advanceProfile("like")}
               >
-                ❤️ Like
+                ❤️ {t("discover.actions.like")}
               </Button>
               <Button
                 type="button"
@@ -1118,7 +1120,7 @@ export default function DiscoverPage() {
                 disabled={swipeInteractionLocked || !topCardValid}
                 onClick={() => void advanceProfile("pass")}
               >
-                ✖ Pass
+                ✖ {t("discover.actions.pass")}
               </Button>
             </div>
             <Button
@@ -1128,7 +1130,7 @@ export default function DiscoverPage() {
               disabled={swipeInteractionLocked || !topCardValid}
               onClick={() => void advanceProfile("ignore")}
             >
-              🚫 Ignore
+              🚫 {t("discover.actions.ignore")}
             </Button>
             <Button
               type="button"
@@ -1181,7 +1183,11 @@ export default function DiscoverPage() {
       <MatchModal
         open={Boolean(match)}
         name={match?.name || ""}
-        photoUrl={match?.photoUrl || null}
+        photoUrl={
+          match?.photoUrl
+            ? resolveDemoProfilePhoto({ is_demo_profile: Boolean(match.isDemoProfile), photo_url: match.photoUrl })
+            : null
+        }
         partnerUserId={match?.userId ?? null}
         matchContext={match?.matchContext ?? null}
         t={t}
@@ -1473,7 +1479,7 @@ export default function DiscoverPage() {
               disabled={swipeInteractionLocked || !topCardValid}
               onClick={() => void ignoreCurrentProfile()}
             >
-              {t("discover.card.hide")}
+              {t("discover.actions.ignore")}
             </Button>
             <Button
               type="button"

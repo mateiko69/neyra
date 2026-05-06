@@ -1,4 +1,5 @@
 import { primaryPhotoFromList, resolveMediaUrl } from "../media";
+import { resolveDemoProfilePhoto } from "../resolvePhoto";
 import type { ChatConversation, ChatMessage, ChatPartnerProfile, ChatSendResult, ChatViewer } from "./types";
 
 function toNumber(value: unknown): number | null {
@@ -356,6 +357,11 @@ export function normalizePartnerProfile(raw: unknown): ChatPartnerProfile | null
       object.demoPhotoUrl,
   );
   const resolvedPhotoUrls = photoUrls.length > 0 ? photoUrls : primaryPhoto ? [primaryPhoto] : [];
+  const primaryResolved = resolveDemoProfilePhoto({
+    ...object,
+    photo_urls: resolvedPhotoUrls,
+    primary_photo_url: primaryPhoto,
+  });
 
   return {
     userId,
@@ -368,7 +374,7 @@ export function normalizePartnerProfile(raw: unknown): ChatPartnerProfile | null
     lifestyleTags: toTextArray(object.lifestyle_tags ?? object.lifestyleTags),
     relationshipGoal: toText(object.relationship_goal ?? object.relationshipGoal) || "relationship",
     photoUrls: resolvedPhotoUrls,
-    primaryPhotoUrl: primaryPhotoFromList(resolvedPhotoUrls),
+    primaryPhotoUrl: primaryResolved || primaryPhotoFromList(resolvedPhotoUrls),
     verified: Boolean(object.verified ?? object.is_verified ?? object.isVerified),
     isDemoProfile: toBoolean(object.is_demo_profile ?? object.isDemoProfile ?? object.partner_is_demo_profile ?? object.partnerIsDemoProfile),
     demoLabel: toText(object.demo_label ?? object.demoLabel) || null,
@@ -390,7 +396,14 @@ function avatarFromConversationObject(object: Record<string, unknown>): string |
       object.demo_profile_photo_url ??
       object.demoProfilePhotoUrl,
   );
-  if (directAvatar) return directAvatar;
+  if (directAvatar) {
+    return resolveDemoProfilePhoto({
+      ...object,
+      partner_photo: directAvatar,
+      photo_url: directAvatar,
+      avatar_url: directAvatar,
+    });
+  }
 
   const nestedProfile = object.partner_profile ?? object.partnerProfile ?? object.profile;
   if (nestedProfile && typeof nestedProfile === "object") {
@@ -398,7 +411,14 @@ function avatarFromConversationObject(object: Record<string, unknown>): string |
     const photoUrls = normalizePhotoUrls(
       profileObject.photo_urls ?? profileObject.photoUrls ?? profileObject.photos ?? profileObject.primary_photo,
     );
-    return primaryPhotoFromList(photoUrls) || null;
+    return (
+      resolveDemoProfilePhoto({
+        ...profileObject,
+        photo_urls: photoUrls,
+      }) ||
+      primaryPhotoFromList(photoUrls) ||
+      null
+    );
   }
 
   return null;

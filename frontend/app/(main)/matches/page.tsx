@@ -352,7 +352,7 @@ export default function MatchesPage() {
       });
       setChatThreadHeaderSeed(partnerUserId, {
         displayName: match.partner_display_name,
-        avatarUrl: resolvePhoto(match) || match.partner_photo,
+        avatarUrl: resolvePhoto(match),
       });
       router.push(href);
     },
@@ -645,7 +645,7 @@ export default function MatchesPage() {
                                 if (!content) return;
                                 setChatThreadHeaderSeed(pid, {
                                   displayName: match.partner_display_name,
-                                  avatarUrl: resolvePhoto(match) || match.partner_photo,
+                                  avatarUrl: resolvePhoto(match),
                                 });
                                 const q = new URLSearchParams({ focus: "1", draft: content, quick_send: "1" });
                                 router.push(`/chat/${pid}?${q.toString()}`);

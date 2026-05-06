@@ -37,6 +37,7 @@ type ProfileMe = {
   /** Server: false when object storage is not configured (uploads return 503). */
   photo_upload_available?: boolean;
   is_demo_profile?: boolean | null;
+  demo_only_mode?: boolean;
   verified?: boolean | null;
   is_verified?: boolean | null;
   verification_status?: string | null;
@@ -242,11 +243,13 @@ export default function ProfilePage() {
     };
   }, [hydrateDrafts, router, t]);
 
+  const photoUploadDisabled = Boolean(profile?.photo_upload_available === false || profile?.demo_only_mode || profile?.is_demo_profile);
+
   useEffect(() => {
-    if (profile?.photo_upload_available === false && editing === "photos") {
+    if (photoUploadDisabled && editing === "photos") {
       setEditing(null);
     }
-  }, [profile?.photo_upload_available, editing]);
+  }, [photoUploadDisabled, editing]);
 
   const strength = useMemo(() => {
     const p = profile;
@@ -267,7 +270,7 @@ export default function ProfilePage() {
   const onSave = useCallback(
     async (section: "photos" | "basics" | "prefs" | "languages" | "tags" | "bio") => {
       if (!profile) return;
-      if (section === "photos" && profile.photo_upload_available === false) {
+      if (section === "photos" && photoUploadDisabled) {
         setToast(rawI18nText(t("profile.photos.uploadUnavailableToast")));
         return;
       }
@@ -347,7 +350,7 @@ export default function ProfilePage() {
         setSaving(null);
       }
     },
-    [draftBasics, draftBio, draftLanguages, draftPhotos, draftPrefs, draftTags, hydrateDrafts, profile, saving, t],
+    [draftBasics, draftBio, draftLanguages, draftPhotos, draftPrefs, draftTags, hydrateDrafts, photoUploadDisabled, profile, saving, t],
   );
 
   const onCancel = useCallback(
@@ -636,7 +639,7 @@ export default function ProfilePage() {
               <div className="caption" style={{ opacity: 0.85, marginTop: 6 }}>
                 {t("profile.section.photos.subtitle")}
               </div>
-              {profile?.photo_upload_available === false ? (
+              {photoUploadDisabled ? (
                 <div
                   className="caption"
                   role="status"
@@ -650,7 +653,7 @@ export default function ProfilePage() {
                     opacity: 0.92,
                   }}
                 >
-                  {profile?.is_demo_profile
+                  {profile?.is_demo_profile || profile?.demo_only_mode
                     ? t("profile.photos.uploadDisabledDemo")
                     : t("profile.photos.uploadDisabledGeneric")}
                 </div>
@@ -663,13 +666,13 @@ export default function ProfilePage() {
                 </Button>
                 <Button
                   onClick={() => void onSave("photos")}
-                  disabled={saving === "photos" || profile?.photo_upload_available === false}
+                  disabled={saving === "photos" || photoUploadDisabled}
                 >
                   {saving === "photos" ? t("common.saving") : t("common.save")}
                 </Button>
               </div>
             ) : (
-              <Button variant="secondary" onClick={() => setEditing("photos")} disabled={profile?.photo_upload_available === false}>
+              <Button variant="secondary" onClick={() => setEditing("photos")} disabled={photoUploadDisabled}>
                 {t("common.edit")}
               </Button>
             )}
@@ -679,7 +682,7 @@ export default function ProfilePage() {
             <PhotoUploader
               urls={editing === "photos" ? draftPhotos.urls : parseCsv(profile?.photo_urls)}
               primaryIndex={editing === "photos" ? draftPhotos.primaryIndex : 0}
-              disabled={profile?.photo_upload_available === false || editing !== "photos" || saving === "photos"}
+              disabled={photoUploadDisabled || editing !== "photos" || saving === "photos"}
               onChange={(urls, primaryIndex) => setDraftPhotos({ urls, primaryIndex })}
               onError={(msg) => setToast(msg)}
             />

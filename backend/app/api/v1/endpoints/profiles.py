@@ -202,6 +202,7 @@ def _profile_out_normalized(profile: Profile, db: Session, user: User) -> Profil
             "demo_label": DEMO_PROFILE_LABEL if is_demo else None,
             "demo_disclaimer": (getattr(profile, "demo_disclaimer", "") or DEMO_PROFILE_DISCLAIMER) if is_demo else None,
             "demo_premium_feed_active": bool(is_demo_premium_feed_enabled()),
+            "demo_only_mode": bool(getattr(settings, "DEMO_ONLY_MODE", False)),
             "photo_upload_available": uploads_are_available(),
         }
     )
