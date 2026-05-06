@@ -39,31 +39,6 @@ test.describe("Discover demo photos resolve to frontend assets", () => {
 
   test("desktop: demo /demo-profiles url does not rewrite to API", async ({ page }) => {
     fs.mkdirSync(artifactDir, { recursive: true });
-    await page.addInitScript(() => {
-      localStorage.setItem("neyra:token", "test_token");
-      localStorage.setItem("access_token", "test_token");
-      localStorage.setItem("token", "test_token");
-    });
-    // Mock discover feed with a demo profile that uses bundled assets.
-    await page.route("**/api/v1/discover/feed**", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          profiles: [
-            {
-              user_id: 999,
-              display_name: "Demo",
-              age: 28,
-              city: "Kyiv",
-              is_demo_profile: true,
-              gender: "woman",
-              photo_urls: "/demo-profiles/women/demo_001/main.jpg",
-            },
-          ],
-        }),
-      });
-    });
     await page.route("**/api/v1/**", async (route) => {
       const req = route.request();
       const url = req.url();
@@ -83,6 +58,26 @@ test.describe("Discover demo photos resolve to frontend assets", () => {
         });
         return;
       }
+      if (method === "GET" && pathname.includes("/api/v1/discover/feed")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            feed: [
+              {
+                user_id: 999,
+                display_name: "Demo",
+                age: 28,
+                city: "Kyiv",
+                is_demo_profile: true,
+                gender: "woman",
+                photo_urls: "/demo-profiles/women/demo_001/main.jpg",
+              },
+            ],
+          }),
+        });
+        return;
+      }
       // Best-effort: prevent auth redirects for this surface test.
       if (route.request().method().toUpperCase() === "GET") {
         await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({}) });
@@ -91,6 +86,14 @@ test.describe("Discover demo photos resolve to frontend assets", () => {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
     });
 
+    await page.goto("/login", { waitUntil: "domcontentloaded" });
+    await page.evaluate(() => {
+      const token = "test_token_1234567890";
+      localStorage.setItem("neyra:token", token);
+      localStorage.setItem("access_token", token);
+      localStorage.setItem("token", token);
+      localStorage.setItem("neyra:auth_storage_version", "1");
+    });
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
     const img = page.getByTestId("discover-photo").first();
     if (await img.count()) {
@@ -105,31 +108,7 @@ test.describe("Discover demo photos resolve to frontend assets", () => {
   test("mobile viewport: demo /demo-profiles url does not rewrite to API", async ({ page }) => {
     fs.mkdirSync(artifactDir, { recursive: true });
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.addInitScript(() => {
-      localStorage.setItem("neyra:token", "test_token");
-      localStorage.setItem("access_token", "test_token");
-      localStorage.setItem("token", "test_token");
-    });
 
-    await page.route("**/api/v1/discover/feed**", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          profiles: [
-            {
-              user_id: 1000,
-              display_name: "Demo",
-              age: 29,
-              city: "Lviv",
-              is_demo_profile: true,
-              gender: "man",
-              photo_urls: "/demo-profiles/men/demo_001/main.jpg",
-            },
-          ],
-        }),
-      });
-    });
     await page.route("**/api/v1/**", async (route) => {
       const req = route.request();
       const url = req.url();
@@ -149,6 +128,26 @@ test.describe("Discover demo photos resolve to frontend assets", () => {
         });
         return;
       }
+      if (method === "GET" && pathname.includes("/api/v1/discover/feed")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            feed: [
+              {
+                user_id: 1000,
+                display_name: "Demo",
+                age: 29,
+                city: "Lviv",
+                is_demo_profile: true,
+                gender: "man",
+                photo_urls: "/demo-profiles/men/demo_001/main.jpg",
+              },
+            ],
+          }),
+        });
+        return;
+      }
       if (route.request().method().toUpperCase() === "GET") {
         await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({}) });
         return;
@@ -156,6 +155,14 @@ test.describe("Discover demo photos resolve to frontend assets", () => {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
     });
 
+    await page.goto("/login", { waitUntil: "domcontentloaded" });
+    await page.evaluate(() => {
+      const token = "test_token_1234567890";
+      localStorage.setItem("neyra:token", token);
+      localStorage.setItem("access_token", token);
+      localStorage.setItem("token", token);
+      localStorage.setItem("neyra:auth_storage_version", "1");
+    });
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
     const img = page.getByTestId("discover-photo").first();
     if (await img.count()) {
