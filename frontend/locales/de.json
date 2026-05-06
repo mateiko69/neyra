@@ -2133,6 +2133,7 @@
   "photos.primary": "Hauptfoto",
   "photos.setPrimary": "Als Hauptfoto festlegen",
   "photos.remove": "Entfernen",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "{name} hinzugefügt",
   "photos.uploadFailed": "Upload fehlgeschlagen.",
   "photos.noUrl": "Upload erfolgreich, aber der Server hat keine Foto-URL zurückgegeben.",

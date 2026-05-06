@@ -12,7 +12,7 @@ import { PageHeader } from "../../components/PageHeader";
 import { PageShell } from "../../components/PageShell";
 import { Button, Card, Chip, Input, Skeleton, Textarea, Toast } from "../../components/ui";
 import { useT } from "../../components/i18n/I18nProvider";
-import { PhotoUploader } from "../../components/PhotoUploader";
+import { normalizeProfileGalleryPhotos, PhotoUploader } from "../../components/PhotoUploader";
 import { SafeImg } from "../../components/SafeImg";
 import { VerificationFlowModal } from "../../components/verification/VerificationFlowModal";
 
@@ -128,7 +128,11 @@ export default function ProfilePage() {
   const [emailVerified, setEmailVerified] = useState(false);
 
   // Drafts
-  const [draftPhotos, setDraftPhotos] = useState<{ urls: string[]; primaryIndex: number }>({ urls: [], primaryIndex: 0 });
+  const [draftPhotos, setDraftPhotos] = useState<{ urls: string[]; primaryIndex: number; photoIds: (number | null)[] }>({
+    urls: [],
+    primaryIndex: 0,
+    photoIds: [],
+  });
   const [draftBasics, setDraftBasics] = useState<{
     display_name: string;
     city: string;
@@ -172,7 +176,7 @@ export default function ProfilePage() {
 
   const hydrateDrafts = useCallback((p: ProfileMe) => {
     const urls = parseCsv(p.photo_urls);
-    setDraftPhotos({ urls, primaryIndex: 0 });
+    setDraftPhotos({ urls, primaryIndex: 0, photoIds: urls.map(() => null) });
     setDraftBasics({
       display_name: String(p.display_name || ""),
       city: String(p.city || ""),
@@ -243,13 +247,40 @@ export default function ProfilePage() {
     };
   }, [hydrateDrafts, router, t]);
 
-  const photoUploadDisabled = Boolean(profile?.photo_upload_available === false || profile?.demo_only_mode || profile?.is_demo_profile);
+  const photoUploadDisabled = Boolean(profile?.photo_upload_available === false || profile?.is_demo_profile);
+
+  /** Real signed-in profiles can edit gallery in demo-only catalogs when storage is configured. */
+  const useProfileGalleryWhenEditing =
+    Boolean(profile?.photo_upload_available && !profile?.is_demo_profile) && editing === "photos";
 
   useEffect(() => {
     if (photoUploadDisabled && editing === "photos") {
       setEditing(null);
     }
   }, [photoUploadDisabled, editing]);
+
+  useEffect(() => {
+    if (!useProfileGalleryWhenEditing) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const rows = (await apiFetch("/profile/photos", {
+          method: "GET",
+          skipThrottle: true,
+          skipCache: true,
+          metaReason: "profile-gallery-load-draft",
+        })) as unknown;
+        if (cancelled) return;
+        const parsed = normalizeProfileGalleryPhotos(Array.isArray(rows) ? rows : []);
+        setDraftPhotos({ urls: parsed.urls, primaryIndex: parsed.primaryIndex, photoIds: parsed.photoIds });
+      } catch (e: unknown) {
+        if (!cancelled) setToast(apiFailureToI18nText(e, t, "profile.errors.load", formatApiError));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [useProfileGalleryWhenEditing, t]);
 
   const strength = useMemo(() => {
     const p = profile;
@@ -653,7 +684,7 @@ export default function ProfilePage() {
                     opacity: 0.92,
                   }}
                 >
-                  {profile?.is_demo_profile || profile?.demo_only_mode
+                  {profile?.is_demo_profile
                     ? t("profile.photos.uploadDisabledDemo")
                     : t("profile.photos.uploadDisabledGeneric")}
                 </div>
@@ -688,7 +719,22 @@ export default function ProfilePage() {
               urls={editing === "photos" ? draftPhotos.urls : parseCsv(profile?.photo_urls)}
               primaryIndex={editing === "photos" ? draftPhotos.primaryIndex : 0}
               disabled={photoUploadDisabled || editing !== "photos" || saving === "photos"}
-              onChange={(urls, primaryIndex) => setDraftPhotos({ urls, primaryIndex })}
+              useProfileGalleryApi={useProfileGalleryWhenEditing}
+              photoIdsByIndex={draftPhotos.photoIds}
+              onGallerySynced={(urls, photoIds, primaryIndex) =>
+                setDraftPhotos({ urls, primaryIndex, photoIds })
+              }
+              onChange={(urls, primaryIndex) =>
+                setDraftPhotos((prev) => ({
+                  ...prev,
+                  urls,
+                  primaryIndex,
+                  photoIds:
+                    prev.photoIds.length === urls.length
+                      ? prev.photoIds
+                      : urls.map((_, idx) => (prev.photoIds[idx] ?? null)),
+                }))
+              }
               onError={(msg) => setToast(msg)}
             />
           </div>

@@ -2133,6 +2133,7 @@
   "photos.primary": "Hlavní",
   "photos.setPrimary": "Nastavit jako hlavní",
   "photos.remove": "Odstranit",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "Přidáno: {name}",
   "photos.uploadFailed": "Nahrávání se nezdařilo.",
   "photos.noUrl": "Nahrání proběhlo v pořádku, ale server nevrátil odkaz na fotku.",

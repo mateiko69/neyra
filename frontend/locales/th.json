@@ -2133,6 +2133,7 @@
   "photos.primary": "รูปหลัก",
   "photos.setPrimary": "ตั้งเป็นรูปหลัก",
   "photos.remove": "ลบออก",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "เพิ่ม {name} แล้ว",
   "photos.uploadFailed": "อัปโหลดไม่สำเร็จ",
   "photos.noUrl": "อัปโหลดสำเร็จ แต่เซิร์ฟเวอร์ไม่ส่งคืน URL ของรูปภาพ",

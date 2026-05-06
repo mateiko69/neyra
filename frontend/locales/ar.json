@@ -2133,6 +2133,7 @@
   "photos.primary": "أساسية",
   "photos.setPrimary": "تعيين كصورة أساسية",
   "photos.remove": "إزالة",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "تمت إضافة {name}",
   "photos.uploadFailed": "فشل الرفع.",
   "photos.noUrl": "نجح الرفع ولكن لم يتم العثور على رابط الصورة من الخادم.",

@@ -2133,6 +2133,7 @@
   "photos.primary": "Pääkuva",
   "photos.setPrimary": "Aseta pääkuvaksi",
   "photos.remove": "Poista",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "Lisätty {name}",
   "photos.uploadFailed": "Lataus epäonnistui.",
   "photos.noUrl": "Lataus onnistui, mutta palvelin ei palauttanut kuvan osoitetta.",

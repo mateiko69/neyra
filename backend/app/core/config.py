@@ -228,6 +228,8 @@ class Settings(BaseSettings):
     # Browser-reachable base URL for locally stored uploads (no trailing slash).
     PUBLIC_BACKEND_URL: str = "http://localhost:8000"
     S3_BUCKET: str = ""
+    # Alias preferred in deployment docs / Cloudflare dashboards (fills S3_BUCKET when empty).
+    S3_BUCKET_NAME: str = ""
     S3_REGION: str = ""
     S3_ACCESS_KEY_ID: str = ""
     S3_SECRET_ACCESS_KEY: str = ""
@@ -309,6 +311,10 @@ class Settings(BaseSettings):
         if pub:
             object.__setattr__(self, "FRONTEND_URL", pub)
             object.__setattr__(self, "PUBLIC_FRONTEND_URL", pub)
+        sb = str(self.S3_BUCKET or "").strip()
+        sbn = str(getattr(self, "S3_BUCKET_NAME", None) or "").strip()
+        if sbn and not sb:
+            object.__setattr__(self, "S3_BUCKET", sbn)
         return self
 
     @field_validator("PUBLIC_BACKEND_URL", mode="before")

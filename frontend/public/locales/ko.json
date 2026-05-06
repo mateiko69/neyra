@@ -2133,6 +2133,7 @@
   "photos.primary": "대표",
   "photos.setPrimary": "대표로 설정",
   "photos.remove": "삭제",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "{name} 추가됨",
   "photos.uploadFailed": "업로드 실패.",
   "photos.noUrl": "업로드에 성공했지만, 서버에서 사진 URL을 반환하지 않았습니다.",

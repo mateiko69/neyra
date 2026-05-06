@@ -2133,6 +2133,7 @@
   "photos.primary": "Ana Fotoğraf",
   "photos.setPrimary": "Ana fotoğraf yap",
   "photos.remove": "Kaldır",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "{name} eklendi",
   "photos.uploadFailed": "Yükleme başarısız oldu.",
   "photos.noUrl": "Yükleme başarılı ancak sunucu bir fotoğraf URL'si döndürmedi.",

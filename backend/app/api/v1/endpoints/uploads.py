@@ -10,6 +10,8 @@ from app.api.deps import get_db
 from app.api.deps import get_current_user
 from app.models.profile import Profile
 from app.models.user import User
+from app.services.ai.cache import bump_user_cache_version
+from app.services.profile_photos_service import append_uploaded_photo_url, refresh_visual_embedding_best_effort
 from app.services.storage.upload_utils import (
     persist_user_image,
     persist_user_voice_note,
@@ -23,35 +25,26 @@ log = logging.getLogger(__name__)
 _MAX_FILES_BATCH = 12
 
 
-def _split_csv_urls(value: str | None) -> list[str]:
-    return [p.strip() for p in (value or "").split(",") if p.strip()]
-
-
-def _join_csv_urls(values: list[str]) -> str:
-    return ",".join([v.strip() for v in values if v and v.strip()])
-
-
-def _persist_profile_photo_url(db: Session, user_id: int, url: str, *, max_photos: int = 6) -> str:
+def _persist_profile_photo_via_gallery(db: Session, user_id: int, url: str) -> str:
     if not (url or "").strip():
-        log.warning("persist_profile_photo_url skipped empty url user_id=%s", user_id)
+        log.warning("_persist_profile_photo_via_gallery skipped empty url user_id=%s", user_id)
         profile = db.query(Profile).filter(Profile.user_id == user_id).first()
         return (getattr(profile, "photo_urls", "") or "") if profile else ""
-    profile = db.query(Profile).filter(Profile.user_id == user_id).first()
+    uid = int(user_id)
+    profile = db.query(Profile).filter(Profile.user_id == uid).first()
     if not profile:
-        # Minimal profile to keep uploads consistent; other fields can be filled later.
-        profile = Profile(user_id=user_id, display_name="User")
+        profile = Profile(user_id=uid, display_name="User")
         db.add(profile)
         db.flush()
-    existing = _split_csv_urls(getattr(profile, "photo_urls", "") or "")
-    if url not in existing:
-        existing.append(url)
-    # Cap list to avoid unbounded growth from repeated uploads
-    existing = existing[:max_photos]
-    profile.photo_urls = _join_csv_urls(existing)
-    db.add(profile)
-    db.commit()
-    db.refresh(profile)
-    return profile.photo_urls or ""
+    append_uploaded_photo_url(db, profile, url)
+    profile = db.query(Profile).filter(Profile.user_id == uid).first()
+    if profile:
+        refresh_visual_embedding_best_effort(profile)
+        db.add(profile)
+        db.commit()
+        bump_user_cache_version("discover_feed", uid)
+        return profile.photo_urls or ""
+    return ""
 
 
 @router.post("/photo")
@@ -77,10 +70,10 @@ async def upload_photo(
             status_code=503,
             detail=api_error(
                 "upload.storage_unavailable",
-                message="Object storage is not configured. For production, set S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_PUBLIC_BASE_URL, and optional S3_ENDPOINT_URL (R2).",
+                message="Object storage is not configured. For production, set S3_BUCKET_NAME or S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_PUBLIC_BASE_URL, and optional S3_ENDPOINT_URL (R2).",
             ),
         )
-    saved_csv = _persist_profile_photo_url(db, current_user.id, url)
+    saved_csv = _persist_profile_photo_via_gallery(db, current_user.id, url)
     log.info("upload_photo ok user_id=%s url=%s saved_photo_urls=%s", current_user.id, url, saved_csv)
     return {"url": url}
 
@@ -114,7 +107,7 @@ async def upload_photos(
                     status_code=503,
                     detail=api_error(
                         "upload.storage_unavailable",
-                        message="Object storage is not configured. For production, set S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_PUBLIC_BASE_URL, and optional S3_ENDPOINT_URL (R2).",
+                        message="Object storage is not configured. For production, set S3_BUCKET_NAME or S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_PUBLIC_BASE_URL, and optional S3_ENDPOINT_URL (R2).",
                     ),
                 )
             urls.append(u)
@@ -133,10 +126,10 @@ async def upload_photos(
                 status_code=e.status_code,
                 detail=api_error("upload.item_failed", part=i + 1),
             ) from None
-    saved = ""
     for u in urls:
-        saved = _persist_profile_photo_url(db, current_user.id, u)
-    return {"urls": urls}
+        _persist_profile_photo_via_gallery(db, current_user.id, u)
+    profile = db.query(Profile).filter(Profile.user_id == current_user.id).first()
+    return {"urls": urls, "photo_urls": (profile.photo_urls or "") if profile else ""}
 
 
 @router.post("/voice")

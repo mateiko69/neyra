@@ -2133,6 +2133,7 @@
   "photos.primary": "Primært",
   "photos.setPrimary": "Vælg som primært",
   "photos.remove": "Fjern",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "Tilføjede {name}",
   "photos.uploadFailed": "Upload mislykkedes.",
   "photos.noUrl": "Upload lykkedes, men serveren returnerede ikke en billed-URL.",

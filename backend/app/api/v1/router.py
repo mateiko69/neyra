@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, auth_social, profiles, discover, swipes, matches, messages, chats, nav, ai, trust, growth, uploads, subscriptions, devices, analytics, admin, admin_telegram, webhooks, websocket, safety, profile_trust, account, referrals, likes, monetization, video, onboarding, daily, verify, dev, paddle_webhook
+from app.api.v1.endpoints import auth, auth_social, profiles, discover, swipes, matches, messages, chats, nav, ai, trust, growth, uploads, subscriptions, devices, analytics, admin, admin_telegram, webhooks, websocket, safety, profile_trust, account, referrals, likes, monetization, video, onboarding, daily, verify, dev, paddle_webhook, profile_photos
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -7,6 +7,7 @@ api_router.include_router(auth_social.router, prefix="/auth", tags=["auth"])
 api_router.include_router(nav.router, prefix="/nav", tags=["nav"])
 api_router.include_router(daily.router, prefix="/daily", tags=["daily"])
 api_router.include_router(profiles.router, prefix="/profiles", tags=["profiles"])
+api_router.include_router(profile_photos.router, prefix="/profile", tags=["profile-photos"])
 api_router.include_router(verify.router, prefix="/verify", tags=["verify"])
 api_router.include_router(discover.router, prefix="/discover", tags=["discover"])
 api_router.include_router(swipes.router, prefix="/swipes", tags=["swipes"])

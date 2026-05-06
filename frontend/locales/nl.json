@@ -2133,6 +2133,7 @@
   "photos.primary": "Primair",
   "photos.setPrimary": "Instellen als primair",
   "photos.remove": "Verwijderen",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "{name} toegevoegd",
   "photos.uploadFailed": "Upload mislukt.",
   "photos.noUrl": "Upload gelukt, maar de server heeft geen fotolink geretourneerd.",

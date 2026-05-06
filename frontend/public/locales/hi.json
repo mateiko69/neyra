@@ -2133,6 +2133,7 @@
   "photos.primary": "मुख्य",
   "photos.setPrimary": "मुख्य फोटो बनाएँ",
   "photos.remove": "हटाएँ",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "{name} को जोड़ा गया",
   "photos.uploadFailed": "अपलोड विफल रहा।",
   "photos.noUrl": "अपलोड सफल रहा, लेकिन फोटो का URL नहीं मिला।",

@@ -2133,6 +2133,7 @@
   "photos.primary": "Главное",
   "photos.setPrimary": "Сделать главным",
   "photos.remove": "Удалить",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "Добавлено {name}",
   "photos.uploadFailed": "Не удалось загрузить файл.",
   "photos.noUrl": "Загрузка прошла, но сервер не вернул URL фото.",

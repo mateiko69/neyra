@@ -2133,6 +2133,7 @@
   "photos.primary": "Principale",
   "photos.setPrimary": "Imposta come principale",
   "photos.remove": "Rimuovi",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "Aggiunta {name}",
   "photos.uploadFailed": "Caricamento fallito.",
   "photos.noUrl": "Caricamento riuscito, ma il server non ha restituito l'URL della foto.",

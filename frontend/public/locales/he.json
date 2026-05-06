@@ -2133,6 +2133,7 @@
   "photos.primary": "ראשית",
   "photos.setPrimary": "הגדרה כראשית",
   "photos.remove": "הסרה",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "התווספה התמונה {name}",
   "photos.uploadFailed": "ההעלאה נכשלה.",
   "photos.noUrl": "ההעלאה הצליחה, אך השרת לא החזיר כתובת לתמונה.",

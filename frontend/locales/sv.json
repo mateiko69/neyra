@@ -2133,6 +2133,7 @@
   "photos.primary": "Huvudbild",
   "photos.setPrimary": "Välj som huvudbild",
   "photos.remove": "Ta bort",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "Lade till {name}",
   "photos.uploadFailed": "Uppladdningen misslyckades.",
   "photos.noUrl": "Uppladdningen lyckades, men servern returnerade ingen bildadress.",

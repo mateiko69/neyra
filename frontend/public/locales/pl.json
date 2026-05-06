@@ -2133,6 +2133,7 @@
   "photos.primary": "Główne",
   "photos.setPrimary": "Ustaw jako główne",
   "photos.remove": "Usuń",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "Dodano {name}",
   "photos.uploadFailed": "Błąd przesyłania.",
   "photos.noUrl": "Przesyłanie powiodło się, ale serwer nie zwrócił adresu URL zdjęcia.",

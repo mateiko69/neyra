@@ -2133,6 +2133,7 @@
   "photos.primary": "Hovedbilde",
   "photos.setPrimary": "Sett som hovedbilde",
   "photos.remove": "Fjern",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "La til {name}",
   "photos.uploadFailed": "Opplasting mislyktes.",
   "photos.noUrl": "Opplastingen var vellykket, men serveren returnerte ingen bilde-URL.",

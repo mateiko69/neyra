@@ -2133,6 +2133,7 @@
   "photos.primary": "Κύρια",
   "photos.setPrimary": "Ορισμός ως κύρια",
   "photos.remove": "Αφαίρεση",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "Προστέθηκε η {name}",
   "photos.uploadFailed": "Η μεταφόρτωση απέτυχε.",
   "photos.noUrl": "Η μεταφόρτωση πέτυχε, αλλά δεν βρέθηκε ο σύνδεσμος της φωτογραφίας.",

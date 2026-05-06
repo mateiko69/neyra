@@ -2133,6 +2133,7 @@
   "photos.primary": "Основна",
   "photos.setPrimary": "Задай като основна",
   "photos.remove": "Премахни",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "Добавена е {name}",
   "photos.uploadFailed": "Качването не бе успешно.",
   "photos.noUrl": "Качването е успешно, но сървърът не върна URL адрес на снимката.",

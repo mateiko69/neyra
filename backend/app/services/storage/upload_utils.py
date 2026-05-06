@@ -110,8 +110,9 @@ async def read_validate_image(file: UploadFile) -> tuple[bytes, str]:
     return content, ext
 
 
-def persist_user_image(user_id: int, ext: str, content: bytes) -> str:
-    filename = f"{user_id}_{uuid.uuid4().hex}.{ext}"
+def persist_profile_gallery_image(user_id: int, ext: str, content: bytes) -> str:
+    """Persist to object storage/local under ``users/<id>/photos/<uuid>.<ext>``."""
+    filename = f"users/{int(user_id)}/photos/{uuid.uuid4().hex}.{ext}"
     provider = get_storage_provider()
     url = provider.save(filename, content)
     log.info(
@@ -122,6 +123,10 @@ def persist_user_image(user_id: int, ext: str, content: bytes) -> str:
         url,
     )
     return url
+
+
+def persist_user_image(user_id: int, ext: str, content: bytes) -> str:
+    return persist_profile_gallery_image(user_id, ext, content)
 
 
 def persist_verification_selfie(user_id: int, ext: str, content: bytes) -> str:

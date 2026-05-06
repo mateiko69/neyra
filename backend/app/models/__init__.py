@@ -4,6 +4,7 @@ from app.models.referral_reward_grant import ReferralRewardGrant
 from app.models.app_setting import AppSetting
 from app.models.oauth_account import OAuthAccount
 from app.models.profile import Profile
+from app.models.profile_photo import ProfilePhoto
 from app.models.swipe import Swipe
 from app.models.match import Match
 from app.models.message import Message

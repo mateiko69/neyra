@@ -2133,6 +2133,7 @@
   "photos.primary": "Ảnh chính",
   "photos.setPrimary": "Đặt làm ảnh chính",
   "photos.remove": "Gỡ bỏ",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "Đã thêm {name}",
   "photos.uploadFailed": "Tải lên thất bại.",
   "photos.noUrl": "Tải lên thành công nhưng máy chủ không trả về đường dẫn ảnh.",

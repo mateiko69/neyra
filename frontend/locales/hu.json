@@ -2133,6 +2133,7 @@
   "photos.primary": "Elsődleges",
   "photos.setPrimary": "Beállítás elsődlegesként",
   "photos.remove": "Eltávolítás",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "{name} hozzáadva",
   "photos.uploadFailed": "A feltöltés sikertelen.",
   "photos.noUrl": "A feltöltés sikeres volt, de a szerver nem küldött vissza fotó-URL-t.",

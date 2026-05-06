@@ -2133,6 +2133,7 @@
   "photos.primary": "メイン",
   "photos.setPrimary": "メインに設定",
   "photos.remove": "削除",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "{name}を追加しました",
   "photos.uploadFailed": "アップロードに失敗しました。",
   "photos.noUrl": "アップロードは成功しましたが、サーバーから写真のURLが返されませんでした。",

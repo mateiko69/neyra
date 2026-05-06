@@ -2133,6 +2133,7 @@
   "photos.primary": "Principală",
   "photos.setPrimary": "Setează ca principală",
   "photos.remove": "Elimină",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "S-a adăugat {name}",
   "photos.uploadFailed": "Încărcarea a eșuat.",
   "photos.noUrl": "Încărcarea a reușit, dar serverul nu a returnat un URL pentru fotografie.",

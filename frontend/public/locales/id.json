@@ -2133,6 +2133,7 @@
   "photos.primary": "Utama",
   "photos.setPrimary": "Jadikan utama",
   "photos.remove": "Hapus",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "{name} ditambahkan",
   "photos.uploadFailed": "Gagal mengunggah.",
   "photos.noUrl": "Unggahan berhasil, namun server tidak memberikan URL foto.",

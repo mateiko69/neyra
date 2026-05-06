@@ -2133,6 +2133,7 @@
   "photos.primary": "主照片",
   "photos.setPrimary": "設為主照片",
   "photos.remove": "移除",
+  "photos.confirmRemove": "Remove this photo from your profile?",
   "photos.added": "已新增 {name}",
   "photos.uploadFailed": "上傳失敗。",
   "photos.noUrl": "上傳成功，但伺服器未傳回照片網址。",

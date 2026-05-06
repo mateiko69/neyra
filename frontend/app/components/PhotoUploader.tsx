@@ -56,6 +56,35 @@ async function uploadPhotoWithAuthRetry(file: File): Promise<PhotoUploadResult> 
   }
 }
 
+async function uploadProfileGalleryPhotoWithAuthRetry(file: File): Promise<unknown | "auth_redirect"> {
+  const run = () => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiUpload("/profile/photos", formData, { metaReason: "profile-gallery-upload" }) as Promise<unknown>;
+  };
+  try {
+    return await run();
+  } catch (e) {
+    if (e instanceof ApiUnauthorizedError) {
+      await ensureAuthBootstrapped();
+      if (typeof window !== "undefined" && !getToken()) {
+        dispatchAuthExpired();
+        return "auth_redirect";
+      }
+      try {
+        return await run();
+      } catch (e2) {
+        if (e2 instanceof ApiUnauthorizedError && typeof window !== "undefined") {
+          dispatchAuthExpired();
+          return "auth_redirect";
+        }
+        throw e2;
+      }
+    }
+    throw e;
+  }
+}
+
 async function persistPrimaryPhotoUrl(url: string) {
   const patch = async () => {
     await apiFetch("/profiles/me", {
@@ -106,12 +135,45 @@ type PendingSlot = {
   error?: NonNullable<I18nText>;
 };
 
+type ProfileGalleryPhotoRow = { id?: unknown; url?: unknown; is_primary?: unknown };
+
+export function normalizeProfileGalleryPhotos(data: unknown): { urls: string[]; photoIds: (number | null)[]; primaryIndex: number } {
+  const raw = data as { photos?: unknown };
+  let photos: ProfileGalleryPhotoRow[] = [];
+  if (Array.isArray(data)) photos = data as ProfileGalleryPhotoRow[];
+  else if (Array.isArray(raw.photos)) photos = raw.photos as ProfileGalleryPhotoRow[];
+  const urls: string[] = [];
+  const photoIds: (number | null)[] = [];
+  let primaryIndex = 0;
+  for (let i = 0; i < photos.length; i++) {
+    const p = photos[i];
+    const u = String((p?.url as string) ?? "").trim();
+    if (!u) continue;
+    urls.push(u);
+    const idRaw = p?.id;
+    photoIds.push(typeof idRaw === "number" && Number.isFinite(idRaw) ? idRaw : null);
+    if (p?.is_primary === true) primaryIndex = urls.length - 1;
+  }
+  if (urls.length === 0) return { urls, photoIds, primaryIndex: 0 };
+  primaryIndex = Math.max(0, Math.min(primaryIndex, urls.length - 1));
+  return { urls, photoIds, primaryIndex };
+}
+
+function normalizedRowsFromList(rows: ProfileGalleryPhotoRow[]): { urls: string[]; photoIds: (number | null)[]; primaryIndex: number } {
+  return normalizeProfileGalleryPhotos(rows);
+}
+
 type Props = {
   urls: string[];
   primaryIndex: number;
   onChange: (urls: string[], primaryIndex: number) => void;
   onError: (message: NonNullable<I18nText>) => void;
   disabled?: boolean;
+  /** Use `/profile/photos` REST + multipart upload when storage is configured (see `photo_upload_available`). */
+  useProfileGalleryApi?: boolean;
+  /** Same length as `urls` when gallery API is active; `null` until loaded from GET /profile/photos. */
+  photoIdsByIndex?: (number | null)[];
+  onGallerySynced?: (urls: string[], photoIds: (number | null)[], primaryIndex: number) => void;
 };
 
 /** Off-screen (not display:none) so `inputRef.current?.click()` still opens the picker reliably. */
@@ -128,7 +190,16 @@ const offScreenFileInput: CSSProperties = {
   border: 0,
 };
 
-export function PhotoUploader({ urls, primaryIndex, onChange, onError, disabled }: Props) {
+export function PhotoUploader({
+  urls,
+  primaryIndex,
+  onChange,
+  onError,
+  disabled,
+  useProfileGalleryApi = false,
+  photoIdsByIndex,
+  onGallerySynced,
+}: Props) {
   const { t } = useT("PhotoUploader");
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [pending, setPending] = useState<PendingSlot[]>([]);
@@ -166,6 +237,28 @@ export function PhotoUploader({ urls, primaryIndex, onChange, onError, disabled 
       registry.clear();
     };
   }, []);
+
+  const applyGalleryState = (payload: unknown) => {
+    const normalized = normalizeProfileGalleryPhotos(payload);
+    onChange(normalized.urls, normalized.primaryIndex);
+    onGallerySynced?.(normalized.urls, normalized.photoIds, normalized.primaryIndex);
+    invalidateApiGetCache("/profiles/me");
+    invalidateMyProfileAvatarCache();
+  };
+
+  const refetchGallery = async (): Promise<void> => {
+    const rows = (await apiFetch("/profile/photos", {
+      method: "GET",
+      skipThrottle: true,
+      skipCache: true,
+      metaReason: "profile-gallery-refetch",
+    })) as ProfileGalleryPhotoRow[];
+    const norm = normalizedRowsFromList(Array.isArray(rows) ? rows : []);
+    onChange(norm.urls, norm.primaryIndex);
+    onGallerySynced?.(norm.urls, norm.photoIds, norm.primaryIndex);
+    invalidateApiGetCache("/profiles/me");
+    invalidateMyProfileAvatarCache();
+  };
 
   const slotsUsed = urls.length + pending.length;
   const remainingSlots = MAX_PHOTOS - slotsUsed;
@@ -218,14 +311,41 @@ export function PhotoUploader({ urls, primaryIndex, onChange, onError, disabled 
     try {
       for (const { file, slot } of pairs) {
         try {
-          const data = await uploadPhotoWithAuthRetry(file);
+          let data: PhotoUploadResult | unknown;
+          if (useProfileGalleryApi) {
+            data = await uploadProfileGalleryPhotoWithAuthRetry(file);
+            if (data === "auth_redirect") {
+              setBusy(false);
+              if (inputRef.current) inputRef.current.value = "";
+              return;
+            }
+            console.log("[PhotoUploader] gallery upload response", data);
+            const normalized = normalizeProfileGalleryPhotos(data);
+            if (normalized.urls.length === 0) {
+              const message = i18nKey("photos.noUrl");
+              setPending((current) =>
+                current.map((item) => (item.id === slot.id ? { ...item, uploading: false, error: message } : item)),
+              );
+              onError(message);
+              continue;
+            }
+            applyGalleryState(data);
+            setPending((current) => current.filter((item) => item.id !== slot.id));
+            revokeBlob(slot.blobUrl);
+            setSuccessHint(i18nKey("photos.added", { name: file.name }));
+            window.setTimeout(() => setSuccessHint(null), 2800);
+            continue;
+          }
+
+          data = await uploadPhotoWithAuthRetry(file);
           if (data === "auth_redirect") {
             setBusy(false);
             if (inputRef.current) inputRef.current.value = "";
             return;
           }
           console.log("[PhotoUploader] upload response", data);
-          const url = data && typeof data === "object" ? data.url?.trim() : "";
+          const legacyPayload = data && typeof data === "object" ? (data as { url?: string }) : null;
+          const url = legacyPayload?.url?.trim() ?? "";
           if (!url) {
             const message = i18nKey("photos.noUrl");
             setPending((current) =>
@@ -268,7 +388,44 @@ export function PhotoUploader({ urls, primaryIndex, onChange, onError, disabled 
     });
   }
 
+  async function removeAtGallery(index: number) {
+    const pid = photoIdsByIndex?.[index];
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (pid != null) {
+        await apiFetch(`/profile/photos/${pid}`, {
+          method: "DELETE",
+          skipThrottle: true,
+          skipCache: true,
+          metaReason: "profile-gallery-delete",
+        });
+      }
+      await refetchGallery();
+    } catch (errorValue: unknown) {
+      if (errorValue instanceof ApiUnauthorizedError && typeof window !== "undefined") {
+        dispatchAuthExpired();
+        return;
+      }
+      try {
+        await refetchGallery();
+      } catch {
+        /* ignore */
+      }
+      onError(apiFailureToI18nText(errorValue, t, "photos.uploadFailed", formatApiError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function removeAt(index: number) {
+    if (typeof window !== "undefined" && !window.confirm(t("photos.confirmRemove"))) return;
+
+    if (useProfileGalleryApi) {
+      void removeAtGallery(index);
+      return;
+    }
+
     const next = urls.filter((_, currentIndex) => currentIndex !== index);
     let nextPrimaryIndex = primaryIndex;
     if (index === nextPrimaryIndex) nextPrimaryIndex = 0;
@@ -278,12 +435,46 @@ export function PhotoUploader({ urls, primaryIndex, onChange, onError, disabled 
     onChange(next, nextPrimaryIndex);
   }
 
+  async function applyPrimaryGallery(index: number) {
+    const pid = photoIdsByIndex?.[index];
+    if (pid == null || busy) {
+      await refetchGallery();
+      return;
+    }
+    setBusy(true);
+    try {
+      const data = await apiFetch(`/profile/photos/${pid}/primary`, {
+        method: "POST",
+        skipThrottle: true,
+        skipCache: true,
+        metaReason: "profile-gallery-primary",
+      });
+      applyGalleryState(data);
+    } catch (errorValue: unknown) {
+      if (errorValue instanceof ApiUnauthorizedError && typeof window !== "undefined") {
+        dispatchAuthExpired();
+        return;
+      }
+      onError(apiFailureToI18nText(errorValue, t, "photos.uploadFailed", formatApiError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function setPrimary(index: number) {
+    if (useProfileGalleryApi) {
+      void applyPrimaryGallery(index);
+      return;
+    }
     onChange(urls, index);
   }
 
   function movePrimaryToFront() {
     if (urls.length === 0 || primaryIndex <= 0) return;
+    if (useProfileGalleryApi) {
+      void applyPrimaryGallery(primaryIndex);
+      return;
+    }
     const next = [...urls];
     const [main] = next.splice(primaryIndex, 1);
     next.unshift(main);
@@ -371,7 +562,7 @@ export function PhotoUploader({ urls, primaryIndex, onChange, onError, disabled 
                   className="chip"
                   style={{ cursor: "pointer", fontSize: 11 }}
                   disabled={busy}
-                  onClick={() => setPrimary(index)}
+                  onClick={() => void setPrimary(index)}
                 >
                   {index === primaryIndex ? t("photos.primary") : t("photos.setPrimary")}
                 </button>

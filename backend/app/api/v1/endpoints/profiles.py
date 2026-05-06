@@ -21,6 +21,7 @@ from app.services.ai.cache import bump_user_cache_version
 from app.core.config import settings
 from app.services.demo_mode import DEMO_PROFILE_DISCLAIMER, DEMO_PROFILE_LABEL, is_demo_profile, is_demo_premium_feed_enabled
 from app.services.safety import is_blocked
+from app.services.profile_photos_service import refresh_visual_embedding_best_effort, replace_rows_from_csv
 from app.services.storage.service import uploads_are_available
 from app.services.storage.upload_utils import persist_verification_selfie, read_validate_image
 from app.services.visual_embeddings import (
@@ -353,6 +354,13 @@ def patch_my_profile(payload: ProfilePatch, current_user: User = Depends(get_cur
             logger.error("profile_save_failed user_id=%s method=PATCH", int(current_user.id))
         raise HTTPException(status_code=500, detail=api_error("profile.save_failed")) from e
     db.refresh(profile)
+    if "photo_urls" in changed_fields:
+        replace_rows_from_csv(db, profile)
+        refresh_visual_embedding_best_effort(profile)
+        db.add(profile)
+        db.commit()
+        db.refresh(profile)
+
     logger.info({"event": "onboarding_check", "user_id": int(current_user.id), "completed": bool(getattr(profile, "onboarding_completed", False))})
     track_event(db, "profile_patched", user_id=current_user.id, payload={"fields": list(updates.keys())})
     bump_user_cache_version("discover_feed", int(current_user.id))
@@ -476,6 +484,11 @@ def update_my_profile(payload: ProfileUpdate, current_user: User = Depends(get_c
             logger.error("profile_save_failed user_id=%s method=PUT", int(current_user.id))
         raise HTTPException(status_code=500, detail=api_error("profile.save_failed")) from e
     db.refresh(profile)
+    if "photo_urls" in changed_fields:
+        replace_rows_from_csv(db, profile)
+        db.commit()
+        db.refresh(profile)
+
     logger.info({"event": "onboarding_check", "user_id": int(current_user.id), "completed": bool(getattr(profile, "onboarding_completed", False))})
     track_event(db, "profile_updated", user_id=current_user.id, payload={"profile_id": profile.id})
     bump_user_cache_version("discover_feed", int(current_user.id))
