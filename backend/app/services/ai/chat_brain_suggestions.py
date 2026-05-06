@@ -69,6 +69,7 @@ class ChatBrainRequest(BaseModel):
     mode: str = "auto"
     tone: str = "auto"
     language: str = "en"
+    ai_locale: str | None = Field(default=None, max_length=24)
     language_hint: str | None = Field(default=None, max_length=96)
     """Dating strategist mode: easy | flirty | witty | deep | confident | romantic | playful | premium_pickup_master"""
     conversation_mode: str = "easy"

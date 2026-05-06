@@ -9,6 +9,18 @@ def test_detect_message_locale_english():
     assert detect_message_locale("Hey, how are you?") == "en"
 
 
+def test_detect_message_locale_spanish():
+    assert detect_message_locale("Hola, cómo estás?") == "es"
+
+
+def test_detect_message_locale_portuguese():
+    assert detect_message_locale("Oi, tudo bem?") == "pt"
+
+
+def test_detect_message_locale_chinese():
+    assert detect_message_locale("你好") == "zh"
+
+
 def test_detect_message_locale_russian_cyrillic():
     assert detect_message_locale("Привет как дела") == "ru"
 

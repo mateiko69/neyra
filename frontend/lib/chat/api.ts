@@ -72,6 +72,12 @@ export type AiLanguageToneContext = {
   overrideTone?: ChatTone | null;
 };
 
+function resolveAiLocaleOverride(ctx: AiLanguageToneContext | undefined | null): string {
+  const raw = String(ctx?.overrideLanguage ?? "").trim();
+  if (!raw) return "auto";
+  return raw.toLowerCase() === "auto" ? "auto" : raw;
+}
+
 function resolveAiLanguageTone(ctx: AiLanguageToneContext | undefined | null): { language: string; tone: ChatTone; languageReason: string } {
   const uiLocale = ctx?.uiLocale ?? getStoredLocale() ?? "en";
   const languageBase = resolveChatLanguage(ctx?.viewer ?? null, ctx?.partner ?? null, uiLocale);
@@ -227,6 +233,7 @@ export async function fetchChatCopilot(options: {
           mode: null,
           user_selected_style: options.userSelectedStyle || null,
           locale: resolved.language,
+          ai_locale: resolveAiLocaleOverride(options.aiCtx),
           language: resolved.language,
           tone: resolved.tone,
         }),
@@ -474,6 +481,7 @@ export async function postChatBrainSuggestions(options: {
     mode: options.mode,
     tone: (options.tone ?? resolved.tone ?? "auto").trim() || "auto",
     language: explicitLang,
+    ai_locale: resolveAiLocaleOverride(options.aiCtx),
     language_hint,
     conversation_mode: conv,
   };
@@ -885,6 +893,7 @@ export async function fetchTimedReplies(options: {
       interest_stage: options.interestStage ?? null,
       mutuality_score: options.mutualityScore ?? null,
       locale: uiLocale,
+      ai_locale: resolveAiLocaleOverride(options.aiCtx),
       language_hint,
     }),
   });
@@ -1640,6 +1649,7 @@ export async function getAiOpeners(
         conversation_context: options.conversationContext ?? [],
         style: styleKey,
         locale: uiLocale,
+        ai_locale: resolveAiLocaleOverride(options.aiCtx),
         language_hint,
       }),
       skipThrottle: true,
@@ -1778,6 +1788,7 @@ export async function getAiRewriteVariants(
           user_style: "chill",
           mode: options.mode ?? "polish",
           locale: uiLocale,
+          ai_locale: resolveAiLocaleOverride(options.aiCtx),
           language_hint,
         }),
         skipThrottle: true,
@@ -1799,6 +1810,7 @@ export async function getAiRewriteVariants(
         user_style: "chill",
         mode: options.mode ?? "polish",
         locale: uiLocale,
+        ai_locale: resolveAiLocaleOverride(options.aiCtx),
         language_hint,
       }),
       skipThrottle: true,

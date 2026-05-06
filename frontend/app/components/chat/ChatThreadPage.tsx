@@ -78,6 +78,7 @@ import { ViralShareInlineBar, trackViralShareClicked } from "./ViralShareInlineB
 import { getActionLabel } from "../../../lib/ui/actions";
 
 const COACH_HIDDEN_KEY = "neyra:coach:hidden";
+const AI_SUGGESTION_LOCALE_KEY = "neyra_ai_suggestion_locale";
 
 function lastPartnerMessageFromThread(messages: unknown[], partnerUserId: number | null): string {
   if (partnerUserId == null) return "";
@@ -379,8 +380,19 @@ export function ChatThreadPage() {
   const coachInactivityTimerRef = useRef<number | null>(null);
   const coachLastInteractionAtRef = useRef<number>(Date.now());
   const [health, setHealth] = useState<HealthPack | null>(null);
+  const [aiSuggestionLocale, setAiSuggestionLocale] = useState<string>("auto");
   const healthScoreRef = useRef<number>(0.55);
   const goodConversation = health?.state === "strong";
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = String(window.localStorage.getItem(AI_SUGGESTION_LOCALE_KEY) || "").trim();
+      setAiSuggestionLocale(raw || "auto");
+    } catch {
+      setAiSuggestionLocale("auto");
+    }
+  }, []);
 
   const conversationState: ConversationState = useMemo(() => {
     const msgs = c.messages || [];
@@ -397,10 +409,11 @@ export function ChatThreadPage() {
       viewer: c.viewer ? { nativeLanguage: (c.viewer as any).nativeLanguage ?? null, additionalLanguages: (c.viewer as any).additionalLanguages ?? [] } : null,
       partner: c.partner ? { nativeLanguage: (c.partner as any).nativeLanguage ?? null, additionalLanguages: (c.partner as any).additionalLanguages ?? [] } : null,
       uiLocale: uiLocaleTag,
+      overrideLanguage: aiSuggestionLocale === "auto" ? null : aiSuggestionLocale,
       conversationState,
       isFirstMessage: (c.messages || []).length === 0,
     }),
-    [c.messages, c.partner, c.viewer, conversationState, uiLocaleTag],
+    [aiSuggestionLocale, c.messages, c.partner, c.viewer, conversationState, uiLocaleTag],
   );
 
   /** Monetization nudges are limited to session-scoped partner-reply / match / AI-limit hints only. */
@@ -2358,6 +2371,15 @@ export function ChatThreadPage() {
             onSendVoice={(draft, caption) => c.actions.sendVoice(draft, caption)}
             aiActive={aiPanelOpen}
             aiLoading={aiComposerBusy}
+            aiSuggestionLocale={aiSuggestionLocale}
+            onAiSuggestionLocaleChange={(next) => {
+              setAiSuggestionLocale(next);
+              try {
+                window.localStorage.setItem(AI_SUGGESTION_LOCALE_KEY, next || "auto");
+              } catch {
+                // ignore
+              }
+            }}
             onToggleAi={() => {
               if (isMobile) {
                 if (aiComposerBusy) return;

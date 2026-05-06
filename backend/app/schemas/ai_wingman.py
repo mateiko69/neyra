@@ -52,6 +52,7 @@ class ChatCopilotRequest(BaseModel):
     mode: str | None = Field(default=None, max_length=16)
     user_selected_style: str | None = Field(default=None, max_length=24)
     locale: str | None = Field(default=None, max_length=24)
+    ai_locale: str | None = Field(default=None, max_length=24)
 
 
 class ChatCopilotResponse(BaseModel):
@@ -66,6 +67,7 @@ class ChatCopilotResponse(BaseModel):
     goal_metrics: dict | None = None
     fallback: bool = Field(default=False, description="True when suggestions come from deterministic engine (provider degraded).")
     source: str | None = Field(default=None, max_length=64)
+    locale: str | None = Field(default=None, max_length=24)
     fallback_reason: str | None = Field(default=None, max_length=64)
 
 
@@ -113,6 +115,7 @@ class TimedRepliesRequest(BaseModel):
     interest_stage: str | None = Field(default=None, max_length=12)
     mutuality_score: int | None = Field(default=None, ge=0, le=100)
     locale: str | None = Field(default="en", max_length=12)
+    ai_locale: str | None = Field(default=None, max_length=24)
     language_hint: str | None = Field(default=None, max_length=96)
     last_message_at: str | None = Field(default=None, max_length=64)
     who_sent_last: str | None = Field(default=None, max_length=8)  # me|them
@@ -361,6 +364,7 @@ class GenerateOpenerSuggestionsRequest(BaseModel):
     city: str = Field(default="", max_length=120)
     tags: list[str] = Field(default_factory=list, max_length=24)
     locale: str | None = Field(default=None, max_length=12)
+    ai_locale: str | None = Field(default=None, max_length=24)
     language_hint: str | None = Field(default=None, max_length=96)
 
 
@@ -373,6 +377,8 @@ class GenerateOpenerSuggestionsResponse(BaseModel):
     items: list[OpenerSuggestionItem] = Field(default_factory=list, min_length=3, max_length=3)
     suggestions: list[str] = Field(default_factory=list, min_length=3, max_length=3)
     recommended_index: int = Field(default=1, ge=0, le=2)
+    locale: str | None = Field(default=None, max_length=24)
+    source: str | None = Field(default=None, max_length=24)
 
 
 class OpenersResponseItem(BaseModel):
@@ -395,6 +401,7 @@ class ImproveReplyRequest(BaseModel):
     allow_edgy_mode: bool = False
     mode: str | None = Field(default=None, max_length=32)
     locale: str | None = Field(default=None, max_length=12)
+    ai_locale: str | None = Field(default=None, max_length=24)
     language_hint: str | None = Field(default=None, max_length=96)
 
 

@@ -11,9 +11,7 @@ test("fallback suggestions keep selected locale copy (EN/ES/PT/ZH)", () => {
   for (const locale of locales) {
     const pack = getChatFallbackPack(locale);
     const joined = [pack.easySuggestion, pack.flirtySuggestion, pack.deepSuggestion].join(" ");
-    if (locale !== "uk" && locale !== "ru") {
-      assert.equal(hasCyrillic(joined), false, `${locale} suggestions unexpectedly contain Cyrillic text`);
-    }
+    assert.equal(hasCyrillic(joined), false, `${locale} suggestions unexpectedly contain Cyrillic text`);
   }
 });
 

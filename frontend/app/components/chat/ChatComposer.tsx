@@ -29,6 +29,8 @@ type ChatComposerProps = {
   onToggleAi?: () => void;
   aiActive?: boolean;
   aiLoading?: boolean;
+  aiSuggestionLocale?: string;
+  onAiSuggestionLocaleChange?: (next: string) => void;
   autoFocus?: boolean;
   /** Increment to focus the textarea (e.g. after AI inserts an opener). */
   focusComposerKey?: number;
@@ -56,6 +58,8 @@ export function ChatComposer({
   onToggleAi,
   aiActive = false,
   aiLoading = false,
+  aiSuggestionLocale = "auto",
+  onAiSuggestionLocaleChange,
   autoFocus = false,
   focusComposerKey = 0,
   draftBurstKey = 0,
@@ -135,6 +139,28 @@ export function ChatComposer({
     return Boolean(navigator.mediaDevices?.getUserMedia) && typeof MediaRecorder !== "undefined";
   }, []);
   const trimmedValue = useMemo(() => (value ?? "").trim(), [value]);
+  const aiLocaleOptions = useMemo(
+    () => [
+      ["auto", t("chat.aiLanguage.auto")],
+      ["en", t("chat.aiLanguage.english")],
+      ["uk", t("chat.aiLanguage.ukrainian")],
+      ["es", t("chat.aiLanguage.spanish")],
+      ["pt", t("chat.aiLanguage.portuguese")],
+      ["fr", t("chat.aiLanguage.french")],
+      ["de", t("chat.aiLanguage.german")],
+      ["it", t("chat.aiLanguage.italian")],
+      ["pl", t("chat.aiLanguage.polish")],
+      ["cs", t("chat.aiLanguage.czech")],
+      ["nl", t("chat.aiLanguage.dutch")],
+      ["tr", t("chat.aiLanguage.turkish")],
+      ["ar", t("chat.aiLanguage.arabic")],
+      ["hi", t("chat.aiLanguage.hindi")],
+      ["zh", t("chat.aiLanguage.chinese")],
+      ["ja", t("chat.aiLanguage.japanese")],
+      ["ko", t("chat.aiLanguage.korean")],
+    ],
+    [t],
+  );
 
   useEffect(() => {
     logAiGate("chat-composer", {
@@ -340,6 +366,25 @@ export function ChatComposer({
           {voiceSendError ? <div className="chat-composer__error">{voiceSendError}</div> : null}
           {voiceDraftError ? <div className="chat-composer__error">{voiceDraftError}</div> : null}
         </div>
+
+        {onToggleAi ? (
+          <label className="chat-composer__ai-locale">
+            <span className="chat-composer__ai-locale-label">{t("chat.aiLanguage.label")}</span>
+            <select
+              className="chat-composer__ai-locale-select"
+              value={aiSuggestionLocale || "auto"}
+              onChange={(event) => onAiSuggestionLocaleChange?.(String(event.target.value || "auto"))}
+              disabled={disabled || sending || isSendingVoice}
+              aria-label={t("chat.aiLanguage.label")}
+            >
+              {aiLocaleOptions.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
 
         {onToggleAi ? (
           <button

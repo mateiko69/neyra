@@ -2354,10 +2354,12 @@ async def _with_timeout(coro, *, timeout_s: float = _AI_PROVIDER_TIMEOUT_S):
 def _resolve_ai_locale_for_request(
     *,
     req_locale: str | None,
+    ai_locale: str | None,
     request: Request | None,
     db: Session,
     current_user: User,
     latest_user_message: str | None = None,
+    prefer_message_locale: bool = False,
 ) -> str:
     profile_locale = ""
     try:
@@ -2377,7 +2379,24 @@ def _resolve_ai_locale_for_request(
             ).strip()
     except Exception:
         transport_locale = ""
+    requested_ai_locale = str(ai_locale or "").strip().lower()
+    if requested_ai_locale and requested_ai_locale != "auto":
+        forced = normalize_chat_ai_locale(requested_ai_locale)
+        logger.info(
+            "ai_locale_decision",
+            extra={"event": "ai_locale_decision", "source": "ai_locale_override", "locale": forced},
+        )
+        return forced
+
     interface_locale = transport_locale or str(req_locale or "").strip()
+    if not prefer_message_locale:
+        decided = normalize_chat_ai_locale(interface_locale or profile_locale or "en")
+        logger.info(
+            "ai_locale_decision",
+            extra={"event": "ai_locale_decision", "source": "interface", "locale": decided},
+        )
+        return decided
+
     decided_locale, source = resolve_ai_locale_decision(
         latest_user_message=latest_user_message,
         interface_locale=interface_locale,
@@ -3100,10 +3119,12 @@ def chat_brain_suggestions(
     partner_last_plain = _last_partner_message_plain(db, me_user_id=int(current_user.id), partner_user_id=pid)
     body.language = _resolve_ai_locale_for_request(
         req_locale=str(raw_ui_lang or "").strip() or None,
+        ai_locale=getattr(body, "ai_locale", None),
         request=request,
         db=db,
         current_user=current_user,
         latest_user_message=partner_last_plain,
+        prefer_message_locale=False,
     )
     lang_hint_in = str(getattr(body, "language_hint", None) or "").strip() or None
     norm_for_log = normalize_chat_ai_locale(getattr(body, "language", None) or "en")
@@ -3598,10 +3619,12 @@ async def opener_suggestions(
         latest_user_message = ""
     req.locale = _resolve_ai_locale_for_request(
         req_locale=raw_ui,
+        ai_locale=getattr(req, "ai_locale", None),
         request=request,
         db=db,
         current_user=current_user,
         latest_user_message=latest_user_message,
+        prefer_message_locale=False,
     )
     log_ai_locale_context(logger, endpoint="opener", ui_locale=raw_ui, ai_locale=req.locale)
     logger.info("AI locale used: %s", req.locale)
@@ -4267,10 +4290,12 @@ async def chat_copilot(
     latest_user_message = next((str(x.get("text") or "").strip() for x in reversed(chat) if str(x.get("role") or "") == "me" and str(x.get("text") or "").strip()), "")
     copilot_locale = _resolve_ai_locale_for_request(
         req_locale=getattr(req, "locale", None),
+        ai_locale=getattr(req, "ai_locale", None),
         request=request,
         db=db,
         current_user=current_user,
         latest_user_message=latest_user_message,
+        prefer_message_locale=False,
     )
     logger.info("AI locale used: %s", copilot_locale)
     _loc_goal_cp = copilot_locale
@@ -5546,10 +5571,12 @@ async def timed_replies(
     )
     loc = _resolve_ai_locale_for_request(
         req_locale=raw_ui,
+        ai_locale=getattr(req, "ai_locale", None),
         request=request,
         db=db,
         current_user=current_user,
         latest_user_message=latest_user_message,
+        prefer_message_locale=False,
     )
     log_ai_locale_context(
         logger,
@@ -6533,10 +6560,12 @@ async def wingman_improve_reply(
     raw_ui = getattr(req, "locale", None)
     req.locale = _resolve_ai_locale_for_request(
         req_locale=raw_ui,
+        ai_locale=getattr(req, "ai_locale", None),
         request=request,
         db=db,
         current_user=current_user,
         latest_user_message=req.draft,
+        prefer_message_locale=False,
     )
     log_ai_locale_context(logger, endpoint="improve-reply", ui_locale=raw_ui, ai_locale=req.locale)
     logger.info("AI locale used: %s", req.locale)

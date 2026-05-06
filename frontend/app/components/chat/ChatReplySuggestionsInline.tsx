@@ -22,6 +22,7 @@ type Props = {
   composerDraft?: string;
   disabled?: boolean;
   aiTier?: AiTier;
+  aiCtx?: AiLanguageToneContext;
   onInsert: (text: string, meta: { style: TimedReplyOption["style"]; index: number }) => void;
 };
 
@@ -32,6 +33,7 @@ export function ChatReplySuggestionsInline({
   composerDraft = "",
   disabled = false,
   aiTier = "premium",
+  aiCtx,
   onInsert,
 }: Props) {
   const { t, locale: uiLocaleTag } = useT("ChatReplySuggestionsInline");
@@ -93,7 +95,7 @@ export function ChatReplySuggestionsInline({
     setOpen(false);
     setWaitingAi(false);
     lastIncomingIdRef.current = "";
-  }, [uiLocaleTag]);
+  }, [aiCtx?.overrideLanguage, uiLocaleTag]);
 
   useEffect(() => {
     lastIncomingIdRef.current = "";
@@ -132,7 +134,7 @@ export function ChatReplySuggestionsInline({
     setOpen(true);
     setWaitingAi(true);
 
-    const aiCtx: AiLanguageToneContext = { uiLocale: uiLocaleTag };
+    const aiRequestCtx: AiLanguageToneContext = { ...(aiCtx ?? {}), uiLocale: uiLocaleTag };
     neyraAiLocaleDevLog("requesting suggestions", { endpoint: "timed-replies", locale: uiLocaleTag, partnerUserId, nudgeType: "now" });
 
     void (async () => {
@@ -156,7 +158,7 @@ export function ChatReplySuggestionsInline({
           nudgeType: "now",
           interestStage: null,
           mutualityScore: null,
-          aiCtx,
+          aiCtx: aiRequestCtx,
           partnerUserId,
         });
         if (isFreeTier && trSource === "fallback_quota") {
@@ -211,7 +213,7 @@ export function ChatReplySuggestionsInline({
         }, delayMs);
       }
     })();
-  }, [ctx, isFreeTier, lastIncoming, lockedPreview, pack, partnerUserId, suggestCap, uiLocaleTag, viewerUserId]);
+  }, [aiCtx, ctx, isFreeTier, lastIncoming, lockedPreview, pack, partnerUserId, suggestCap, uiLocaleTag, viewerUserId]);
 
   useEffect(() => {
     return () => {

@@ -7,18 +7,24 @@ from app.services.app_language import normalize_app_language
 _UK_SPECIFIC_RE = re.compile(r"[іїєґІЇЄҐ]")
 _CYRILLIC_RE = re.compile(r"[\u0400-\u04FF]")
 _LATIN_RE = re.compile(r"[A-Za-z]")
+_CJK_RE = re.compile(r"[\u4E00-\u9FFF]")
+_HIRAGANA_KATAKANA_RE = re.compile(r"[\u3040-\u30FF]")
+_HANGUL_RE = re.compile(r"[\uAC00-\uD7AF]")
+_ARABIC_RE = re.compile(r"[\u0600-\u06FF]")
+_DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
+
+_ES_HINT_RE = re.compile(r"\b(hola|cómo|como\s+estas|gracias|qué|que tal)\b", re.IGNORECASE)
+_PT_HINT_RE = re.compile(r"\b(oi|tudo\s+bem|obrigad[oa]|você|voce|legal)\b", re.IGNORECASE)
+_EN_HINT_RE = re.compile(r"\b(hey|hello|how are you|thanks|what's up|nice)\b", re.IGNORECASE)
 
 
 def normalize_ai_locale_tag(raw: str | None) -> str:
     """Normalize locale tags to AI-supported canonical language keys."""
     loc = normalize_app_language(raw)
-    if loc == "uk":
-        return "uk"
-    if loc == "ru":
-        return "ru"
-    if loc == "en":
-        return "en"
-    return "en"
+    # AI layer uses "zh" for Simplified Chinese; frontend may pass zh-CN.
+    if loc == "zh-CN":
+        return "zh"
+    return loc or "en"
 
 
 def detect_message_locale(message_text: str | None) -> str | None:
@@ -26,6 +32,16 @@ def detect_message_locale(message_text: str | None) -> str | None:
     text = (message_text or "").strip()
     if not text:
         return None
+    if _HIRAGANA_KATAKANA_RE.search(text):
+        return "ja"
+    if _HANGUL_RE.search(text):
+        return "ko"
+    if _CJK_RE.search(text):
+        return "zh"
+    if _ARABIC_RE.search(text):
+        return "ar"
+    if _DEVANAGARI_RE.search(text):
+        return "hi"
     if _UK_SPECIFIC_RE.search(text):
         return "uk"
     cyr = len(_CYRILLIC_RE.findall(text))
@@ -36,6 +52,12 @@ def detect_message_locale(message_text: str | None) -> str | None:
     if cyr >= max(2, lat):
         return "ru"
     if lat >= max(2, cyr):
+        if _ES_HINT_RE.search(text):
+            return "es"
+        if _PT_HINT_RE.search(text):
+            return "pt"
+        if _EN_HINT_RE.search(text):
+            return "en"
         return "en"
     return None
 
