@@ -283,7 +283,7 @@ test.describe("Mobile chat scroll does not freeze after send", () => {
     await input.fill("ok");
     await expect(input).toHaveValue(/ok/);
     const bodyText = await page.locator("body").innerText();
-    expect(bodyText).not.toMatch(/ЋҐ|‰|бЃ|Â�/);
+    expect(bodyText).not.toMatch(/\u2122\u201A|\u0432\u2020\u2019|\uFFFD/);
     await page.screenshot({ path: path.join(artifactDir, "mobile-chat-final-tuned.png"), fullPage: false });
   });
 });

@@ -151,7 +151,7 @@ async function runViewport(name, contextOpts, { discoverToken, sessionToken, cha
     }
   }
 
-  const badTokens = [/discover\.reason\./i, /strong_profile_quality/i, /вЂ/i, /вњ/i, /рџ/i];
+  const badTokens = [/discover\.reason\./i, /strong_profile_quality/i, /\u2122\u201A/, /\u0432\u2020\u2019/, /\uFFFD/];
   async function assertNoBrokenText() {
     const body = (await page.textContent("body")) || "";
     for (const re of badTokens) {
