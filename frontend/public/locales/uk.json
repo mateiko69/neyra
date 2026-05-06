@@ -1448,6 +1448,8 @@
   "profile.section.photos.subtitle": "Add, remove, and choose your main photo.",
   "profile.photos.uploadDisabledDemo": "Завантаження фото тимчасово вимкнене в демо-режимі.",
   "profile.photos.uploadDisabledGeneric": "Завантаження фото тимчасово недоступне. Ви все ще можете переглядати профілі та спілкуватися.",
+  "profile.photos.editDisabledDemoTooltip": "Editing disabled in demo mode",
+  "profile.photos.editDisabledUploadTooltip": "Photo editing is temporarily unavailable",
   "profile.photos.uploadUnavailable": "Завантаження фото зараз недоступне.",
   "profile.photos.uploadUnavailableToast": "Завантаження фото зараз недоступне.",
   "profile.photos.primary": "Основне",

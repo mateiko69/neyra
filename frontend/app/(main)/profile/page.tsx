@@ -678,6 +678,14 @@ export default function ProfilePage() {
                 variant="secondary"
                 onClick={() => setEditing("photos")}
                 disabled={photoUploadDisabled}
+                title={
+                  photoUploadDisabled
+                    ? profile?.is_demo_profile || profile?.demo_only_mode
+                      ? t("profile.photos.editDisabledDemoTooltip")
+                      : t("profile.photos.editDisabledUploadTooltip")
+                    : undefined
+                }
+                className={photoUploadDisabled ? "profile-photo-edit--locked" : undefined}
               >
                 {t("common.edit")}
               </Button>

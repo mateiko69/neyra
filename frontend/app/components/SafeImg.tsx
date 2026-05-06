@@ -7,6 +7,8 @@ import { PRIMARY_IMAGE_PLACEHOLDER, resolveMediaUrl } from "../../lib/media";
 type Props = {
   /** Raw URL from API (relative, absolute, or empty). */
   src?: string | null;
+  /** Second URL tried if primary fails (e.g. bundled demo main.jpg). */
+  fallbackSrc?: string | null;
   alt: string;
   className?: string;
   style?: CSSProperties;
@@ -21,6 +23,7 @@ type LoadMode = "live" | "dead";
 
 export function SafeImg({
   src,
+  fallbackSrc,
   alt,
   className,
   photoTestId,
@@ -32,23 +35,40 @@ export function SafeImg({
   const modeRef = useRef<LoadMode>("live");
   modeRef.current = mode;
 
-  const resolved = useMemo(() => resolveMediaUrl(src?.trim() || ""), [src]);
+  const resolvedPrimary = useMemo(() => resolveMediaUrl(src?.trim() || ""), [src]);
+  const resolvedFallback = useMemo(
+    () => (fallbackSrc?.trim() ? resolveMediaUrl(fallbackSrc.trim()) : ""),
+    [fallbackSrc],
+  );
+
+  const [useFallback, setUseFallback] = useState(false);
 
   useEffect(() => {
     setMode("live");
     modeRef.current = "live";
-  }, [src]);
+    setUseFallback(false);
+  }, [src, fallbackSrc]);
 
   const displaySrc = useMemo(() => {
-    if (mode === "dead" || !resolved) return PRIMARY_IMAGE_PLACEHOLDER;
-    return resolved;
-  }, [mode, resolved]);
+    if (mode === "dead") return PRIMARY_IMAGE_PLACEHOLDER;
+    const primary = resolvedPrimary;
+    const fb = resolvedFallback;
+    const chosen = useFallback && fb ? fb : primary || fb;
+    if (!chosen) return PRIMARY_IMAGE_PLACEHOLDER;
+    return chosen;
+  }, [mode, resolvedPrimary, resolvedFallback, useFallback]);
 
   const onError = useCallback(() => {
     if (modeRef.current === "dead") return;
+    if (!useFallback && resolvedFallback && resolvedPrimary && resolvedFallback !== resolvedPrimary) {
+      setUseFallback(true);
+      modeRef.current = "live";
+      setMode("live");
+      return;
+    }
     setMode("dead");
     modeRef.current = "dead";
-  }, []);
+  }, [resolvedFallback, resolvedPrimary, useFallback]);
 
   return (
     <span className={className} style={{ position: "relative", display: "block", ...style }}>

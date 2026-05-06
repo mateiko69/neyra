@@ -11,10 +11,8 @@ import { useT } from "../../components/i18n/I18nProvider";
 import { VerifiedBadge } from "../../components/trust/VerifiedBadge";
 import { PremiumBadge } from "../../components/trust/PremiumBadge";
 import { Badge, Chip } from "../../components/ui";
-import { DemoProfileImg } from "../../components/DemoProfileImg";
 import { SafeImg } from "../../components/SafeImg";
-import { isBundledDemoMainPhotoPath } from "../../../lib/demoProfiles";
-import { resolveDemoProfilePhoto } from "../../../lib/resolvePhoto";
+import { demoCatalogFallbackMain, resolveDemoProfilePhoto } from "../../../lib/resolvePhoto";
 import { DiscoverInlineOpeners } from "./DiscoverInlineOpeners";
 
 export type DiscoverCardData = {
@@ -90,8 +88,9 @@ function DiscoverProfileCardInner({
   onPass,
   onIgnore,
   onPeek,
-  onMediaFatal,
+  onMediaFatal: _onMediaFatal,
 }: Props) {
+  void _onMediaFatal;
   const { t } = useT("DiscoverProfileCard");
   const photos = useMemo(
     () =>
@@ -277,8 +276,7 @@ function DiscoverProfileCardInner({
   const isPremium = Boolean(card.is_premium);
   const isDemoProfile = Boolean(card.is_demo_profile);
   const demoPersonality = String(card.demo_personality_type || "").trim() || "calm";
-  const useStrictDemoPhoto =
-    demoPremiumShowcase || (isDemoProfile && isBundledDemoMainPhotoPath(String(photos[0] || "")));
+  const demoPhotoFallback = useMemo(() => demoCatalogFallbackMain(card.gender), [card.gender]);
 
   const vrTag = card.variable_reward ?? null;
   const vrDelay = card.variable_reward_delay_ms != null && Number.isFinite(Number(card.variable_reward_delay_ms)) ? Math.max(0, Math.trunc(Number(card.variable_reward_delay_ms))) : 0;
@@ -341,24 +339,14 @@ function DiscoverProfileCardInner({
               {photos.length ? (
                 photos.map((url, index) => (
                   <div key={`${card.user_id}-p-${index}`} className="discover-card__photo-slide">
-                    {useStrictDemoPhoto && index === 0 ? (
-                      <DemoProfileImg
-                        className="discover-card__img"
-                        loading={index === 0 ? "eager" : "lazy"}
-                        src={url}
-                        alt={index === 0 ? name : t("discover.card.photoAlt", { name, index: index + 1 })}
-                        photoTestId={index === 0 ? "discover-photo" : undefined}
-                        onFatalError={onMediaFatal}
-                      />
-                    ) : (
-                      <SafeImg
-                        className="discover-card__img"
-                        loading={index === 0 ? "eager" : "lazy"}
-                        src={url}
-                        alt={index === 0 ? name : t("discover.card.photoAlt", { name, index: index + 1 })}
-                        photoTestId={index === 0 ? "discover-photo" : undefined}
-                      />
-                    )}
+                    <SafeImg
+                      className="discover-card__img"
+                      loading={index === 0 ? "eager" : "lazy"}
+                      src={url}
+                      fallbackSrc={demoPhotoFallback}
+                      alt={index === 0 ? name : t("discover.card.photoAlt", { name, index: index + 1 })}
+                      photoTestId={index === 0 ? "discover-photo" : undefined}
+                    />
                   </div>
                 ))
               ) : (
@@ -367,6 +355,7 @@ function DiscoverProfileCardInner({
                     className="discover-card__img"
                     loading="eager"
                     src={resolveDemoProfilePhoto(card)}
+                    fallbackSrc={demoPhotoFallback}
                     alt={name}
                     photoTestId="discover-photo"
                   />

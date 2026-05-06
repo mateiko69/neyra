@@ -32,6 +32,12 @@ function normalizeGenderFolder(raw: unknown): "men" | "women" {
   return "women";
 }
 
+/** Bundled catalog fallback for Discover / matches when no URL resolves (demo MVP). */
+export function demoCatalogFallbackMain(genderRaw: unknown): string {
+  const folder = normalizeGenderFolder(genderRaw);
+  return DEMO_FALLBACK_BY_GENDER[folder] ?? DEMO_FALLBACK_BY_GENDER.women;
+}
+
 function toSlug(input: string): string {
   return String(input || "")
     .trim()
@@ -127,7 +133,7 @@ function deriveDemoPath(profile: Record<string, unknown>, genderFolder: "men" | 
  * - fallback to empty string
  */
 export function resolveDemoProfilePhoto(profile: unknown): string {
-  if (!profile || typeof profile !== "object") return "";
+  if (!profile || typeof profile !== "object") return DEMO_FALLBACK_BY_GENDER.women;
   const p = profile as Record<string, unknown>;
   const merged = mergePartnerProfileFields(p);
   const isDemo = Boolean(
@@ -160,7 +166,9 @@ export function resolveDemoProfilePhoto(profile: unknown): string {
     return DEMO_FALLBACK_BY_GENDER[genderFolder];
   }
 
-  return resolveMediaUrl(primaryPhotoFromList(allCandidates) || "");
+  const last = resolveMediaUrl(primaryPhotoFromList(allCandidates) || "");
+  if (last) return last;
+  return DEMO_FALLBACK_BY_GENDER[genderFolder];
 }
 
 export function resolvePhoto(profile: unknown): string {

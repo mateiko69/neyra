@@ -1448,6 +1448,8 @@
   "profile.section.photos.subtitle": "添加、删除或设置你的主照片。",
   "profile.photos.uploadDisabledDemo": "Photo upload is temporarily disabled in demo mode.",
   "profile.photos.uploadDisabledGeneric": "Photo upload is temporarily unavailable. You can still browse profiles and chat.",
+  "profile.photos.editDisabledDemoTooltip": "Editing disabled in demo mode",
+  "profile.photos.editDisabledUploadTooltip": "Photo editing is temporarily unavailable",
   "profile.photos.uploadUnavailable": "Photo upload is currently unavailable.",
   "profile.photos.uploadUnavailableToast": "Photo upload is unavailable right now.",
   "profile.photos.primary": "Primary",

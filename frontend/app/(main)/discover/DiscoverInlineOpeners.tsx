@@ -139,7 +139,7 @@ export function DiscoverInlineOpeners({ card }: Props) {
           void load(refreshNonce);
         }}
       >
-        {t("discover.openers.cta")}
+        ✨ {t("discover.ai.whatShouldISay")}
       </button>
 
       {panelOpen ? (
