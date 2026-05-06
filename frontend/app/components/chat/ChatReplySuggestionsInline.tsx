@@ -51,6 +51,9 @@ export function ChatReplySuggestionsInline({
   const lastIncomingIdRef = useRef<string>("");
   const selectAnimTimerRef = useRef<number | null>(null);
   const sourceRef = useRef<"ai" | "fallback">("fallback");
+  const requestSeqRef = useRef(0);
+  const applyOptionsTimerRef = useRef<number | null>(null);
+  const waitingTimerRef = useRef<number | null>(null);
 
   const draftTrim = String(composerDraft ?? "").trim();
   const lockedPreview = useMemo(() => timedReplyFallbackTriplet(pack).slice(0, 3), [pack]);
@@ -77,6 +80,15 @@ export function ChatReplySuggestionsInline({
   }, [messages, viewerUserId]);
 
   useLayoutEffect(() => {
+    requestSeqRef.current += 1;
+    if (applyOptionsTimerRef.current != null) {
+      window.clearTimeout(applyOptionsTimerRef.current);
+      applyOptionsTimerRef.current = null;
+    }
+    if (waitingTimerRef.current != null) {
+      window.clearTimeout(waitingTimerRef.current);
+      waitingTimerRef.current = null;
+    }
     setOptions([]);
     setOpen(false);
     setWaitingAi(false);
@@ -124,6 +136,8 @@ export function ChatReplySuggestionsInline({
     neyraAiLocaleDevLog("requesting suggestions", { endpoint: "timed-replies", locale: uiLocaleTag, partnerUserId, nudgeType: "now" });
 
     void (async () => {
+      const requestSeq = ++requestSeqRef.current;
+      const localeAtStart = uiLocaleTag;
       try {
         const daily = await fetchDailyBoosts();
         if (isFreeTier && daily && (daily.reply_remaining ?? 0) < 1) {
@@ -161,9 +175,12 @@ export function ChatReplySuggestionsInline({
           if (isFreeTier && trSource === "ai") bumpAiUsageMoment(1);
           neyraAiLocaleDevLog("received suggestions", { endpoint: "timed-replies", locale: uiLocaleTag, partnerUserId, nudgeType: "now" });
           const delayMs = 380 + Math.trunc(Math.random() * 520);
-          window.setTimeout(() => {
+          applyOptionsTimerRef.current = window.setTimeout(() => {
+            if (requestSeqRef.current !== requestSeq) return;
+            if (localeAtStart !== uiLocaleTag) return;
             setOptions(timed.slice(0, suggestCap));
             neyraAiLocaleRenderedSuggestions({ locale: uiLocaleTag, source: trSource === "ai" ? "ai" : "fallback" });
+            applyOptionsTimerRef.current = null;
           }, delayMs);
         } else {
           neyraAiLocaleRenderedSuggestions({ locale: uiLocaleTag, source: "fallback" });
@@ -186,7 +203,12 @@ export function ChatReplySuggestionsInline({
         neyraAiLocaleRenderedSuggestions({ locale: uiLocaleTag, source: "fallback" });
       } finally {
         const delayMs = 520 + Math.trunc(Math.random() * 700);
-        window.setTimeout(() => setWaitingAi(false), delayMs);
+        waitingTimerRef.current = window.setTimeout(() => {
+          if (requestSeqRef.current !== requestSeq) return;
+          if (localeAtStart !== uiLocaleTag) return;
+          setWaitingAi(false);
+          waitingTimerRef.current = null;
+        }, delayMs);
       }
     })();
   }, [ctx, isFreeTier, lastIncoming, lockedPreview, pack, partnerUserId, suggestCap, uiLocaleTag, viewerUserId]);
@@ -194,6 +216,8 @@ export function ChatReplySuggestionsInline({
   useEffect(() => {
     return () => {
       if (selectAnimTimerRef.current != null) window.clearTimeout(selectAnimTimerRef.current);
+      if (applyOptionsTimerRef.current != null) window.clearTimeout(applyOptionsTimerRef.current);
+      if (waitingTimerRef.current != null) window.clearTimeout(waitingTimerRef.current);
     };
   }, []);
 

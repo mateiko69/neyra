@@ -15,6 +15,7 @@ import { aiChatContextMessageLimit } from "../../../lib/chat/aiTier";
 import { useT } from "../i18n/I18nProvider";
 import { Button } from "../ui";
 import { neyraChatSuggestionDevLog } from "../../../lib/chat/neyraAiLocaleLog";
+import { getActionLabel } from "../../../lib/ui/actions";
 
 type Props = {
   partnerUserId: number | null;
@@ -143,6 +144,7 @@ export const ChatAiBar = forwardRef<ChatAiBarHandle, Props>(function ChatAiBar({
   const abortRef = useRef<AbortController | null>(null);
   const typingTimerRef = useRef<number | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const requestNonceRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -158,6 +160,8 @@ export const ChatAiBar = forwardRef<ChatAiBarHandle, Props>(function ChatAiBar({
 
   useEffect(() => {
     // Locale switch must not keep suggestions generated for another language.
+    requestNonceRef.current += 1;
+    abortRef.current?.abort();
     setPack({ light: "", flirty: "", deep: "" });
     setOpen(false);
     setTyping(false);
@@ -171,6 +175,7 @@ export const ChatAiBar = forwardRef<ChatAiBarHandle, Props>(function ChatAiBar({
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    const nonce = ++requestNonceRef.current;
     setLoading(true);
     setTyping(true);
     setOpen(true);
@@ -203,6 +208,7 @@ export const ChatAiBar = forwardRef<ChatAiBarHandle, Props>(function ChatAiBar({
       const delayMs = 2000 + Math.trunc(Math.random() * 2000);
       typingTimerRef.current = window.setTimeout(() => {
         typingTimerRef.current = null;
+        if (requestNonceRef.current !== nonce) return;
         setPack(nextPack);
         setTyping(false);
 
@@ -314,7 +320,7 @@ export const ChatAiBar = forwardRef<ChatAiBarHandle, Props>(function ChatAiBar({
             disabled={disabled || loading}
             onClick={() => void requestSuggestions()}
           >
-            {t("chat.aiBar.ask")}
+            {getActionLabel("chat.getSuggestions", uiLocaleTag, t)}
           </Button>
         </div>
         {nonBlockingError ? (
@@ -373,7 +379,7 @@ export const ChatAiBar = forwardRef<ChatAiBarHandle, Props>(function ChatAiBar({
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <Button type="button" variant="secondary" disabled={disabled || loading} onClick={() => void requestSuggestions()}>
-            {t("chat.aiBar.ask")}
+            {getActionLabel("chat.getSuggestions", uiLocaleTag, t)}
           </Button>
           {canRewrite ? (
             <Button type="button" variant="secondary" disabled={rewriteLoading} onClick={() => void runRewrite()}>
@@ -462,7 +468,7 @@ export const ChatAiBar = forwardRef<ChatAiBarHandle, Props>(function ChatAiBar({
             </button>
           )) : (
             <div className="caption" style={{ opacity: 0.8 }}>
-              {t("chat.aiBar.ask")}
+              {getActionLabel("chat.getSuggestions", uiLocaleTag, t)}
             </div>
           )}
           {draftTrim.length > 0 ? (

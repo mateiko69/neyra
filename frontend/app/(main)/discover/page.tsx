@@ -26,6 +26,7 @@ import {
   demoCatalogFallbackMain,
   resolveDemoProfilePhoto,
 } from "../../../lib/resolvePhoto";
+import { getActionLabel } from "../../../lib/ui/actions";
 
 type DiscoverCard = {
   user_id: number;
@@ -421,7 +422,7 @@ export default function DiscoverPage() {
   }, []);
 
   const router = useRouter();
-  const { t } = useT("DiscoverSwipe");
+  const { t, locale } = useT("DiscoverSwipe");
   const { t: tg } = useT("GrowthEngagement");
   const [discoverGate, setDiscoverGate] = useState<"checking" | "guest" | "user">("checking");
   useLayoutEffect(() => {
@@ -1109,7 +1110,8 @@ export default function DiscoverPage() {
                 disabled={swipeInteractionLocked || !topCardValid}
                 onClick={() => void advanceProfile("pass")}
               >
-                ✖ {t("discover.actions.pass")}
+                ✖ {getActionLabel("discover.pass", locale, t)}
+                
               </Button>
               <Button
                 type="button"
@@ -1117,7 +1119,7 @@ export default function DiscoverPage() {
                 disabled={swipeInteractionLocked || !topCardValid}
                 onClick={() => void advanceProfile("like")}
               >
-                ❤️ {t("discover.actions.like")}
+                ❤️ {getActionLabel("discover.like", locale, t)}
               </Button>
             </div>
             <Button
@@ -1127,7 +1129,7 @@ export default function DiscoverPage() {
               disabled={busy || swipeInteractionLocked || !topCardValid}
               onClick={() => void activateBoost()}
             >
-              ⭐ {t("discover.actions.boostProfile")}
+              ⭐ {getActionLabel("discover.boost", locale, t)}
             </Button>
             <Button
               type="button"
@@ -1136,7 +1138,7 @@ export default function DiscoverPage() {
               disabled={undoBusy || !lastSwipeRef.current || swipeInteractionLocked}
               onClick={() => void undoSwipe()}
             >
-              {t("discover.actions.undo")}
+              {getActionLabel("discover.undo", locale, t)}
             </Button>
           </div>
         </div>
@@ -1480,7 +1482,7 @@ export default function DiscoverPage() {
               disabled={undoBusy || !lastSwipeRef.current || swipeInteractionLocked}
               onClick={() => void undoSwipe()}
             >
-              ↩ {t("discover.actions.undo")}
+              ↩ {getActionLabel("discover.undo", locale, t)}
             </Button>
             <Button
               type="button"
@@ -1489,7 +1491,7 @@ export default function DiscoverPage() {
               disabled={busy || swipeInteractionLocked || !topCardValid}
               onClick={() => void activateBoost()}
             >
-              ⭐ {t("discover.actions.boostProfile")}
+              ⭐ {getActionLabel("discover.boost", locale, t)}
             </Button>
           </div>
         </div>

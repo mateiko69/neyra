@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { FORCE_AI_VISIBLE, logAiGate } from "../../../lib/aiDebug";
 import { useT } from "../i18n/I18nProvider";
 import { Button } from "../ui";
+import { getActionLabel } from "../../../lib/ui/actions";
 
 export type VoiceDraft = {
   blob: Blob;
@@ -61,7 +62,7 @@ export function ChatComposer({
   pulseSend = false,
   sendSuccessKey = 0,
 }: ChatComposerProps) {
-  const { t } = useT("ChatComposer");
+  const { t, locale } = useT("ChatComposer");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const lastFocusKeyRef = useRef(0);
   const [draftBurst, setDraftBurst] = useState(false);
@@ -353,7 +354,7 @@ export function ChatComposer({
             <span className="chat-composer__ai-icon" aria-hidden>
               ✨
             </span>
-            <span className="chat-composer__ai-label">{t("chat.composer.ai.label")}</span>
+            <span className="chat-composer__ai-label">{getActionLabel("chat.ai", locale, t)}</span>
           </button>
         ) : null}
 
@@ -392,7 +393,7 @@ export function ChatComposer({
           onClick={() => void handleSendClick()}
           disabled={disabled || sending || isSendingVoice || (!value.trim() && !voiceDraft)}
         >
-          {sending ? t("chat.composer.sending") : t("chat.composer.send")}
+          {sending ? t("chat.composer.sending") : getActionLabel("chat.send", locale, t)}
         </Button>
       </div>
     </div>

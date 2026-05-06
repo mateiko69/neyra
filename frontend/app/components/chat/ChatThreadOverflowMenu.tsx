@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "../i18n/I18nProvider";
+import { getActionLabel } from "../../../lib/ui/actions";
 
 type Props = {
   disabled?: boolean;
@@ -13,7 +14,7 @@ type Props = {
 };
 
 export function ChatThreadOverflowMenu({ disabled, partnerIgnored, canDelete, onDelete, onIgnore, onUnignore }: Props) {
-  const { t } = useT("ChatThreadOverflowMenu");
+  const { t, locale } = useT("ChatThreadOverflowMenu");
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -44,7 +45,7 @@ export function ChatThreadOverflowMenu({ disabled, partnerIgnored, canDelete, on
         className="chat-thread-overflow__trigger"
         aria-expanded={open}
         aria-haspopup="menu"
-        aria-label={t("chat.actions.overflowLabel")}
+        aria-label={getActionLabel("chat.more", locale, t)}
         disabled={disabled}
         onClick={() => setOpen((value) => !value)}
       >
@@ -61,7 +62,7 @@ export function ChatThreadOverflowMenu({ disabled, partnerIgnored, canDelete, on
                 disabled={!canDelete}
                 onClick={() => (close(), void onDelete())}
               >
-                {t("chat.actions.delete")}
+                {getActionLabel("chat.deleteMessage", locale, t)}
               </button>
               <button type="button" className="chat-thread-overflow__item" role="menuitem" onClick={() => (close(), void onUnignore())}>
                 {t("chat.actions.unignore")}
@@ -76,10 +77,10 @@ export function ChatThreadOverflowMenu({ disabled, partnerIgnored, canDelete, on
                 disabled={!canDelete}
                 onClick={() => (close(), void onDelete())}
               >
-                {t("chat.actions.delete")}
+                {getActionLabel("chat.deleteMessage", locale, t)}
               </button>
               <button type="button" className="chat-thread-overflow__item" role="menuitem" onClick={() => (close(), void onIgnore())}>
-                {t("chat.actions.ignore")}
+                {getActionLabel("chat.ignoreProfile", locale, t)}
               </button>
             </>
           )}

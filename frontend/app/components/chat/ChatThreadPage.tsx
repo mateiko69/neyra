@@ -75,6 +75,7 @@ import type { AiOpenerMatchContext } from "../../../lib/chat/api";
 import { canOfferViralSharePrompt, incrementViralSharePromptSessionCount } from "../../../lib/viralShareSession";
 import { isStrongAiForViral, type ViralAiInsertion } from "../../../lib/viralStrongCandidate";
 import { ViralShareInlineBar, trackViralShareClicked } from "./ViralShareInlineBar";
+import { getActionLabel } from "../../../lib/ui/actions";
 
 const COACH_HIDDEN_KEY = "neyra:coach:hidden";
 
@@ -1775,10 +1776,13 @@ export function ChatThreadPage() {
       <div className="chat-toolbar" aria-label={toolbarAria.text}>
         <div className="chat-toolbar__group">
           <Link href="/chat" className="chat-toolbar__link">
-            {renderDebugText(t("chat.thread.allConversations"), { component: "ChatThreadPage", prop: "allConversationsLink" })}
+            {renderDebugText(getActionLabel("chat.allConversations", uiLocaleTag, t), {
+              component: "ChatThreadPage",
+              prop: "allConversationsLink",
+            })}
           </Link>
           <Link href="/matches" className="chat-toolbar__link">
-            {renderDebugText(t("navigation.matches"), { component: "ChatThreadPage", prop: "matchesLink" })}
+            {renderDebugText(getActionLabel("chat.matches", uiLocaleTag, t), { component: "ChatThreadPage", prop: "matchesLink" })}
           </Link>
         </div>
 
@@ -1789,7 +1793,7 @@ export function ChatThreadPage() {
             onClick={() => void c.actions.refresh()}
             disabled={c.loading || c.refreshing}
           >
-            {renderDebugText(c.refreshing ? t("common.refreshing") : t("chat.common.refresh"), {
+            {renderDebugText(c.refreshing ? t("common.refreshing") : getActionLabel("chat.refresh", uiLocaleTag, t), {
               component: "ChatThreadPage",
               prop: "refreshButton",
             })}
@@ -1829,7 +1833,7 @@ export function ChatThreadPage() {
             {!isDemoChat ? (
               <>
                 <button type="button" className="chat-thread-topbar__action" onClick={reportPrompt}>
-                  {renderDebugText(t("common.report"), { component: "ChatThreadPage", prop: "reportButton" })}
+                  {renderDebugText(getActionLabel("chat.report", uiLocaleTag, t), { component: "ChatThreadPage", prop: "reportButton" })}
                 </button>
                 <button
                   type="button"

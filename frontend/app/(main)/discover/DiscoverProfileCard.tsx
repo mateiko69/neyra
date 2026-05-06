@@ -18,6 +18,7 @@ import {
   resolveDemoProfilePhoto,
 } from "../../../lib/resolvePhoto";
 import { DiscoverInlineOpeners } from "./DiscoverInlineOpeners";
+import { getActionLabel } from "../../../lib/ui/actions";
 
 export type DiscoverCardData = {
   user_id: number;
@@ -99,7 +100,7 @@ function DiscoverProfileCardInner({
     onMediaFatal?.();
   }, [card.user_id, onMediaFatal]);
 
-  const { t } = useT("DiscoverProfileCard");
+  const { t, locale } = useT("DiscoverProfileCard");
   const photos = useMemo(
     () =>
       photosFromList(card.photo_urls)
@@ -486,7 +487,7 @@ function DiscoverProfileCardInner({
               }}
               aria-hidden
             >
-              <span>{t("discover.card.like")}</span>
+              <span>{getActionLabel("discover.like", locale, t)}</span>
             </div>
             <div
               className="discover-card__stamp discover-card__stamp--pass"
@@ -496,7 +497,7 @@ function DiscoverProfileCardInner({
               }}
               aria-hidden
             >
-              <span>{t("discover.card.nope")}</span>
+              <span>{getActionLabel("discover.pass", locale, t)}</span>
             </div>
             <div className="discover-card__swipe-hint" aria-hidden>
               {photos.length > 1 ? t("discover.card.hint.photos") : t("discover.card.hint.actions")}
