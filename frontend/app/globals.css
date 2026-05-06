@@ -6871,8 +6871,8 @@ html[data-i18n-debug="true"] {
 }
 
 .discover-mobile-embed-card {
-  max-height: min(70dvh, 640px);
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
   border-radius: 20px;
 }
 
@@ -6935,12 +6935,11 @@ html[data-i18n-debug="true"] {
 }
 
 .discover-embed-card-wrap {
-  -webkit-overflow-scrolling: touch;
-  overflow-y: auto;
-  overflow-x: hidden;
+  -webkit-overflow-scrolling: auto;
+  overflow: visible;
   max-height: 100%;
   min-height: 0;
-  overscroll-behavior: contain;
+  overscroll-behavior: auto;
 }
 
 .discover-card__micro-top-left {
@@ -9353,20 +9352,20 @@ button.profile-chip:not(:disabled) {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     touch-action: pan-y;
-    padding-bottom: calc(190px + env(safe-area-inset-bottom, 0px));
-    scroll-padding-bottom: calc(205px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+    scroll-padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px));
   }
 
   .chat-thread-ai-helpers {
     display: flex;
     flex-direction: column;
     gap: 16px;
-    overflow: hidden;
+    overflow: visible;
   }
 
   .chat-thread-ai-helpers > * {
     position: relative;
-    overflow: hidden;
+    overflow: visible;
     max-width: 100%;
     isolation: isolate;
     z-index: auto;

@@ -121,10 +121,16 @@ test.describe("Mobile chat scroll does not freeze after send", () => {
     const scrollHost = page.getByTestId("chat-messages").first();
     await expect(scrollHost).toBeVisible({ timeout: 25_000 });
     await expect(page.getByTestId("ai-suggestions")).toBeVisible({ timeout: 25_000 });
-    const compactSuggestionOrButton = page
-      .locator('[data-testid="ai-suggestions"] .chat-ai__suggestion, [data-testid="ai-suggestions"] button:has-text("Get suggestions")')
-      .first();
-    await expect(compactSuggestionOrButton).toBeVisible({ timeout: 25_000 });
+    const input = page.getByTestId("chat-composer-input").first();
+    const getSuggestions = page.locator('[data-testid="ai-suggestions"] button').first();
+    await expect(getSuggestions).toBeVisible({ timeout: 25_000 });
+    await getSuggestions.click();
+    const compactSuggestions = page.locator('[data-testid="ai-suggestions"] .chat-ai__suggestion');
+    const suggestionCount = await compactSuggestions.count();
+    if (suggestionCount >= 1) {
+      await compactSuggestions.first().click();
+      await expect(input).not.toHaveValue("", { timeout: 25_000 });
+    }
 
     // Ensure the container is actually scrollable even if the UI didn't render enough history yet.
     await scrollHost.evaluate((el) => {
@@ -173,7 +179,6 @@ test.describe("Mobile chat scroll does not freeze after send", () => {
     expect(mid).toBeGreaterThan(0);
 
     // Send a message.
-    const input = page.getByTestId("chat-composer-input").first();
     await expect(input).toBeVisible();
     await input.fill("scroll test");
     await page.getByTestId("chat-send-button").click();
@@ -195,7 +200,7 @@ test.describe("Mobile chat scroll does not freeze after send", () => {
     await expect(input).toHaveValue(/ok/);
     const bodyText = await page.locator("body").innerText();
     expect(bodyText).not.toMatch(/[ґЂРÂ�]|бЃ/);
-    await page.screenshot({ path: path.join(artifactDir, "mobile-chat-compact.png"), fullPage: false });
+    await page.screenshot({ path: path.join(artifactDir, "mobile-chat-final.png"), fullPage: false });
   });
 });
 

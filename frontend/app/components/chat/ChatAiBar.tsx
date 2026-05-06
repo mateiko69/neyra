@@ -272,14 +272,14 @@ export function ChatAiBar({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          <div style={{ fontWeight: 820 }}>Suggestions</div>
+          <div style={{ fontWeight: 820 }}>{t("chat.aiBar.title")}</div>
           <Button
             type="button"
             variant="secondary"
             disabled={disabled || loading}
             onClick={() => void fetchSuggestions()}
           >
-            Get suggestions
+            {t("chat.aiBar.ask")}
           </Button>
         </div>
         {compactItems.length ? (

@@ -214,6 +214,7 @@ export function ChatThreadPage() {
   const loadErrorText = resolveI18nText(c.loadError, t);
   const sendErrorText = resolveI18nText(c.sendError, t);
   const [aiOpen, setAiOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [sendUiLocked, setSendUiLocked] = useState(false);
   const [planCode, setPlanCode] = useState<string>("");
   const aiTier = resolveAiTier({ isPremium: Boolean(c.viewer?.isPremium), planCode });
@@ -1316,6 +1317,15 @@ export function ChatThreadPage() {
     console.warn("ai panel mounted", { partnerUserId: c.partnerUserId ?? null });
   }, [aiOpen, c.partnerUserId]);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const apply = () => setIsMobile(Boolean(mq.matches));
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+
   // NOTE: Gemini quota is very limited (e.g. 5 RPM / 20 RPD).
   // Do NOT auto-call readiness/coach/recovery/escalation on chat open.
   // These are now only triggered by explicit user actions (UI buttons), to prevent quota exhaustion.
@@ -1948,6 +1958,7 @@ export function ChatThreadPage() {
           </div>
         ) : null}
 
+        {!isMobile ? (
         <RuntimeErrorBoundary label="chat-ai-helpers" fallback={null}>
         <div className="chat-thread-ai-helpers">
         {showFirstMessageSuggestion && c.partnerUserId != null ? (
@@ -2067,7 +2078,9 @@ export function ChatThreadPage() {
         ) : null}
         </div>
         </RuntimeErrorBoundary>
+        ) : null}
 
+        {!isMobile ? (
         <div className="chat-thread-tail">
           {goodConversation ? (
             <div style={{ padding: "0 18px", marginTop: 10, display: "grid", gap: 8 }}>
@@ -2270,6 +2283,7 @@ export function ChatThreadPage() {
             />
           ) : null}
         </div>
+        ) : null}
 
         <div className="chat-composer-stack">
           {sendMicroFeedbackKey > 0 ? (
@@ -2354,7 +2368,6 @@ export function ChatThreadPage() {
               });
             }}
           />
-          <div style={{ height: 180 }} aria-hidden />
         </div>
         <ViralShareModal open={shareModalOpen} onClose={() => setShareModalOpen(false)} />
         <ViralMomentShareModal

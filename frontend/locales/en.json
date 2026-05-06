@@ -874,7 +874,7 @@
   "chat.aiBar.aria": "AI reply suggestions",
   "chat.aiBar.title": "Suggestions",
   "chat.aiBar.loading": "Thinking…",
-  "chat.aiBar.ask": "What should I say?",
+  "chat.aiBar.ask": "Get suggestions",
   "chat.aiBar.rewrite": "Rewrite",
   "chat.aiBar.improvedTitle": "Better versions",
   "chat.aiBar.typeHint": "Tip: clear your draft to see suggestions.",

@@ -965,27 +965,9 @@ export default function DiscoverPage() {
   async function activateBoost() {
     if (busy) return;
     setBusy(true);
-    try {
-      await apiFetch("/growth/boost/activate", {
-        method: "POST",
-        metaReason: "boost-activate",
-        body: JSON.stringify({}),
-      });
-      setToast(t("discover.boost.activeToast"));
-      void trackAnalyticsEvent("boost_activated", { surface: "discover" });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg === "paywall.boost_requires_premium") {
-        void trackAnalyticsEvent("paywall_shown", { surface: "discover_boost", source: "boost_requires_premium" });
-        router.push("/premium?source=discover_boost");
-        setToast(t("monetization.discover.softHint"));
-      } else {
-        void trackAnalyticsEvent("boost_activate_failed", { surface: "discover", error: msg.slice(0, 120) });
-        setToast(t("common.tryAgain"));
-      }
-    } finally {
-      setBusy(false);
-    }
+    void trackAnalyticsEvent("paywall_clicked", { surface: "discover_boost", source: "boost_profile_cta" });
+    router.push("/premium?source=discover_boost");
+    setBusy(false);
   }
 
   async function ignoreCurrentProfile() {
@@ -1456,7 +1438,7 @@ export default function DiscoverPage() {
                   inset: 0,
                   zIndex: exiting ? 12 : 2,
                   borderRadius: 22,
-                  overflow: "auto",
+                  overflow: "visible",
                   touchAction: "manipulation",
                   transform: cardTransform,
                   opacity: cardOpacity,
