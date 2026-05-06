@@ -79,7 +79,12 @@ test.describe("Mobile chat scroll does not freeze after send", () => {
       }
 
       if (path.endsWith("/api/v1/messages") && method === "POST") {
-        const body = (await req.postDataJSON().catch(() => null)) as any;
+        let body: any = null;
+        try {
+          body = req.postDataJSON();
+        } catch {
+          body = null;
+        }
         const content = String(body?.content || "hi").trim();
         const nextId = (serverMessages.at(-1)?.id ?? 0) + 1;
         const createdAt = new Date().toISOString();
@@ -108,9 +113,10 @@ test.describe("Mobile chat scroll does not freeze after send", () => {
 
     // Session token so route guard doesn't bounce.
     await page.addInitScript(() => {
-      localStorage.setItem("neyra:token", "test_token");
-      localStorage.setItem("access_token", "test_token");
-      localStorage.setItem("token", "test_token");
+      localStorage.setItem("neyra:token", "test_token_1234567890");
+      localStorage.setItem("access_token", "test_token_1234567890");
+      localStorage.setItem("token", "test_token_1234567890");
+      localStorage.setItem("neyra:auth_storage_version", "1");
     });
 
     await page.goto(`/chat/${partnerId}`, { waitUntil: "domcontentloaded" });
@@ -118,10 +124,18 @@ test.describe("Mobile chat scroll does not freeze after send", () => {
     await expect(page).toHaveURL(new RegExp(`/chat/${partnerId}`));
     await expect(page.getByTestId("chat-composer-input")).toBeVisible({ timeout: 25_000 });
     await expect(page.getByTestId("chat-send-button")).toBeVisible({ timeout: 25_000 });
+    const profileCard = page.locator(".chat-header").first();
+    await expect(profileCard).toBeVisible({ timeout: 25_000 });
+    const profileCardHeight = await profileCard.evaluate((el) => Math.round(el.getBoundingClientRect().height));
+    expect(profileCardHeight).toBeLessThanOrEqual(140);
+
     const scrollHost = page.getByTestId("chat-messages").first();
     await expect(scrollHost).toBeVisible({ timeout: 25_000 });
     await expect(page.getByTestId("ai-suggestions")).toBeVisible({ timeout: 25_000 });
     const input = page.getByTestId("chat-composer-input").first();
+    const aiComposerButton = page.locator(".chat-composer__ai").first();
+    await expect(aiComposerButton).toBeVisible({ timeout: 25_000 });
+    await aiComposerButton.click();
     const getSuggestions = page.locator('[data-testid="ai-suggestions"] button').first();
     await expect(getSuggestions).toBeVisible({ timeout: 25_000 });
     await getSuggestions.click();
@@ -184,7 +198,7 @@ test.describe("Mobile chat scroll does not freeze after send", () => {
     await page.getByTestId("chat-send-button").click();
 
     // Wait for the new outgoing message to appear.
-    await expect(page.getByText("scroll test")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("chat-messages").getByText("scroll test").first()).toBeVisible({ timeout: 20_000 });
 
     // Scroll down and up again. Bug: scrollTop stops changing after send.
     await scrollHost.evaluate((el) => el.scrollBy({ top: 240, behavior: "auto" }));
@@ -200,7 +214,7 @@ test.describe("Mobile chat scroll does not freeze after send", () => {
     await expect(input).toHaveValue(/ok/);
     const bodyText = await page.locator("body").innerText();
     expect(bodyText).not.toMatch(/[ґЂРÂ�]|бЃ/);
-    await page.screenshot({ path: path.join(artifactDir, "mobile-chat-final.png"), fullPage: false });
+    await page.screenshot({ path: path.join(artifactDir, "mobile-chat-final-tuned.png"), fullPage: false });
   });
 });
 

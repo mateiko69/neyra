@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import type { ChatMessage } from "../../../lib/chat/types";
 import { conversationContext } from "../../../lib/chat/normalize";
 import {
@@ -29,6 +29,10 @@ type Props = {
 };
 
 type VariantPack = Record<ChatBrainVariantKey, string>;
+
+export type ChatAiBarHandle = {
+  triggerFromComposer: () => Promise<void>;
+};
 
 const GENERIC_HELLO = /^(hey+|hi+|hello+)(\s*[!.❤️♥☺:\)]+)?(\s+how\s+are\s+you\??)?\s*$/i;
 
@@ -67,7 +71,7 @@ function modeForThread(input: {
   return "auto";
 }
 
-export function ChatAiBar({
+export const ChatAiBar = forwardRef<ChatAiBarHandle, Props>(function ChatAiBar({
   partnerUserId,
   viewerUserId,
   messages,
@@ -76,7 +80,7 @@ export function ChatAiBar({
   aiCtx,
   aiTier = "free",
   onInsertDraft,
-}: Props) {
+}: Props, ref) {
   const { t, locale: uiLocaleTag } = useT("ChatAiBar");
   const [isMobile, setIsMobile] = useState(false);
   const draftTrim = String(draft || "").trim();
@@ -135,8 +139,10 @@ export function ChatAiBar({
   const [rewriteOpen, setRewriteOpen] = useState(false);
   const [rewriteLoading, setRewriteLoading] = useState(false);
   const [rewriteVariants, setRewriteVariants] = useState<{ label: string; text: string }[]>([]);
+  const [nonBlockingError, setNonBlockingError] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const typingTimerRef = useRef<number | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     return () => {
@@ -150,7 +156,7 @@ export function ChatAiBar({
     setRewriteLoading(false);
   }, [partnerUserId, uiLocaleTag]);
 
-  async function fetchSuggestions() {
+  async function requestSuggestions() {
     if (!partnerUserId || !viewerUserId) return;
     if (disabled) return;
     abortRef.current?.abort();
@@ -159,6 +165,7 @@ export function ChatAiBar({
     setLoading(true);
     setTyping(true);
     setOpen(true);
+    setNonBlockingError("");
     try {
       const res = await postChatBrainSuggestions({
         partnerUserId,
@@ -169,7 +176,10 @@ export function ChatAiBar({
         aiCtx: { ...(aiCtx ?? {}), uiLocale: uiLocaleTag },
         signal: controller.signal,
       });
-      if (!res?.ok) return;
+      if (!res?.ok) {
+        setNonBlockingError(t("common.tryAgain"));
+        return;
+      }
       const nextPack = {
         light: String(res.variants.light || "").trim(),
         flirty: String(res.variants.flirty || "").trim(),
@@ -202,7 +212,7 @@ export function ChatAiBar({
         });
       }, delayMs);
     } catch {
-      // Silent-fail.
+      setNonBlockingError(t("common.tryAgain"));
     } finally {
       setLoading(false);
     }
@@ -258,9 +268,25 @@ export function ChatAiBar({
     [items],
   );
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      triggerFromComposer: async () => {
+        if (compactItems.length > 0) {
+          rootRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+          return;
+        }
+        await requestSuggestions();
+        rootRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      },
+    }),
+    [compactItems.length],
+  );
+
   if (isMobile) {
     return (
       <div
+        ref={rootRef}
         data-testid="ai-suggestions"
         className="chat-ai-bar chat-ai-bar--compact"
         aria-label={t("chat.aiBar.aria")}
@@ -277,11 +303,16 @@ export function ChatAiBar({
             type="button"
             variant="secondary"
             disabled={disabled || loading}
-            onClick={() => void fetchSuggestions()}
+            onClick={() => void requestSuggestions()}
           >
             {t("chat.aiBar.ask")}
           </Button>
         </div>
+        {nonBlockingError ? (
+          <div className="caption" style={{ marginTop: 6, opacity: 0.85 }}>
+            {nonBlockingError}
+          </div>
+        ) : null}
         {compactItems.length ? (
           <div className="chat-ai__suggestions" style={{ marginTop: 8 }}>
             {compactItems.map((it) => (
@@ -306,6 +337,7 @@ export function ChatAiBar({
 
   return (
     <div
+      ref={rootRef}
       data-testid="ai-suggestions"
       className="chat-ai-bar"
       aria-label={t("chat.aiBar.aria")}
@@ -331,7 +363,7 @@ export function ChatAiBar({
           ) : null}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <Button type="button" variant="secondary" disabled={disabled || loading} onClick={() => void fetchSuggestions()}>
+          <Button type="button" variant="secondary" disabled={disabled || loading} onClick={() => void requestSuggestions()}>
             {t("chat.aiBar.ask")}
           </Button>
           {canRewrite ? (
@@ -433,5 +465,5 @@ export function ChatAiBar({
       )}
     </div>
   );
-}
+});
 

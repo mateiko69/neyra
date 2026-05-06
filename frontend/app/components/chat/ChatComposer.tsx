@@ -27,6 +27,7 @@ type ChatComposerProps = {
   onSendVoice?: (draft: VoiceDraft, caption: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   onToggleAi?: () => void;
   aiActive?: boolean;
+  aiLoading?: boolean;
   autoFocus?: boolean;
   /** Increment to focus the textarea (e.g. after AI inserts an opener). */
   focusComposerKey?: number;
@@ -53,6 +54,7 @@ export function ChatComposer({
   onSendVoice,
   onToggleAi,
   aiActive = false,
+  aiLoading = false,
   autoFocus = false,
   focusComposerKey = 0,
   draftBurstKey = 0,
@@ -343,8 +345,9 @@ export function ChatComposer({
             type="button"
             className={["chat-composer__ai", aiActive ? "chat-composer__ai--active" : ""].filter(Boolean).join(" ")}
             onClick={onToggleAi}
-            disabled={disabled || sending || isSendingVoice}
+            disabled={disabled || sending || isSendingVoice || aiLoading}
             aria-label={aiActive ? t("chat.composer.ai.ariaHide") : t("chat.composer.ai.ariaShow")}
+            aria-busy={aiLoading}
           >
             <span className="chat-composer__ai-icon" aria-hidden>
               ✨

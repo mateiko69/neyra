@@ -32,7 +32,7 @@ import { ChatReviveSuggestionsInline } from "./ChatReviveSuggestionsInline";
 import { ChatMomentumDateCoach } from "./ChatMomentumDateCoach";
 import { ViralMomentShareModal } from "../ViralMomentShareModal";
 import { ReviewPromptSheet } from "../ReviewPromptSheet";
-import { ChatAiBar } from "./ChatAiBar";
+import { ChatAiBar, type ChatAiBarHandle } from "./ChatAiBar";
 import {
   bumpAiBrainInsertSessionCount,
   bumpLifetimeSuccessChats,
@@ -216,6 +216,7 @@ export function ChatThreadPage() {
   const [aiOpen, setAiOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [sendUiLocked, setSendUiLocked] = useState(false);
+  const [aiComposerBusy, setAiComposerBusy] = useState(false);
   const [planCode, setPlanCode] = useState<string>("");
   const aiTier = resolveAiTier({ isPremium: Boolean(c.viewer?.isPremium), planCode });
   const [aiChatUsageEpoch, setAiChatUsageEpoch] = useState(0);
@@ -224,6 +225,7 @@ export function ChatThreadPage() {
   const [partnerReplyGlowId, setPartnerReplyGlowId] = useState<string | null>(null);
   const prevThreadMsgCountRef = useRef(0);
   const prevOutboundForMatchRef = useRef(-1);
+  const chatAiBarRef = useRef<ChatAiBarHandle | null>(null);
 
   useEffect(() => {
     if (!c.viewer?.userId) return;
@@ -2291,6 +2293,7 @@ export function ChatThreadPage() {
           ) : null}
           <div style={{ marginBottom: 10 }}>
             <ChatAiBar
+              ref={chatAiBarRef}
               partnerUserId={c.partnerUserId}
               viewerUserId={c.viewer?.userId ?? null}
               messages={c.messages}
@@ -2345,7 +2348,14 @@ export function ChatThreadPage() {
             onSend={() => void handleComposerSend()}
             onSendVoice={(draft, caption) => c.actions.sendVoice(draft, caption)}
             aiActive={aiPanelOpen}
+            aiLoading={aiComposerBusy}
             onToggleAi={() => {
+              if (isMobile) {
+                if (aiComposerBusy) return;
+                setAiComposerBusy(true);
+                void chatAiBarRef.current?.triggerFromComposer().finally(() => setAiComposerBusy(false));
+                return;
+              }
               setAiOpen((v) => {
                 const next = !v;
                 const assistType = (c.draft ?? "").trim() ? "rewrite" : "opener";

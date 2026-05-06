@@ -9352,8 +9352,8 @@ button.profile-chip:not(:disabled) {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     touch-action: pan-y;
-    padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px));
-    scroll-padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px));
+    padding: 14px 14px calc(112px + env(safe-area-inset-bottom, 0px));
+    scroll-padding-bottom: calc(122px + env(safe-area-inset-bottom, 0px));
   }
 
   .chat-thread-ai-helpers {
@@ -9371,15 +9371,74 @@ button.profile-chip:not(:disabled) {
     z-index: auto;
   }
 
+  .chat-header {
+    gap: 10px;
+    padding: 10px 12px;
+    min-height: 0;
+    max-height: 128px;
+    align-items: flex-start;
+  }
+
+  .chat-avatar--header {
+    width: 56px;
+    height: 56px;
+  }
+
+  .chat-header__eyebrow {
+    font-size: 9px;
+    letter-spacing: 0.08em;
+  }
+
+  .chat-header__name {
+    margin-top: 4px;
+    font-size: 1.05rem;
+    line-height: 1.12;
+  }
+
+  .chat-header__subtitle {
+    margin-top: 3px;
+    font-size: 12px;
+    line-height: 1.25;
+  }
+
+  .chat-header__meta > .caption {
+    margin-top: 2px !important;
+    font-size: 10px;
+    line-height: 1.25;
+    opacity: 0.72 !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .chat-header__action {
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    padding-top: 4px;
+  }
+
   .chat-composer-stack {
     position: sticky;
     bottom: 0;
     z-index: 45;
-    margin-top: 8px;
-    padding: 12px 14px calc(10px + env(safe-area-inset-bottom, 0px));
-    overflow: hidden;
+    margin-top: 6px;
+    padding: 10px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+    overflow: visible;
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
+  }
+
+  .chat-composer,
+  .chat-ai-bar,
+  .chat-ai-bar--compact {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+  }
+
+  .chat-ai-bar--compact .chat-ai__suggestions,
+  .chat-ai-bar--compact .chat-ai__suggestion {
+    width: 100%;
   }
 
   .chat-new-messages {
