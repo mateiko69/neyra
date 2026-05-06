@@ -1,7 +1,12 @@
 import { test, expect } from "@playwright/test";
+import fs from "node:fs";
+import path from "node:path";
 
 test.describe("Discover demo photos resolve to frontend assets", () => {
+  const artifactDir = path.join(process.cwd(), "artifacts", "mobile-hotfix");
+
   test("desktop: demo /demo-profiles url does not rewrite to API", async ({ page }) => {
+    fs.mkdirSync(artifactDir, { recursive: true });
     // Mock discover feed with a demo profile that uses bundled assets.
     await page.route("**/api/v1/discover/feed**", async (route) => {
       await route.fulfill({
@@ -38,9 +43,11 @@ test.describe("Discover demo photos resolve to frontend assets", () => {
       expect(src || "").toMatch(/^\/demo-profiles\/women\/demo_001\/main\.jpg/);
       expect(src || "").not.toMatch(/api\.getneyra\.app\/demo-profiles/i);
     }
+    await page.screenshot({ path: path.join(artifactDir, "discover-desktop.png"), fullPage: false });
   });
 
   test("mobile viewport: demo /demo-profiles url does not rewrite to API", async ({ page }) => {
+    fs.mkdirSync(artifactDir, { recursive: true });
     await page.setViewportSize({ width: 390, height: 844 });
 
     await page.route("**/api/v1/discover/feed**", async (route) => {
@@ -77,6 +84,7 @@ test.describe("Discover demo photos resolve to frontend assets", () => {
       expect(src || "").toMatch(/^\/demo-profiles\/men\/demo_001\/main\.jpg/);
       expect(src || "").not.toMatch(/api\.getneyra\.app\/demo-profiles/i);
     }
+    await page.screenshot({ path: path.join(artifactDir, "discover-mobile.png"), fullPage: false });
   });
 });
 

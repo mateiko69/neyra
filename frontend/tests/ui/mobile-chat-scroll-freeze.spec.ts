@@ -1,4 +1,6 @@
 import { test, expect } from "@playwright/test";
+import fs from "node:fs";
+import path from "node:path";
 
 function mkMessages(partnerId: number, viewerId: number, count: number) {
   const out: any[] = [];
@@ -21,6 +23,8 @@ test.describe("Mobile chat scroll does not freeze after send", () => {
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 
   test("scrollTop changes after sending", async ({ page }) => {
+    const artifactDir = path.join(process.cwd(), "artifacts", "mobile-hotfix");
+    fs.mkdirSync(artifactDir, { recursive: true });
     const partnerId = 777;
     const viewerId = 1;
     let serverMessages: any[] = mkMessages(partnerId, viewerId, 140);
@@ -171,6 +175,7 @@ test.describe("Mobile chat scroll does not freeze after send", () => {
     // Composer still editable.
     await input.fill("ok");
     await expect(input).toHaveValue(/ok/);
+    await page.screenshot({ path: path.join(artifactDir, "chat-mobile-scroll.png"), fullPage: false });
   });
 });
 

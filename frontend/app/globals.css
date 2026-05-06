@@ -2295,49 +2295,6 @@ html[data-i18n-debug="true"] {
     flex-direction: column;
   }
 
-  .chat-thread-mobile-scroll {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
-    touch-action: pan-y;
-    padding-bottom: calc(102px + env(safe-area-inset-bottom, 0px));
-    scroll-padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
-  }
-
-  .chat-thread-body,
-  .chat-thread-scroller {
-    height: auto;
-    overflow: visible;
-    min-height: 0;
-    padding-bottom: 0;
-    scroll-padding-bottom: 0;
-  }
-
-  .chat-composer-stack {
-    position: static;
-    bottom: auto;
-    z-index: 1;
-    margin-top: 10px;
-    padding: 12px 14px 8px;
-    max-height: none;
-    overflow: visible;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-
-  .chat-ai-bar {
-    max-height: none;
-    overflow: visible;
-  }
-
-  .chat-brain-panel {
-    max-height: none;
-    overflow: visible;
-  }
-
   .shell-main:has(.chat-page-shell) {
     display: block;
     min-height: 100dvh;
@@ -2599,6 +2556,11 @@ html[data-i18n-debug="true"] {
   isolation: isolate;
 }
 
+.chat-page-shell .chat-thread-module,
+.chat-page-shell .chat-thread-module * {
+  box-sizing: border-box;
+}
+
 /* Thread column order: on small screens the message list sits above the AI/suggestion rail so the scroller keeps height. */
 .chat-thread-module > .chat-thread-topbar {
   order: 0;
@@ -2623,6 +2585,20 @@ html[data-i18n-debug="true"] {
   order: 4;
   flex-shrink: 0;
   min-height: 0;
+}
+
+.chat-thread-ai-helpers {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.chat-thread-ai-helpers > * {
+  position: relative;
+  overflow: hidden;
+  max-width: 100%;
+  isolation: isolate;
+  z-index: auto;
 }
 .chat-thread-module > .chat-thread-tail {
   order: 5;
@@ -3836,6 +3812,10 @@ html[data-i18n-debug="true"] {
   align-items: stretch;
   justify-content: space-between;
   gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: linear-gradient(180deg, rgba(22,26,40,0.96) 0%, rgba(12,14,22,0.98) 100%);
 }
 
 .chat-thread-topbar__actions {
@@ -6622,7 +6602,7 @@ html[data-i18n-debug="true"] {
   top: 52px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 4;
+  z-index: 45;
   font-size: 10px;
   font-weight: 750;
   letter-spacing: 0.16em;
@@ -9310,35 +9290,16 @@ button.profile-chip:not(:disabled) {
     flex-direction: column;
     min-height: 100dvh;
     height: 100dvh;
-    max-height: none;
     overflow: hidden;
   }
 
-  .chat-thread-mobile-scroll {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .chat-module {
-    overflow: hidden;
-  }
-
-  /* Single scroll surface: outer flex column fills height; inner scroller owns overflow */
-  .chat-thread-messages-slot {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow: hidden;
-  }
-
+  .chat-thread-messages-slot,
   .chat-thread-body {
     flex: 1 1 auto;
     min-height: 0;
-    overflow: hidden;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
 
   .chat-thread-scroller {
@@ -9348,50 +9309,41 @@ button.profile-chip:not(:disabled) {
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-    padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px));
-    scroll-padding-bottom: calc(196px + env(safe-area-inset-bottom, 0px));
     touch-action: pan-y;
+    padding-bottom: calc(190px + env(safe-area-inset-bottom, 0px));
+    scroll-padding-bottom: calc(205px + env(safe-area-inset-bottom, 0px));
   }
 
-  .chat-thread-module > .chat-thread-ai-helpers {
-    max-height: none;
-    overflow: visible;
+  .chat-thread-ai-helpers {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow: hidden;
   }
 
-/* Hotfix: keep AI suggestion cards in normal flow; only thread scroller may scroll. */
-.chat-module.chat-thread-module,
-.chat-module.chat-thread-module > .chat-thread-messages-slot,
-.chat-module.chat-thread-module .chat-thread-body,
-.chat-module.chat-thread-module > .chat-thread-ai-helpers,
-.chat-module.chat-thread-module {
-  overflow: visible;
-}
+  .chat-thread-ai-helpers > * {
+    position: relative;
+    overflow: hidden;
+    max-width: 100%;
+    isolation: isolate;
+    z-index: auto;
+  }
 
   .chat-composer-stack {
-    position: static;
-    bottom: auto;
-    z-index: 1;
-    margin-top: 10px;
-    padding: 12px 14px 8px;
-    max-height: none;
-    overflow: visible;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-
-  .chat-ai-bar {
-    display: none;
-  }
-
-  .chat-brain-panel {
-    max-height: none;
-    overflow: visible;
+    position: sticky;
+    bottom: 0;
+    z-index: 45;
+    margin-top: 8px;
+    padding: 12px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+    overflow: hidden;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
   }
 
   .chat-new-messages {
     position: sticky;
-    bottom: calc(110px + env(safe-area-inset-bottom, 0px));
-    z-index: 2;
+    bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+    z-index: auto;
   }
 
   .discover-mobile-card-mvp {

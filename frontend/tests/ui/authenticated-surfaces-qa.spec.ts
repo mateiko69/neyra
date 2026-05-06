@@ -9,6 +9,8 @@
  */
 
 import { devices, test, expect } from "@playwright/test";
+import fs from "node:fs";
+import path from "node:path";
 
 function normalizeApiBase(raw: string): string {
   const s = raw.trim().replace(/\/+$/, "");
@@ -77,16 +79,22 @@ async function smokeAuthenticatedSurfaces(page: import("@playwright/test").Page)
   await expect(page.locator("body")).toBeVisible();
   const hero = page.getByTestId("discover-photo").first();
   if (await hero.count()) await expect(hero).toBeVisible({ timeout: 35_000 });
+  const artifactDir = path.join(process.cwd(), "artifacts", "mobile-hotfix");
+  fs.mkdirSync(artifactDir, { recursive: true });
+  await page.screenshot({ path: path.join(artifactDir, "discover.png"), fullPage: false });
 
   await page.goto("/matches", { waitUntil: "domcontentloaded" });
   await expect(page.locator("body")).toBeVisible();
+  await page.screenshot({ path: path.join(artifactDir, "matches.png"), fullPage: false });
 
   await page.goto("/profile", { waitUntil: "domcontentloaded" });
   await expect(page.locator("body")).toBeVisible();
   await expect(page).toHaveURL(/\/profile/);
+  await page.screenshot({ path: path.join(artifactDir, "profile.png"), fullPage: false });
 
   await page.goto("/chat", { waitUntil: "domcontentloaded" });
   await expect(page.locator("body")).toBeVisible();
+  await page.screenshot({ path: path.join(artifactDir, "chat.png"), fullPage: false });
 }
 
 test.describe("Authenticated surfaces QA", () => {
