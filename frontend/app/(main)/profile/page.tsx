@@ -37,7 +37,6 @@ type ProfileMe = {
   /** Server: false when object storage is not configured (uploads return 503). */
   photo_upload_available?: boolean;
   is_demo_profile?: boolean | null;
-  demo_only_mode?: boolean;
   verified?: boolean | null;
   is_verified?: boolean | null;
   verification_status?: string | null;

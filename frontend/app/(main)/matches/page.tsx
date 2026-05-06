@@ -579,7 +579,6 @@ export default function MatchesPage() {
               const act = activityBadge(match, convo);
               const partnerName = String((match as any)?.partner_display_name ?? "").trim() || t("common.someone");
               const partnerPhoto = resolveMediaUrl(String(resolvePhoto(match) || "").trim());
-              const isDemoPartner = Boolean(match.partner_is_demo_profile);
               const inactiveLabel = opts?.inactive ? t("matches.inactive.label") : "";
               const hasConversation = Boolean(String(convo?.last_message_preview || "").trim());
               const openerPack = openerByPartnerId.get(match.partner_user_id) ?? null;
@@ -604,12 +603,8 @@ export default function MatchesPage() {
                     <SafeImg
                       className="match-row__avatar"
                       src={partnerPhoto}
-                      fallbackSrc={
-                        isDemoPartner ? demoCatalogFallbackMain(match.partner_gender ?? null) : ""
-                      }
-                      extraFallbackSources={
-                        isDemoPartner ? bundledDemoMainFallbackRing(match.partner_gender ?? null) : []
-                      }
+                      fallbackSrc={demoCatalogFallbackMain(match.partner_gender ?? null)}
+                      extraFallbackSources={bundledDemoMainFallbackRing(match.partner_gender ?? null)}
                       alt=""
                       loading="lazy"
                       photoTestId="match-avatar-img"

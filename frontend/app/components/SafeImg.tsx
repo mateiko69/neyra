@@ -23,6 +23,18 @@ type Props = {
 
 type LoadMode = "live" | "dead";
 
+function appendCacheBust(url: string, nonce: number): string {
+  if (nonce <= 0) return url;
+  if (!/^https?:\/\//i.test(url)) return url;
+  try {
+    const u = new URL(url);
+    u.searchParams.set("_neyraRetry", String(nonce));
+    return u.toString();
+  } catch {
+    return `${url}${url.includes("?") ? "&" : "?"}_neyraRetry=${nonce}`;
+  }
+}
+
 function buildResolvedChain(src: unknown, fallbackSrc: unknown, extras: readonly string[] | null | undefined): string[] {
   const out: string[] = [];
   const push = (raw: unknown) => {
@@ -61,41 +73,56 @@ export function SafeImg({
   chainRef.current = chain;
 
   const [attempt, setAttempt] = useState(0);
+  /** One cache-busting reload per chain step for transient CDN / TLS blips. */
+  const [bustNonce, setBustNonce] = useState(0);
 
   useEffect(() => {
     setMode("live");
     modeRef.current = "live";
     setAttempt(0);
+    setBustNonce(0);
   }, [src, fallbackSrc, extrasKey]);
+
+  useEffect(() => {
+    setBustNonce(0);
+  }, [attempt]);
 
   const displaySrc = useMemo(() => {
     if (mode === "dead") return PRIMARY_IMAGE_PLACEHOLDER;
     const chosen =
       chain.length > 0 ? chain[Math.min(attempt, Math.max(0, chain.length - 1))] : "";
     if (!chosen) return PRIMARY_IMAGE_PLACEHOLDER;
-    return chosen;
-  }, [mode, chain, attempt]);
+    return appendCacheBust(chosen, bustNonce);
+  }, [mode, chain, attempt, bustNonce]);
 
   const onError = useCallback(() => {
     if (modeRef.current === "dead") return;
-    setAttempt((prev) => {
-      const len = chainRef.current.length;
-      const next = prev + 1;
-      if (len <= 0) {
-        setMode("dead");
-        modeRef.current = "dead";
-        return prev;
-      }
-      if (next < len) return next;
+    const len = chainRef.current.length;
+    if (len <= 0) {
       setMode("dead");
       modeRef.current = "dead";
-      return prev;
-    });
-  }, []);
+      return;
+    }
+    const idx = Math.min(attempt, Math.max(0, len - 1));
+    const chosen = chainRef.current[idx] || "";
+    if (bustNonce < 1 && /^https?:\/\//i.test(chosen)) {
+      setBustNonce(1);
+      return;
+    }
+    const next = attempt + 1;
+    setBustNonce(0);
+    if (next < len) {
+      setAttempt(next);
+      return;
+    }
+    setMode("dead");
+    modeRef.current = "dead";
+  }, [attempt, bustNonce]);
 
   return (
     <span className={className} style={{ position: "relative", display: "block", ...style }}>
       <img
+        key={`${attempt}:${bustNonce}:${displaySrc}`}
         data-testid={photoTestId}
         src={displaySrc || PRIMARY_IMAGE_PLACEHOLDER}
         alt={alt}

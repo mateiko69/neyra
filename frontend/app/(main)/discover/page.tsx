@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useRouter } from "next/navigation";
 import { ApiThrottleSkipError, RateLimitError, apiFetch, getToken, invalidateApiGetCache } from "../../../lib/api";
 import { fetchDiscoverFeed } from "../../../lib/discoverFeed";
-import { photosFromList, resolveMediaUrl } from "../../../lib/media";
+import { photosFromList, primaryPhotoFromList, resolveMediaUrl } from "../../../lib/media";
 import { preloadDiscoverPhotoUrls } from "../../../lib/demoProfiles";
 import { getAiOpeners, type AiOpenerMatchContext } from "../../../lib/chat/api";
 import { discoverSwipeFeedback } from "../../../lib/discoverSwipeFeedback";
@@ -137,6 +137,14 @@ type DiscoverSwipeExitState = {
   /** True: Like/Pass button path — short nudge+fade (not 120vw fly). */
   simple?: boolean;
 };
+
+/** Prefer stored gallery URLs on narrow/mobile Discover; demo catalog paths only when empty. */
+function discoverCardHeroPhotoUrl(card: DiscoverCard): string {
+  const raw = primaryPhotoFromList(card.photo_urls);
+  const resolved = raw ? resolveMediaUrl(raw) : "";
+  if (resolved) return resolved;
+  return resolveDemoProfilePhoto(card);
+}
 
 function toInterestsList(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 6);
@@ -1054,7 +1062,7 @@ export default function DiscoverPage() {
   }
 
   if (discoverButtonOnly) {
-    const mobilePhotoSrc = topCard ? resolveDemoProfilePhoto(topCard) : "";
+    const mobilePhotoSrc = topCard ? discoverCardHeroPhotoUrl(topCard) : "";
     const mobileName = String(topCard?.display_name || t("discover.card.profileFallback")).trim();
     const mobileAge = topCard?.age != null ? `, ${topCard.age}` : "";
     const mobileCity = String(topCard?.city || "").trim();
@@ -1087,7 +1095,11 @@ export default function DiscoverPage() {
                     photoTestId="discover-photo"
                     className="discover-mobile-mvp-card__photo-safe"
                     src={mobilePhotoSrc}
-                    fallbackSrc={topCard ? demoCatalogFallbackMain(topCard.gender ?? null) : "/demo-profiles/women/demo_001/main.jpg"}
+                    fallbackSrc={
+                      topCard
+                        ? resolveDemoProfilePhoto(topCard) || demoCatalogFallbackMain(topCard.gender ?? null)
+                        : "/demo-profiles/women/demo_001/main.jpg"
+                    }
                     extraFallbackSources={bundledDemoMainFallbackRing(topCard?.gender ?? null)}
                     alt={mobileName}
                     loading="eager"

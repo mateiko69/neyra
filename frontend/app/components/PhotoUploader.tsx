@@ -24,8 +24,32 @@ const MAX_BYTES = 8 * 1024 * 1024;
 /** Broad accept for the native picker; server still validates type and size. */
 const ACCEPT_IMAGES = "image/*";
 
+/** Stable id for label / mobile picker reliability. */
+export const PROFILE_PHOTO_FILE_INPUT_ID = "neyra-profile-photo-input";
+
 /** `auth_redirect` = session invalid; full navigation to /login is in progress. */
 type PhotoUploadResult = { url?: string } | null | "auth_redirect";
+
+function isTransientUploadNetworkError(e: unknown): boolean {
+  if (e instanceof ApiUnauthorizedError) return false;
+  if (e instanceof TypeError) return true;
+  if (e instanceof Error) {
+    return /\b503\b|\b502\b|\b504\b|\b522\b|network|fetch|unreachable|failed to fetch|rate limited/i.test(
+      String(e.message),
+    );
+  }
+  return false;
+}
+
+async function withTransientUploadRetry<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (e) {
+    if (!isTransientUploadNetworkError(e)) throw e;
+    await new Promise((r) => setTimeout(r, 750));
+    return await run();
+  }
+}
 
 async function uploadPhotoWithAuthRetry(file: File): Promise<PhotoUploadResult> {
   const run = () => {
@@ -34,7 +58,7 @@ async function uploadPhotoWithAuthRetry(file: File): Promise<PhotoUploadResult> 
     return apiUpload("/uploads/photo", formData) as Promise<{ url?: string } | null>;
   };
   try {
-    return await run();
+    return await withTransientUploadRetry(() => run());
   } catch (e) {
     if (e instanceof ApiUnauthorizedError) {
       await ensureAuthBootstrapped();
@@ -43,7 +67,7 @@ async function uploadPhotoWithAuthRetry(file: File): Promise<PhotoUploadResult> 
         return "auth_redirect";
       }
       try {
-        return await run();
+        return await withTransientUploadRetry(() => run());
       } catch (e2) {
         if (e2 instanceof ApiUnauthorizedError && typeof window !== "undefined") {
           dispatchAuthExpired();
@@ -63,7 +87,7 @@ async function uploadProfileGalleryPhotoWithAuthRetry(file: File): Promise<unkno
     return apiUpload("/profile/photos", formData, { metaReason: "profile-gallery-upload" }) as Promise<unknown>;
   };
   try {
-    return await run();
+    return await withTransientUploadRetry(() => run());
   } catch (e) {
     if (e instanceof ApiUnauthorizedError) {
       await ensureAuthBootstrapped();
@@ -72,7 +96,7 @@ async function uploadProfileGalleryPhotoWithAuthRetry(file: File): Promise<unkno
         return "auth_redirect";
       }
       try {
-        return await run();
+        return await withTransientUploadRetry(() => run());
       } catch (e2) {
         if (e2 instanceof ApiUnauthorizedError && typeof window !== "undefined") {
           dispatchAuthExpired();
@@ -313,7 +337,37 @@ export function PhotoUploader({
         try {
           let data: PhotoUploadResult | unknown;
           if (useProfileGalleryApi) {
-            data = await uploadProfileGalleryPhotoWithAuthRetry(file);
+            try {
+              data = await uploadProfileGalleryPhotoWithAuthRetry(file);
+            } catch (galleryErr: unknown) {
+              if (galleryErr instanceof ApiUnauthorizedError && typeof window !== "undefined") {
+                dispatchAuthExpired();
+                return;
+              }
+              console.warn("[PhotoUploader] gallery upload failed; falling back to /uploads/photo", galleryErr);
+              const legacyFb = await uploadPhotoWithAuthRetry(file);
+              if (legacyFb === "auth_redirect") {
+                setBusy(false);
+                if (inputRef.current) inputRef.current.value = "";
+                return;
+              }
+              const lf = legacyFb && typeof legacyFb === "object" ? (legacyFb as { url?: string }) : null;
+              const fbUrl = lf?.url?.trim() ?? "";
+              if (!fbUrl) {
+                throw galleryErr instanceof Error ? galleryErr : new Error(String(galleryErr));
+              }
+              try {
+                await refetchGallery();
+              } catch {
+                /* stale ids until next gallery load; legacy already persisted CSV */
+              }
+              setPending((current) => current.filter((item) => item.id !== slot.id));
+              revokeBlob(slot.blobUrl);
+              setSuccessHint(i18nKey("photos.added", { name: file.name }));
+              window.setTimeout(() => setSuccessHint(null), 2800);
+              void persistPrimaryPhotoUrl(fbUrl);
+              continue;
+            }
             if (data === "auth_redirect") {
               setBusy(false);
               if (inputRef.current) inputRef.current.value = "";
@@ -504,9 +558,27 @@ export function PhotoUploader({
 
       {!interactionsLocked ? (
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ display: "inline-block" }}>
-            {/* Off-screen, not display:none - programmatic .click() works reliably across browsers. */}
+          <div style={{ display: "inline-block", position: "relative", touchAction: "manipulation" }}>
+            <label
+              htmlFor={PROFILE_PHOTO_FILE_INPUT_ID}
+              style={{
+                position: "absolute",
+                width: 1,
+                height: 1,
+                padding: 0,
+                margin: -1,
+                overflow: "hidden",
+                clip: "rect(0 0 0 0)",
+                clipPath: "inset(50%)",
+                border: 0,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {t("photos.chooseAria")}
+            </label>
+            {/* Off-screen, not display:none — programmatic .click() + label[for] for mobile picker reliability. */}
             <input
+              id={PROFILE_PHOTO_FILE_INPUT_ID}
               ref={inputRef}
               type="file"
               accept={ACCEPT_IMAGES}
