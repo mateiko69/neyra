@@ -25,7 +25,8 @@ export function clampHookWords(text: string, max: number = DISCOVER_HOOK_MAX_WOR
  * Prefers curated reasons, then bio snippet, interest, city.
  */
 export function buildDiscoverMicroHook(card: MicroSignalsCardInput, surfaceReasons: string[]): string {
-  const tryReasons = [...(card.top_reasons || []).map((s) => String(s)), ...surfaceReasons.map((s) => String(s))];
+  /** Use translated surface reasons only — raw API codes like `strong_profile_quality` must not appear as visible copy. */
+  const tryReasons = [...surfaceReasons.map((s) => String(s))];
   for (const raw of tryReasons) {
     const s = raw.replace(/[""«»]/g, "").trim();
     if (!s) continue;

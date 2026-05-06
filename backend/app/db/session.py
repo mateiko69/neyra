@@ -58,6 +58,11 @@ def _create_engine_with_retry():
 
 
 engine = _create_engine_with_retry()
+try:
+    _du = getattr(engine.url, "drivername", "unknown")
+    _log.info("database_engine dialect=%s driver=%s", getattr(engine.dialect, "name", "unknown"), _du)
+except Exception:
+    pass
 # In test mode with SQLite, create tables automatically so unit tests don't require migrations.
 if settings.DATABASE_URL.startswith("sqlite"):
     try:

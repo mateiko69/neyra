@@ -61,3 +61,8 @@ def get_storage_provider():
             "STORAGE_PROVIDER=s3 but S3_* env incomplete; using local filesystem for development"
         )
     return LocalStorageProvider()
+
+
+def uploads_are_available() -> bool:
+    """False when production object storage is misconfigured (upload endpoints return 503)."""
+    return not isinstance(get_storage_provider(), UnavailableStorageProvider)

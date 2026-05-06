@@ -47,7 +47,11 @@ export function resolveMediaUrl(url: string): string {
     const absPrefix = `${origin}/`;
     if (u.startsWith(absPrefix)) {
       const pathOnly = u.slice(origin.length);
-      if (pathOnly.startsWith("/uploads/") || pathOnly.startsWith("/demo-profiles/")) {
+      /** Bundled demo catalog photos are served from Next `public/demo-profiles` (same origin). */
+      if (pathOnly.startsWith("/demo-profiles/")) {
+        return pathOnly;
+      }
+      if (pathOnly.startsWith("/uploads/")) {
         return `${getBackendPublicUrl().replace(/\/+$/, "")}${pathOnly}`;
       }
     }
@@ -59,6 +63,13 @@ export function resolveMediaUrl(url: string): string {
       const path = `${parsed.pathname}${parsed.search || ""}`;
       const publicBase = getBackendPublicUrl().replace(/\/+$/, "");
       const publicOrigin = new URL(publicBase).origin;
+      /** Demo bundle paths should render from the web origin (Vercel static), not the API host. */
+      if (parsed.pathname.startsWith("/demo-profiles/")) {
+        if (typeof window !== "undefined") {
+          return path;
+        }
+        return `${publicBase}${path}`;
+      }
       const isAppPath = path.startsWith("/uploads/") || path.startsWith("/demo-profiles/");
       if (isAppPath && shouldRewriteMediaHost(parsed.hostname) && parsed.origin !== publicOrigin) {
         return `${publicBase}${path}`;
@@ -75,6 +86,9 @@ export function resolveMediaUrl(url: string): string {
     return `https:${u}`;
   }
   const path = u.startsWith("/") ? u : `/${u}`;
+  if (path.startsWith("/demo-profiles/")) {
+    return path;
+  }
   return `${getBackendPublicUrl()}${path}`;
 }
 

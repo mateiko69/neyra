@@ -6,7 +6,7 @@ import { pickDiscoverReasons } from "../../../lib/aiSurfaceCopy";
 import { buildDiscoverMicroHook, discoverReplySpeedTone } from "../../../lib/discover/microSignals";
 import { genderBucketFromRaw } from "../../../lib/genderLabels";
 import { fetchCompatibilityScoresBatch, type CompatibilityScore } from "../../../lib/compatibility/api";
-import { photosFromList } from "../../../lib/media";
+import { photosFromList, resolveMediaUrl } from "../../../lib/media";
 import { useT } from "../../components/i18n/I18nProvider";
 import { VerifiedBadge } from "../../components/trust/VerifiedBadge";
 import { PremiumBadge } from "../../components/trust/PremiumBadge";
@@ -92,7 +92,13 @@ function DiscoverProfileCardInner({
   onMediaFatal,
 }: Props) {
   const { t } = useT("DiscoverProfileCard");
-  const photos = photosFromList(card.photo_urls);
+  const photos = useMemo(
+    () =>
+      photosFromList(card.photo_urls)
+        .map((raw) => resolveMediaUrl(String(raw || "").trim()))
+        .filter(Boolean),
+    [card.photo_urls],
+  );
   const [photoIdx, setPhotoIdx] = useState(0);
   const [dragX, setDragX] = useState(0);
   const [pointerActive, setPointerActive] = useState(false);

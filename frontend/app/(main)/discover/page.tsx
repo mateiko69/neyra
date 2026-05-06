@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useRouter } from "next/navigation";
 import { ApiThrottleSkipError, RateLimitError, apiFetch, getToken, invalidateApiGetCache } from "../../../lib/api";
 import { fetchDiscoverFeed } from "../../../lib/discoverFeed";
-import { photosFromList } from "../../../lib/media";
+import { photosFromList, resolveMediaUrl } from "../../../lib/media";
 import { preloadDiscoverPhotoUrls } from "../../../lib/demoProfiles";
 import { getAiOpeners, type AiOpenerMatchContext } from "../../../lib/chat/api";
 import { discoverSwipeFeedback } from "../../../lib/discoverSwipeFeedback";
@@ -1048,7 +1048,7 @@ export default function DiscoverPage() {
 
   if (discoverButtonOnly) {
     const mobilePhotos = topCard ? photosFromList(topCard.photo_urls) : [];
-    const mobileMainPhoto = String(mobilePhotos[0] || "").trim();
+    const mobileMainPhoto = String(mobilePhotos[0] ? resolveMediaUrl(String(mobilePhotos[0]).trim()) : "").trim();
     const mobileName = String(topCard?.display_name || t("discover.card.profileFallback")).trim();
     const mobileAge = topCard?.age != null ? `, ${topCard.age}` : "";
     const mobileCity = String(topCard?.city || "").trim();
@@ -1456,7 +1456,35 @@ export default function DiscoverPage() {
         ) : null}
 
         <div className="discover-swipe-actions discover-swipe-actions--desktop">
-          <div className="discover-actions-desktop">
+          <div className="discover-actions-desktop discover-actions-desktop--primary">
+            <Button
+              type="button"
+              variant="secondary"
+              className="discover-action-tap discover-action-tap--pass"
+              disabled={swipeInteractionLocked || !topCardValid}
+              onClick={() => void advanceProfile("pass")}
+            >
+              {t("discover.card.pass")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="discover-action-tap discover-action-tap--ignore"
+              disabled={swipeInteractionLocked || !topCardValid}
+              onClick={() => void ignoreCurrentProfile()}
+            >
+              {t("discover.card.hide")}
+            </Button>
+            <Button
+              type="button"
+              className="discover-action-tap discover-action-tap--like"
+              disabled={swipeInteractionLocked || !topCardValid}
+              onClick={() => void advanceProfile("like")}
+            >
+              {t("discover.card.like")}
+            </Button>
+          </div>
+          <div className="discover-actions-desktop discover-actions-desktop--secondary">
             <Button
               type="button"
               variant="secondary"

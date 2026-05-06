@@ -5688,9 +5688,26 @@ html[data-i18n-debug="true"] {
   width: 100%;
 }
 
+.discover-swipe-actions--desktop .discover-actions-desktop--primary {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.discover-swipe-actions--desktop .discover-actions-desktop--secondary {
+  margin-top: 4px;
+}
+
 .discover-swipe-actions--desktop .discover-actions-desktop .discover-action-tap {
   flex: 1 1 auto;
   min-width: min(140px, 46vw);
+}
+
+.discover-swipe-actions--desktop .discover-actions-desktop--primary .discover-action-tap {
+  min-width: 0;
 }
 
 .discover-swipe-actions--mobile {
@@ -6801,15 +6818,20 @@ html[data-i18n-debug="true"] {
 }
 
 .discover-mobile-mvp-card__photo-wrap {
+  position: relative;
   width: 100%;
   aspect-ratio: 3 / 4;
   background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
 }
 
 .discover-mobile-mvp-card__photo {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center 22%;
   display: block;
 }
 
@@ -9215,28 +9237,32 @@ button.profile-chip:not(:disabled) {
   }
 
   .chat-module.chat-thread-module {
-    display: block;
-    overflow: visible;
-    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: min(100dvh, 900px);
     max-height: none;
+    overflow: hidden;
   }
 
   .chat-thread-mobile-scroll {
-    display: block;
-    overflow: visible;
-    padding-bottom: 0;
-    scroll-padding-bottom: 0;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
   .chat-module {
-    overflow: visible;
+    overflow: hidden;
   }
 
   .chat-thread-body,
   .chat-thread-scroller {
-    height: auto;
-    overflow: visible;
+    flex: 1 1 auto;
     min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     padding-bottom: 0;
     scroll-padding-bottom: 0;
   }

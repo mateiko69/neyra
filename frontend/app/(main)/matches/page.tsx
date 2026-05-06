@@ -15,6 +15,7 @@ import { MATCHES_MARK_SEEN_EVENT, isMatchesNewBadgeDismissedForPartner, pruneDis
 import { consumeNextPageToast } from "../../../lib/nextPageToast";
 import { queueNextPageToast } from "../../../lib/nextPageToast";
 import { PAGE_BOOT_FETCH_DELAY_MS, PAGE_SECONDARY_FETCH_DELAY_MS, schedulePageLoad } from "../../../lib/pageLoad";
+import { resolveMediaUrl } from "../../../lib/media";
 import { resolvePhoto } from "../../../lib/resolvePhoto";
 import { AiDebugPill } from "../../components/AiDebugPill";
 import { EmptyState } from "../../components/EmptyState";
@@ -571,7 +572,7 @@ export default function MatchesPage() {
               const metaBits = [ageLine, city || null].filter(Boolean).join(" · ");
               const act = activityBadge(match, convo);
               const partnerName = String((match as any)?.partner_display_name ?? "").trim() || t("common.someone");
-              const partnerPhoto = String((match as any)?.partner_photo ?? "").trim();
+              const partnerPhoto = resolveMediaUrl(String(resolvePhoto(match) || "").trim());
               const inactiveLabel = opts?.inactive ? t("matches.inactive.label") : "";
               const hasConversation = Boolean(String(convo?.last_message_preview || "").trim());
               const openerPack = openerByPartnerId.get(match.partner_user_id) ?? null;

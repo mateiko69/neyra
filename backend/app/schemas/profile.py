@@ -349,6 +349,8 @@ class ProfileOut(ProfileBase):
     is_premium: bool = False
     premium_until: datetime | None = None
     demo_premium_feed_active: bool = False
+    # When false, photo uploads are unavailable (production without S3/R2).
+    photo_upload_available: bool = True
 
     class Config:
         from_attributes = True

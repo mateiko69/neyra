@@ -21,6 +21,7 @@ from app.services.ai.cache import bump_user_cache_version
 from app.core.config import settings
 from app.services.demo_mode import DEMO_PROFILE_DISCLAIMER, DEMO_PROFILE_LABEL, is_demo_profile, is_demo_premium_feed_enabled
 from app.services.safety import is_blocked
+from app.services.storage.service import uploads_are_available
 from app.services.storage.upload_utils import persist_verification_selfie, read_validate_image
 from app.services.visual_embeddings import (
     VisualEmbedding,
@@ -201,6 +202,7 @@ def _profile_out_normalized(profile: Profile, db: Session, user: User) -> Profil
             "demo_label": DEMO_PROFILE_LABEL if is_demo else None,
             "demo_disclaimer": (getattr(profile, "demo_disclaimer", "") or DEMO_PROFILE_DISCLAIMER) if is_demo else None,
             "demo_premium_feed_active": bool(is_demo_premium_feed_enabled()),
+            "photo_upload_available": uploads_are_available(),
         }
     )
 
