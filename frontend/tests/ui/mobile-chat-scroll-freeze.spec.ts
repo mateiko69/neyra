@@ -23,7 +23,7 @@ test.describe("Mobile chat scroll does not freeze after send", () => {
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 
   test("scrollTop changes after sending", async ({ page }) => {
-    const artifactDir = path.join(process.cwd(), "artifacts", "mobile-hotfix");
+    const artifactDir = path.join(process.cwd(), "artifacts", "qa-mvp");
     fs.mkdirSync(artifactDir, { recursive: true });
     const partnerId = 777;
     const viewerId = 1;
@@ -117,8 +117,14 @@ test.describe("Mobile chat scroll does not freeze after send", () => {
     // Ensure we didn't get redirected away from the thread.
     await expect(page).toHaveURL(new RegExp(`/chat/${partnerId}`));
     await expect(page.getByTestId("chat-composer-input")).toBeVisible({ timeout: 25_000 });
+    await expect(page.getByTestId("chat-send-button")).toBeVisible({ timeout: 25_000 });
     const scrollHost = page.getByTestId("chat-messages").first();
     await expect(scrollHost).toBeVisible({ timeout: 25_000 });
+    await expect(page.getByTestId("ai-suggestions")).toBeVisible({ timeout: 25_000 });
+    const compactSuggestionOrButton = page
+      .locator('[data-testid="ai-suggestions"] .chat-ai__suggestion, [data-testid="ai-suggestions"] button:has-text("Get suggestions")')
+      .first();
+    await expect(compactSuggestionOrButton).toBeVisible({ timeout: 25_000 });
 
     // Ensure the container is actually scrollable even if the UI didn't render enough history yet.
     await scrollHost.evaluate((el) => {
@@ -145,6 +151,18 @@ test.describe("Mobile chat scroll does not freeze after send", () => {
     });
     expect(initial.overflowY).toMatch(/auto|scroll/);
     expect(initial.maxScroll).toBeGreaterThan(80);
+
+    const nestedScrollableCount = await page.locator("[data-testid='chat-messages'] *").evaluateAll((nodes) => {
+      let count = 0;
+      for (const node of nodes) {
+        const el = node as HTMLElement;
+        const cs = window.getComputedStyle(el);
+        const canScroll = /(auto|scroll)/.test(cs.overflowY) && el.scrollHeight > el.clientHeight + 2;
+        if (canScroll) count += 1;
+      }
+      return count;
+    });
+    expect(nestedScrollableCount).toBe(0);
 
     // Move into the middle so we can verify up/down changes.
     await scrollHost.evaluate((el) => {
@@ -175,7 +193,9 @@ test.describe("Mobile chat scroll does not freeze after send", () => {
     // Composer still editable.
     await input.fill("ok");
     await expect(input).toHaveValue(/ok/);
-    await page.screenshot({ path: path.join(artifactDir, "chat-mobile-scroll.png"), fullPage: false });
+    const bodyText = await page.locator("body").innerText();
+    expect(bodyText).not.toMatch(/[ґЂРÂ�]|бЃ/);
+    await page.screenshot({ path: path.join(artifactDir, "mobile-chat-compact.png"), fullPage: false });
   });
 });
 

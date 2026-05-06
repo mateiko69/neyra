@@ -78,7 +78,17 @@ export function ChatAiBar({
   onInsertDraft,
 }: Props) {
   const { t, locale: uiLocaleTag } = useT("ChatAiBar");
+  const [isMobile, setIsMobile] = useState(false);
   const draftTrim = String(draft || "").trim();
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const apply = () => setIsMobile(Boolean(mq.matches));
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
 
   const lastIncoming = useMemo(() => {
     if (!partnerUserId) return null;
@@ -242,6 +252,57 @@ export function ChatAiBar({
     ];
     return v;
   }, [pack.deep, pack.flirty, pack.light, t]);
+
+  const compactItems = useMemo(
+    () => items.slice(0, 3).filter((it) => String(it.text || "").trim() && !isTooGeneric(it.text)),
+    [items],
+  );
+
+  if (isMobile) {
+    return (
+      <div
+        data-testid="ai-suggestions"
+        className="chat-ai-bar chat-ai-bar--compact"
+        aria-label={t("chat.aiBar.aria")}
+        style={{
+          padding: "8px 10px",
+          borderRadius: 12,
+          border: "1px solid rgba(255,255,255,0.10)",
+          background: "rgba(255,255,255,0.05)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <div style={{ fontWeight: 820 }}>Suggestions</div>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={disabled || loading}
+            onClick={() => void fetchSuggestions()}
+          >
+            Get suggestions
+          </Button>
+        </div>
+        {compactItems.length ? (
+          <div className="chat-ai__suggestions" style={{ marginTop: 8 }}>
+            {compactItems.map((it) => (
+              <button
+                key={`compact-${it.key}`}
+                type="button"
+                className="chat-ai__suggestion"
+                disabled={disabled}
+                onClick={() => onInsertDraft(String(it.text || "").trim())}
+              >
+                <div className="caption" style={{ opacity: 0.8 }}>
+                  {it.label}
+                </div>
+                <div className="chat-ai__suggestion-text chat-ai__suggestion-text--compact">{it.text}</div>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div

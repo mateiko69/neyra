@@ -5271,6 +5271,12 @@ html[data-i18n-debug="true"] {
   white-space: pre-wrap;
   word-break: break-word;
 }
+.chat-ai__suggestion-text--compact {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
 .chat-ai__empty {
   padding: 8px 4px 4px;
 }
@@ -5344,6 +5350,43 @@ html[data-i18n-debug="true"] {
   .chat-ready {
     margin: 0 14px;
     margin-top: 10px;
+  }
+}
+
+@media (max-width: 1023px) {
+  .chat-page-shell .chat-thread-scroller {
+    padding-bottom: calc(170px + env(safe-area-inset-bottom, 0px));
+    scroll-padding-bottom: calc(182px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .chat-page-shell .chat-ai-bar,
+  .chat-page-shell .chat-ai-replies,
+  .chat-page-shell .chat-ai-inline,
+  .chat-page-shell .chat-brain-panel {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .chat-page-shell .chat-ai-replies__row,
+  .chat-page-shell .chat-ai-inline__results,
+  .chat-page-shell .chat-ai-inline__suggestions {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .chat-page-shell .chat-ai-bar--compact .chat-ai__suggestions {
+    display: grid;
+    gap: 8px;
+    overflow: visible;
+  }
+
+  .chat-page-shell .chat-ai-bar--compact .chat-ai__suggestion {
+    position: relative;
+    overflow: hidden;
+    max-width: 100%;
+    isolation: isolate;
+    z-index: auto;
+    padding: 10px 11px;
   }
 }
 
