@@ -1906,34 +1906,32 @@ export function ChatThreadPage() {
         ) : null}
 
         <div className="chat-thread-messages-slot">
-        <ChatMessageList
-          key={c.partnerUserId}
-          showLoadingSkeleton={c.showMessageSkeleton}
-          showPartnerTyping={c.partnerTyping}
-          partnerTypingAriaLabel={
-            isDemoChat
-              ? t("chat.list.partnerTyping", { name: t("demo.profile.disclaimer_short") })
-              : undefined
-          }
-          messages={c.messages}
-          reactionPendingByMessageId={c.reactionPendingByMessageId}
-          currentUserId={c.viewer?.userId ?? null}
-          partnerUserId={c.partnerUserId}
-          partnerName={c.displayNameForThread || t("chat.thread.matchFallback")}
-          partnerAvatarUrl={c.partnerAvatarUrl}
-          myName={c.myName}
-          myAvatarUrl={c.myAvatarUrl}
-          emptyState={threadLoadErrorEmptyState}
-          onRetryMessage={(tempId) => void c.actions.retrySend(tempId)}
-          onRetryVoiceMessage={(tempId) => void c.actions.retryVoice(tempId)}
-          onReplyMessage={(message) => c.setReplyTo(message)}
-          onReactMessage={(id, emoji) => void c.actions.react(id, emoji)}
-          inlineUnderLastPartnerMessage={inlineReplySuggestionsUnderLastMessage}
-          hasMoreOlder={c.threadHasMore}
-          olderLoading={c.olderLoading}
-          onLoadOlder={() => void c.actions.loadOlderMessages()}
-          partnerReplyGlowId={partnerReplyGlowId}
-        />
+          <ChatMessageList
+            key={c.partnerUserId}
+            showLoadingSkeleton={c.showMessageSkeleton}
+            showPartnerTyping={c.partnerTyping}
+            partnerTypingAriaLabel={
+              isDemoChat ? t("chat.list.partnerTyping", { name: t("demo.profile.disclaimer_short") }) : undefined
+            }
+            messages={c.messages}
+            reactionPendingByMessageId={c.reactionPendingByMessageId}
+            currentUserId={c.viewer?.userId ?? null}
+            partnerUserId={c.partnerUserId}
+            partnerName={c.displayNameForThread || t("chat.thread.matchFallback")}
+            partnerAvatarUrl={c.partnerAvatarUrl}
+            myName={c.myName}
+            myAvatarUrl={c.myAvatarUrl}
+            emptyState={threadLoadErrorEmptyState}
+            onRetryMessage={(tempId) => void c.actions.retrySend(tempId)}
+            onRetryVoiceMessage={(tempId) => void c.actions.retryVoice(tempId)}
+            onReplyMessage={(message) => c.setReplyTo(message)}
+            onReactMessage={(id, emoji) => void c.actions.react(id, emoji)}
+            inlineUnderLastPartnerMessage={inlineReplySuggestionsUnderLastMessage}
+            hasMoreOlder={c.threadHasMore}
+            olderLoading={c.olderLoading}
+            onLoadOlder={() => void c.actions.loadOlderMessages()}
+            partnerReplyGlowId={partnerReplyGlowId}
+          />
         </div>
 
         {c.openerDrafting ? (
@@ -2061,64 +2059,64 @@ export function ChatThreadPage() {
         </div>
 
         <div className="chat-thread-tail">
-        {goodConversation ? (
-          <div style={{ padding: "0 18px", marginTop: 10, display: "grid", gap: 8 }}>
-            <Chip>🔥 {t("chat.thread.goodConversation")}</Chip>
-            {aiTier === "free" ? (
-              <div className="caption" style={{ opacity: 0.78, lineHeight: 1.4, maxWidth: "48ch" }}>
-                {t("chat.thread.momentumHint")}{" "}
-                <Link
-                  className="chat-ai-inline__upgrade"
-                  href="/premium?source=chat_momentum_hint"
-                  onClick={() =>
-                    void trackAnalyticsEvent("paywall_clicked", { source: "momentum", surface: "chat_momentum_hint" })
-                  }
-                >
-                  {t("chat.ai.limit.ctaUpgrade")}
-                </Link>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+          {goodConversation ? (
+            <div style={{ padding: "0 18px", marginTop: 10, display: "grid", gap: 8 }}>
+              <Chip>🔥 {t("chat.thread.goodConversation")}</Chip>
+              {aiTier === "free" ? (
+                <div className="caption" style={{ opacity: 0.78, lineHeight: 1.4, maxWidth: "48ch" }}>
+                  {t("chat.thread.momentumHint")}{" "}
+                  <Link
+                    className="chat-ai-inline__upgrade"
+                    href="/premium?source=chat_momentum_hint"
+                    onClick={() =>
+                      void trackAnalyticsEvent("paywall_clicked", { source: "momentum", surface: "chat_momentum_hint" })
+                    }
+                  >
+                    {t("chat.ai.limit.ctaUpgrade")}
+                  </Link>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
-        {aiOpen && c.partnerUserId != null ? (
-          <ChatAiBrainPanel
-            ref={chatBrainPanelRef}
-            key={c.partnerUserId ?? 0}
-            partnerUserId={c.partnerUserId ?? null}
-            viewerUserId={c.viewer?.userId ?? null}
-            messages={c.messages}
-            disabled={!c.canCompose || Boolean(c.blockedThread)}
-            composerAiOpen={aiOpen}
-            threadIsEmpty={c.messages.length === 0}
-            blockedTexts={(c.messages || []).map((m) => String((m as any)?.content || "").trim()).filter(Boolean)}
-            aiCtx={aiCtx}
-            aiTier={aiTier}
-            freeAiChatSuggestionsLeft={freeAiChatSuggestionsLeft}
-            onFreeAiChatConsumed={() => setAiChatUsageEpoch((n) => n + 1)}
-            onInsertComposer={(text, meta) => {
-              markReviewSessionRealAiUsed();
-              setAiLastInserted({
-                kind: "chat_brain",
-                text,
-                brain_mode: meta.brain_mode as ChatBrainMode,
-                variant: meta.variant,
-                was_recommended: meta.was_recommended,
-                conversation_stage: meta.conversation_stage ?? null,
-                conversation_mode: meta.conversation_mode ?? null,
-              });
-              c.setDraft(text);
-              trackDemoAiSuggestionUsed("chat_brain");
-              if (c.messages.length === 0) bumpAiBrainInsertSessionCount();
-              scheduleReviewPromptCheck({ trigger: "brain_insert", firstMessageJustSent: false });
-              setOpenerQuickBarOpen(true);
-              setComposerFocusKey((k) => k + 1);
-              setComposerDraftBurstKey((k) => k + 1);
-              setComposerSendPulse(true);
-              window.setTimeout(() => setComposerSendPulse(false), 1200);
-            }}
-          />
-        ) : null}
+          {aiOpen && c.partnerUserId != null ? (
+            <ChatAiBrainPanel
+              ref={chatBrainPanelRef}
+              key={c.partnerUserId ?? 0}
+              partnerUserId={c.partnerUserId ?? null}
+              viewerUserId={c.viewer?.userId ?? null}
+              messages={c.messages}
+              disabled={!c.canCompose || Boolean(c.blockedThread)}
+              composerAiOpen={aiOpen}
+              threadIsEmpty={c.messages.length === 0}
+              blockedTexts={(c.messages || []).map((m) => String((m as any)?.content || "").trim()).filter(Boolean)}
+              aiCtx={aiCtx}
+              aiTier={aiTier}
+              freeAiChatSuggestionsLeft={freeAiChatSuggestionsLeft}
+              onFreeAiChatConsumed={() => setAiChatUsageEpoch((n) => n + 1)}
+              onInsertComposer={(text, meta) => {
+                markReviewSessionRealAiUsed();
+                setAiLastInserted({
+                  kind: "chat_brain",
+                  text,
+                  brain_mode: meta.brain_mode as ChatBrainMode,
+                  variant: meta.variant,
+                  was_recommended: meta.was_recommended,
+                  conversation_stage: meta.conversation_stage ?? null,
+                  conversation_mode: meta.conversation_mode ?? null,
+                });
+                c.setDraft(text);
+                trackDemoAiSuggestionUsed("chat_brain");
+                if (c.messages.length === 0) bumpAiBrainInsertSessionCount();
+                scheduleReviewPromptCheck({ trigger: "brain_insert", firstMessageJustSent: false });
+                setOpenerQuickBarOpen(true);
+                setComposerFocusKey((k) => k + 1);
+                setComposerDraftBurstKey((k) => k + 1);
+                setComposerSendPulse(true);
+                window.setTimeout(() => setComposerSendPulse(false), 1200);
+              }}
+            />
+          ) : null}
 
         {showCoach ? (
           <ChatCoachBar
@@ -2250,15 +2248,15 @@ export function ChatThreadPage() {
 
         {null}
 
-        {viralSharePrompt && !viralShareOpen ? (
-          <ViralShareInlineBar
-            onShare={() => {
-              trackViralShareClicked("chat_after_ai_send");
-              setViralShareOpen(true);
-            }}
-            onDismiss={() => setViralSharePrompt(null)}
-          />
-        ) : null}
+          {viralSharePrompt && !viralShareOpen ? (
+            <ViralShareInlineBar
+              onShare={() => {
+                trackViralShareClicked("chat_after_ai_send");
+                setViralShareOpen(true);
+              }}
+              onDismiss={() => setViralSharePrompt(null)}
+            />
+          ) : null}
         </div>
 
         <div className="chat-composer-stack">

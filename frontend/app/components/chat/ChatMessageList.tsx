@@ -96,8 +96,6 @@ function isNearBottom(element: HTMLDivElement): boolean {
 
 function resolveScrollHost(scroller: HTMLDivElement | null): HTMLDivElement | null {
   if (!scroller) return null;
-  const mobileHost = scroller.closest(".chat-thread-mobile-scroll");
-  if (mobileHost instanceof HTMLDivElement) return mobileHost;
   return scroller;
 }
 
@@ -519,10 +517,9 @@ export function ChatMessageList({
 
   return (
     <div
-      data-testid="chat-messages"
       className={["chat-thread-body", compactEmpty ? "chat-thread-body--empty-compact" : ""].filter(Boolean).join(" ")}
     >
-      <div ref={scrollerRef} className="chat-thread-scroller" aria-label={historyAria.text}>
+      <div ref={scrollerRef} data-testid="chat-messages" className="chat-thread-scroller" aria-label={historyAria.text}>
         {showLoadingSkeleton ? (
           <div className="chat-thread-skeleton" aria-busy>
             {[0, 1, 2, 3, 4].map((index) => (

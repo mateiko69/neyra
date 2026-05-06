@@ -2302,6 +2302,7 @@ html[data-i18n-debug="true"] {
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
+    touch-action: pan-y;
     padding-bottom: calc(102px + env(safe-area-inset-bottom, 0px));
     scroll-padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
   }
@@ -9340,6 +9341,7 @@ button.profile-chip:not(:disabled) {
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
+    touch-action: pan-y;
     padding-bottom: 0;
     scroll-padding-bottom: 0;
   }
