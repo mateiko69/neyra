@@ -110,6 +110,7 @@ def test_likes_respond_like_creates_match_and_lists():
         assert isinstance(arr, list) and len(arr) == 1
         assert arr[0].get("partner_user_id") == int(a.id)
         assert arr[0].get("conversation_id") == int(a.id)
+        assert "partner_photo" in arr[0]
         assert arr[0].get("last_message_preview") is None or isinstance(arr[0].get("last_message_preview"), str)
 
         badges = c_b.get("/api/v1/nav/badges")

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useRouter } from "next/navigation";
 import { ApiThrottleSkipError, RateLimitError, apiFetch, getToken, invalidateApiGetCache } from "../../../lib/api";
 import { fetchDiscoverFeed } from "../../../lib/discoverFeed";
-import { photosFromList, resolveMediaUrl } from "../../../lib/media";
+import { PRIMARY_IMAGE_PLACEHOLDER, photosFromList, resolveMediaUrl } from "../../../lib/media";
 import { preloadDiscoverPhotoUrls } from "../../../lib/demoProfiles";
 import { getAiOpeners, type AiOpenerMatchContext } from "../../../lib/chat/api";
 import { discoverSwipeFeedback } from "../../../lib/discoverSwipeFeedback";
@@ -1050,7 +1050,8 @@ export default function DiscoverPage() {
   }
 
   if (discoverButtonOnly) {
-    const mobileMainPhoto = topCard ? resolveDemoProfilePhoto(topCard) : "";
+    const mobilePhotoSrc =
+      topCard ? resolveDemoProfilePhoto(topCard).trim() || PRIMARY_IMAGE_PLACEHOLDER : PRIMARY_IMAGE_PLACEHOLDER;
     const mobileName = String(topCard?.display_name || t("discover.card.profileFallback")).trim();
     const mobileAge = topCard?.age != null ? `, ${topCard.age}` : "";
     const mobileCity = String(topCard?.city || "").trim();
@@ -1079,17 +1080,13 @@ export default function DiscoverPage() {
             <div className="discover-mobile-embed-card">
               <article className="surface discover-mobile-mvp-card">
                 <div className="discover-mobile-mvp-card__photo-wrap">
-                  {mobileMainPhoto ? (
-                    <img
-                      data-testid="discover-photo"
-                      className="discover-mobile-mvp-card__photo"
-                      src={mobileMainPhoto}
-                      alt={mobileName}
-                      loading="eager"
-                    />
-                  ) : (
-                    <div className="discover-mobile-mvp-card__photo-fallback" />
-                  )}
+                  <img
+                    data-testid="discover-photo"
+                    className="discover-mobile-mvp-card__photo"
+                    src={mobilePhotoSrc}
+                    alt={mobileName}
+                    loading="eager"
+                  />
                 </div>
                 <div className="discover-mobile-mvp-card__meta">
                   <div className="discover-mobile-mvp-card__name">

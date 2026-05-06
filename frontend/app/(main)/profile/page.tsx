@@ -672,7 +672,13 @@ export default function ProfilePage() {
                 </Button>
               </div>
             ) : (
-              <Button variant="secondary" onClick={() => setEditing("photos")} disabled={photoUploadDisabled}>
+              <Button
+                type="button"
+                data-testid="profile-photo-edit"
+                variant="secondary"
+                onClick={() => setEditing("photos")}
+                disabled={photoUploadDisabled}
+              >
                 {t("common.edit")}
               </Button>
             )}

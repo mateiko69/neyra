@@ -14,6 +14,7 @@ import { Badge, Chip } from "../../components/ui";
 import { DemoProfileImg } from "../../components/DemoProfileImg";
 import { SafeImg } from "../../components/SafeImg";
 import { isBundledDemoMainPhotoPath } from "../../../lib/demoProfiles";
+import { resolveDemoProfilePhoto } from "../../../lib/resolvePhoto";
 import { DiscoverInlineOpeners } from "./DiscoverInlineOpeners";
 
 export type DiscoverCardData = {
@@ -279,11 +280,6 @@ function DiscoverProfileCardInner({
   const useStrictDemoPhoto =
     demoPremiumShowcase || (isDemoProfile && isBundledDemoMainPhotoPath(String(photos[0] || "")));
 
-  useEffect(() => {
-    if (demoPremiumShowcase && isDemoProfile && (!photos.length || !String(photos[0] || "").trim())) {
-      onMediaFatal?.();
-    }
-  }, [demoPremiumShowcase, isDemoProfile, photos.length, photos, onMediaFatal]);
   const vrTag = card.variable_reward ?? null;
   const vrDelay = card.variable_reward_delay_ms != null && Number.isFinite(Number(card.variable_reward_delay_ms)) ? Math.max(0, Math.trunc(Number(card.variable_reward_delay_ms))) : 0;
   const [showVariableReward, setShowVariableReward] = useState(false);
@@ -365,9 +361,29 @@ function DiscoverProfileCardInner({
                     )}
                   </div>
                 ))
-              ) : demoPremiumShowcase && isDemoProfile ? null : (
+              ) : (
                 <div className="discover-card__photo-slide">
-                  <SafeImg className="discover-card__img" src="" alt={name} photoTestId="discover-photo" />
+                  {(() => {
+                    const fallbackSrc = resolveDemoProfilePhoto(card);
+                    return useStrictDemoPhoto && isDemoProfile ? (
+                      <DemoProfileImg
+                        className="discover-card__img"
+                        loading="eager"
+                        src={fallbackSrc}
+                        alt={name}
+                        photoTestId="discover-photo"
+                        onFatalError={onMediaFatal}
+                      />
+                    ) : (
+                      <SafeImg
+                        className="discover-card__img"
+                        loading="eager"
+                        src={fallbackSrc}
+                        alt={name}
+                        photoTestId="discover-photo"
+                      />
+                    );
+                  })()}
                 </div>
               )}
             </div>

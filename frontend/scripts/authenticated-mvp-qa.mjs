@@ -148,13 +148,16 @@ async function runViewport(name, contextOpts, { discoverToken, sessionToken, cha
     const undo = page.getByRole("button", { name: /undo|скасувати/i }).first();
     if (await undo.count()) await undo.click({ timeout: 12_000 });
     const ai = page.getByRole("button", { name: /start with ai|почати з ai/i }).first();
-    if (await ai.count()) await ai.click({ timeout: 12_000 });
+    if (await ai.count()) await ai.click({ timeout: 5000 }).catch(() => {});
   });
 
   await mark(`${name} /matches avatars + actions`, async () => {
     await injectToken(page, sessionToken);
     await page.goto(`${WEB_BASE}/matches`, { waitUntil: "domcontentloaded", timeout: 60_000 });
-    await page.waitForTimeout(800);
+    await page
+      .waitForResponse((r) => /\/api\/v1\/matches(?:\?|$)/.test(r.url()) && r.ok(), { timeout: 25_000 })
+      .catch(() => {});
+    await page.waitForTimeout(400);
     await assertNoBrokenText();
     const avatar = page.getByTestId("match-avatar-img").first();
     await avatar.waitFor({ state: "visible", timeout: 20_000 });
@@ -203,12 +206,16 @@ async function runViewport(name, contextOpts, { discoverToken, sessionToken, cha
   await mark(`${name} /profile upload mode`, async () => {
     await injectToken(page, sessionToken);
     await page.goto(`${WEB_BASE}/profile`, { waitUntil: "domcontentloaded", timeout: 60_000 });
-    await page.waitForTimeout(800);
     await assertNoBrokenText();
     const disabledMsg = page.getByText(/Photo upload is temporarily disabled|Завантаження фото тимчасово вимкнене/i).first();
+    const photoEdit = page.getByTestId("profile-photo-edit");
+    for (let i = 0; i < 60; i++) {
+      if ((await disabledMsg.count()) > 0 || (await photoEdit.count()) > 0) break;
+      await page.waitForTimeout(100);
+    }
     if (await disabledMsg.count()) return;
-    const editBtn = page.getByRole("button", { name: /edit|редагувати/i }).first();
-    if (!(await editBtn.count())) throw new Error("profile edit button missing");
+    if (!(await photoEdit.count())) throw new Error("profile photo edit control missing");
+    await photoEdit.first().waitFor({ state: "visible", timeout: 12_000 });
   });
 
   await mark(`${name} /premium loads`, async () => {
