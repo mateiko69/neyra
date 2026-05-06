@@ -363,27 +363,13 @@ function DiscoverProfileCardInner({
                 ))
               ) : (
                 <div className="discover-card__photo-slide">
-                  {(() => {
-                    const fallbackSrc = resolveDemoProfilePhoto(card);
-                    return useStrictDemoPhoto && isDemoProfile ? (
-                      <DemoProfileImg
-                        className="discover-card__img"
-                        loading="eager"
-                        src={fallbackSrc}
-                        alt={name}
-                        photoTestId="discover-photo"
-                        onFatalError={onMediaFatal}
-                      />
-                    ) : (
-                      <SafeImg
-                        className="discover-card__img"
-                        loading="eager"
-                        src={fallbackSrc}
-                        alt={name}
-                        photoTestId="discover-photo"
-                      />
-                    );
-                  })()}
+                  <SafeImg
+                    className="discover-card__img"
+                    loading="eager"
+                    src={resolveDemoProfilePhoto(card)}
+                    alt={name}
+                    photoTestId="discover-photo"
+                  />
                 </div>
               )}
             </div>

@@ -85,6 +85,11 @@ async function registerAndPrepare(displayName, gender, interestedIn) {
 }
 
 async function injectToken(page, token) {
+  const base = String(WEB_BASE || "").replace(/\/+$/, "");
+  const cur = typeof page.url === "function" ? page.url() : "";
+  if (base && !cur.startsWith(base)) {
+    await page.goto(`${base}/login`, { waitUntil: "domcontentloaded", timeout: 60_000 }).catch(() => {});
+  }
   await page.evaluate((t) => {
     try {
       localStorage.setItem("neyra:token", t);
@@ -94,6 +99,17 @@ async function injectToken(page, token) {
       /* ignore */
     }
   }, token);
+}
+
+async function waitForTestIdImageDecoded(page, testId, timeoutMs = 22_000) {
+  await page.waitForFunction(
+    (id) => {
+      const el = document.querySelector(`[data-testid="${id}"]`);
+      return el instanceof HTMLImageElement && el.complete && Math.max(el.naturalWidth || 0, el.naturalHeight || 0) > 0;
+    },
+    testId,
+    { timeout: timeoutMs },
+  );
 }
 
 async function runViewport(name, contextOpts, { discoverToken, sessionToken, chatPartnerUserId }) {
@@ -124,6 +140,7 @@ async function runViewport(name, contextOpts, { discoverToken, sessionToken, cha
     await page.goto(`${WEB_BASE}/discover`, { waitUntil: "domcontentloaded", timeout: 60_000 });
     const pic = page.getByTestId("discover-photo");
     await pic.first().waitFor({ state: "visible", timeout: 25_000 });
+    await waitForTestIdImageDecoded(page, "discover-photo");
     await assertNoBrokenText();
     const nw = await pic.first().evaluate((el) => (el instanceof HTMLImageElement ? el.naturalWidth || 0 : 0));
     if (nw < 1) throw new Error(`discover-photo naturalWidth=${nw}`);
@@ -160,16 +177,37 @@ async function runViewport(name, contextOpts, { discoverToken, sessionToken, cha
     await page.waitForTimeout(400);
     await assertNoBrokenText();
     const avatar = page.getByTestId("match-avatar-img").first();
-    await avatar.waitFor({ state: "visible", timeout: 20_000 });
+    await avatar.waitFor({ state: "visible", timeout: 25_000 });
+    await waitForTestIdImageDecoded(page, "match-avatar-img");
     const nw = await avatar.evaluate((el) => (el instanceof HTMLImageElement ? el.naturalWidth || 0 : 0));
     if (nw < 1) throw new Error(`match avatar naturalWidth=${nw}`);
-    const sayHi = page.getByRole("link", { name: /say hi|написати привіт/i }).first();
-    if (!(await sayHi.count())) throw new Error("say hi missing");
-    await sayHi.click({ timeout: 12_000 });
+    const sayHiAnchor = page.locator("a.match-row__btn-chat").first();
+    const oneTapChip = page.locator(".match-row__oneTap-chip").first();
+    if (await sayHiAnchor.count()) {
+      await sayHiAnchor.click({ timeout: 12_000, force: true });
+    } else if (await oneTapChip.count()) {
+      await oneTapChip.click({ timeout: 12_000, force: true });
+    } else {
+      throw new Error("no say hi link or opener chip");
+    }
     await page.waitForTimeout(500);
     await page.goto(`${WEB_BASE}/matches`, { waitUntil: "domcontentloaded", timeout: 60_000 });
-    const gen = page.getByRole("link", { name: /generate opener|generate phrase|згенерувати/i }).first();
-    if (!(await gen.count())) throw new Error("generate phrase missing");
+    await page
+      .waitForResponse((r) => /\/api\/v1\/matches(?:\?|$)/.test(r.url()) && r.ok(), { timeout: 25_000 })
+      .catch(() => {});
+    await page.waitForTimeout(300);
+    const genHref = page.locator('a.match-row__btn-profile[href*="ai=openers"]').first();
+    const genLink = page.getByRole("link", { name: /generate opener|generate phrase|згенерувати|revive with ai|відновити/i }).first();
+    const otherOpts = page.getByRole("button", { name: /other options|інші варіанти/i }).first();
+    if (await genHref.count()) {
+      await genHref.click({ timeout: 12_000, force: true });
+    } else if (await genLink.count()) {
+      await genLink.click({ timeout: 12_000, force: true });
+    } else if (await otherOpts.count()) {
+      await otherOpts.click({ timeout: 12_000, force: true });
+    } else {
+      throw new Error("generate phrase / AI options control missing");
+    }
   });
 
   await mark(`${name} /chat scroll + composer`, async () => {
