@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { AppNavigation } from "./AppNavigation";
 import { LanguageSwitcher } from "./i18n/LanguageSwitcher";
@@ -13,6 +14,14 @@ import { GrowthEngagementLayer } from "./growth/GrowthEngagementLayer";
 import { isPublicMarketingRoute } from "../../lib/public-marketing-paths";
 
 export function AppShell({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+      console.warn("unhandled promise rejection captured", { reason: event.reason });
+    };
+    window.addEventListener("unhandledrejection", onUnhandledRejection);
+    return () => window.removeEventListener("unhandledrejection", onUnhandledRejection);
+  }, []);
+
   const pathname = usePathname() || "/";
   const isOnboarding = pathname.startsWith("/onboarding");
   const isIntro = pathname.startsWith("/intro");

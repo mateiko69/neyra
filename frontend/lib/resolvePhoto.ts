@@ -132,44 +132,56 @@ function deriveDemoPath(profile: Record<string, unknown>, genderFolder: "men" | 
  * - fallback to empty string
  */
 export function resolveDemoProfilePhoto(profile: unknown): string {
-  if (!profile || typeof profile !== "object") return DEMO_FALLBACK_BY_GENDER.women;
-  const p = profile as Record<string, unknown>;
-  const merged = mergePartnerProfileFields(p);
-  const isDemo = Boolean(
-    merged.is_demo_profile ??
-      merged.isDemoProfile ??
-      merged.partner_is_demo_profile ??
-      merged.partnerIsDemoProfile ??
-      merged.is_demo ??
-      merged.isDemo ??
-      String(merged.demo_mode ?? "").trim() === "1",
-  );
-  const genderFolder = normalizeGenderFolder(
-    merged.gender ?? merged.sex ?? merged.partner_gender ?? merged.partnerGender,
-  );
-  const allCandidates = collectPhotoCandidates(merged);
+  try {
+    if (!profile || typeof profile !== "object") return DEMO_FALLBACK_BY_GENDER.women;
+    const p = profile as Record<string, unknown>;
+    const merged = mergePartnerProfileFields(p);
+    const isDemo = Boolean(
+      merged.is_demo_profile ??
+        merged.isDemoProfile ??
+        merged.partner_is_demo_profile ??
+        merged.partnerIsDemoProfile ??
+        merged.is_demo ??
+        merged.isDemo ??
+        String(merged.demo_mode ?? "").trim() === "1",
+    );
+    const genderFolder = normalizeGenderFolder(
+      merged.gender ?? merged.sex ?? merged.partner_gender ?? merged.partnerGender,
+    );
+    const allCandidates = collectPhotoCandidates(merged);
 
-  for (const raw of allCandidates) {
-    if (!raw) continue;
-    if (isDemo && hasUploadsPath(raw)) continue;
-    const resolved = resolveMediaUrl(raw);
-    if (isDemo) {
-      const pathOnly = resolved.startsWith("http://") || resolved.startsWith("https://") ? new URL(resolved).pathname : resolved;
-      if (DEMO_MAIN_RE.test(pathOnly)) return pathOnly;
-      continue;
+    for (const raw of allCandidates) {
+      if (!raw) continue;
+      if (isDemo && hasUploadsPath(raw)) continue;
+      const resolved = resolveMediaUrl(raw);
+      if (isDemo) {
+        let pathOnly = resolved;
+        if (resolved.startsWith("http://") || resolved.startsWith("https://")) {
+          try {
+            pathOnly = new URL(resolved).pathname;
+          } catch {
+            pathOnly = resolved;
+          }
+        }
+        if (DEMO_MAIN_RE.test(pathOnly)) return pathOnly;
+        continue;
+      }
+      if (resolved) return resolved;
     }
-    if (resolved) return resolved;
-  }
 
-  if (isDemo) {
-    const derived = getDemoProfilePhoto({ ...merged, gender: merged.gender ?? genderFolder });
-    if (derived) return derived;
+    if (isDemo) {
+      const derived = getDemoProfilePhoto({ ...merged, gender: merged.gender ?? genderFolder });
+      if (derived) return derived;
+      return DEMO_FALLBACK_BY_GENDER[genderFolder];
+    }
+
+    const last = resolveMediaUrl(primaryPhotoFromList(allCandidates) || "");
+    if (last) return last;
     return DEMO_FALLBACK_BY_GENDER[genderFolder];
+  } catch (error) {
+    console.warn("discover card photo fallback used", { reason: "resolver_exception", error });
+    return DEMO_FALLBACK_BY_GENDER.women;
   }
-
-  const last = resolveMediaUrl(primaryPhotoFromList(allCandidates) || "");
-  if (last) return last;
-  return DEMO_FALLBACK_BY_GENDER[genderFolder];
 }
 
 export function resolvePhoto(profile: unknown): string {

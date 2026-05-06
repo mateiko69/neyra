@@ -13,8 +13,11 @@ let isConnecting = false;
 let connectGen = 0;
 let backoffMs = 1_000;
 const BACKOFF_MAX_MS = 10_000;
+const WS_MAX_RETRIES = 3;
 let stopped = true;
 let heartbeatTimer: number | null = null;
+let wsDisabled = false;
+let wsRetryCount = 0;
 
 function clearHeartbeat() {
   if (heartbeatTimer != null) {
@@ -52,6 +55,32 @@ async function getWsToken(): Promise<string> {
   return String(tok || "").trim();
 }
 
+function isUnauthorizedError(error: unknown): boolean {
+  if (error && typeof error === "object" && "name" in error && (error as { name?: string }).name === "ApiUnauthorizedError") {
+    return true;
+  }
+  return error instanceof Error && error.message.trim().toLowerCase() === "unauthorized";
+}
+
+function scheduleReconnect(uid: number, gen: number, minDelayMs: number = 1_000) {
+  if (gen !== connectGen || stopped || wsDisabled) return;
+  if (wsRetryCount >= WS_MAX_RETRIES) {
+    wsDisabled = true;
+    stopReconnect();
+    console.warn("ws disabled after 401", { reason: "max_retries_reached", retries: wsRetryCount });
+    return;
+  }
+  stopReconnect();
+  const delay = Math.min(BACKOFF_MAX_MS, Math.max(minDelayMs, backoffMs));
+  backoffMs = Math.min(BACKOFF_MAX_MS, Math.round(Math.max(1_000, backoffMs) * 2));
+  wsRetryCount += 1;
+  reconnectTimer = window.setTimeout(() => {
+    const t = connectedUserId;
+    if (t == null || t !== uid || gen !== connectGen || stopped || wsDisabled) return;
+    void connectWS(t, gen);
+  }, delay);
+}
+
 function safeSleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -64,6 +93,7 @@ async function connectWS(userId: number, gen: number) {
   try {
     if (gen !== connectGen) return;
     if (stopped) return;
+    if (wsDisabled) return;
 
     const uid = Number(userId);
     if (!Number.isFinite(uid) || uid < 1) {
@@ -96,17 +126,13 @@ async function connectWS(userId: number, gen: number) {
       wsToken = await getWsToken();
     } catch (e) {
       if (gen !== connectGen || stopped) return;
-      stopReconnect();
-      const delay = Math.min(BACKOFF_MAX_MS, Math.max(1_000, backoffMs));
-      backoffMs = Math.min(BACKOFF_MAX_MS, Math.round(backoffMs * 1.8));
-      if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
-        console.warn("WS TOKEN FETCH FAILED → retrying…", { delayMs: delay });
+      if (isUnauthorizedError(e)) {
+        wsDisabled = true;
+        stopReconnect();
+        console.warn("ws disabled after 401", { reason: "ws_token_unauthorized" });
+        return;
       }
-      reconnectTimer = window.setTimeout(() => {
-        const t = connectedUserId;
-        if (t == null || t !== uid || gen !== connectGen || stopped) return;
-        void connectWS(t, gen);
-      }, delay);
+      scheduleReconnect(uid, gen, 1_000);
       return;
     }
     if (gen !== connectGen) return;
@@ -121,14 +147,7 @@ async function connectWS(userId: number, gen: number) {
           console.debug("[neyra-ws] ws_token empty (session/bootstrap race); retry scheduled");
         }
       }
-      stopReconnect();
-      const delay = Math.min(BACKOFF_MAX_MS, Math.max(1_000, backoffMs));
-      backoffMs = Math.min(BACKOFF_MAX_MS, Math.round(backoffMs * 1.8));
-      reconnectTimer = window.setTimeout(() => {
-        const t = connectedUserId;
-        if (t == null || t !== uid || gen !== connectGen || stopped) return;
-        void connectWS(t, gen);
-      }, delay);
+      scheduleReconnect(uid, gen, 1_000);
       return;
     }
 
@@ -148,6 +167,7 @@ async function connectWS(userId: number, gen: number) {
 
     ws.onopen = () => {
       backoffMs = 1_000;
+      wsRetryCount = 0;
       if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
         console.log("WS CONNECTED");
       }
@@ -195,14 +215,18 @@ async function connectWS(userId: number, gen: number) {
 
       // 4401 = backend rejected token (missing/expired/invalid). Refetch quickly with fresh token.
       if (closeCode === 4401) {
-        if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
-          console.warn("WS TOKEN INVALID → refetching token");
+        if (wsRetryCount >= WS_MAX_RETRIES) {
+          wsDisabled = true;
+          stopReconnect();
+          console.warn("ws disabled after 401", { reason: "close_4401", retries: wsRetryCount });
+          return;
         }
-        backoffMs = 500;
+        backoffMs = Math.max(500, backoffMs);
       }
 
       const delay = Math.min(BACKOFF_MAX_MS, Math.max(500, backoffMs));
-      backoffMs = Math.min(BACKOFF_MAX_MS, Math.round(Math.max(1_000, backoffMs) * 1.8));
+      backoffMs = Math.min(BACKOFF_MAX_MS, Math.round(Math.max(1_000, backoffMs) * 2));
+      wsRetryCount += 1;
       if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
         console.warn("WS CLOSED", closeCode || undefined, "→ reconnecting…", { delayMs: delay });
       }
@@ -250,6 +274,8 @@ export function startChatRealtime(userId: number) {
   stopped = false;
   connectGen += 1;
   backoffMs = 1_000;
+  wsDisabled = false;
+  wsRetryCount = 0;
   void connectWS(uid, connectGen);
 }
 
@@ -262,6 +288,8 @@ export function stopChatRealtime() {
   connectGen += 1;
   isConnecting = false;
   backoffMs = 1_000;
+  wsDisabled = false;
+  wsRetryCount = 0;
   if (ws) {
     try {
       ws.onclose = null;

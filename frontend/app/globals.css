@@ -9358,6 +9358,15 @@ button.profile-chip:not(:disabled) {
     overflow: visible;
   }
 
+/* Hotfix: keep AI suggestion cards in normal flow; only thread scroller may scroll. */
+.chat-module.chat-thread-module,
+.chat-module.chat-thread-module > .chat-thread-messages-slot,
+.chat-module.chat-thread-module .chat-thread-body,
+.chat-module.chat-thread-module > .chat-thread-ai-helpers,
+.chat-module.chat-thread-module {
+  overflow: visible;
+}
+
   .chat-composer-stack {
     position: static;
     bottom: auto;

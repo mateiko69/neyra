@@ -92,9 +92,13 @@ function DiscoverProfileCardInner({
   onPass,
   onIgnore,
   onPeek,
-  onMediaFatal: _onMediaFatal,
+  onMediaFatal,
 }: Props) {
-  void _onMediaFatal;
+  const handleMediaFatal = useCallback(() => {
+    console.warn("discover card photo fallback used", { reason: "card_media_fatal", userId: card.user_id });
+    onMediaFatal?.();
+  }, [card.user_id, onMediaFatal]);
+
   const { t } = useT("DiscoverProfileCard");
   const photos = useMemo(
     () =>
@@ -347,6 +351,7 @@ function DiscoverProfileCardInner({
                       src={url}
                       fallbackSrc={resolveDemoProfilePhoto(card)}
                       extraFallbackSources={bundledDemoMainFallbackRing(card.gender)}
+                      onFinalError={handleMediaFatal}
                       alt={index === 0 ? name : t("discover.card.photoAlt", { name, index: index + 1 })}
                       photoTestId={index === 0 ? "discover-photo" : undefined}
                     />
@@ -360,6 +365,7 @@ function DiscoverProfileCardInner({
                     src={resolveDemoProfilePhoto(card)}
                     fallbackSrc={demoCatalogFallbackMain(card.gender)}
                     extraFallbackSources={bundledDemoMainFallbackRing(card.gender)}
+                    onFinalError={handleMediaFatal}
                     alt={name}
                     photoTestId="discover-photo"
                   />

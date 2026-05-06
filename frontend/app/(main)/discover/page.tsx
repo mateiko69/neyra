@@ -20,6 +20,7 @@ import { trackAnalyticsEvent } from "../../../lib/analytics";
 import { localStorageDayShown, localStorageMarkDay, utcDayKey } from "../../../lib/retention/dedupe";
 import { hasValueMoment, recordMatchMoment, recordOutboundLikeMoment } from "../../../lib/monetization/valueMoments";
 import { DiscoverProfileCard, type DiscoverCardData } from "./DiscoverProfileCard";
+import { RuntimeErrorBoundary } from "../../components/RuntimeErrorBoundary";
 import {
   bundledDemoMainFallbackRing,
   demoCatalogFallbackMain,
@@ -140,11 +141,19 @@ type DiscoverSwipeExitState = {
 
 /** Prefer stored gallery URLs on narrow/mobile Discover; demo catalog paths only when empty. */
 function discoverCardHeroPhotoUrl(card: DiscoverCard): string {
-  const raw = primaryPhotoFromList(card.photo_urls);
-  const resolved = raw ? resolveMediaUrl(raw) : "";
-  if (resolved) return resolved;
-  const demoResolved = resolveDemoProfilePhoto(card);
-  return demoResolved || "/demo-profiles/women/demo_001/main.jpg";
+  try {
+    const raw = primaryPhotoFromList(card.photo_urls);
+    const resolved = raw ? resolveMediaUrl(raw) : "";
+    if (resolved) return resolved;
+    const demoResolved = resolveDemoProfilePhoto(card);
+    if (demoResolved) {
+      console.warn("discover card photo fallback used", { reason: "hero_resolver" });
+      return demoResolved;
+    }
+  } catch (error) {
+    console.warn("discover card photo fallback used", { reason: "hero_exception", error });
+  }
+  return "/demo-profiles/women/demo_001/main.jpg";
 }
 
 function toInterestsList(raw: unknown): string[] {
@@ -401,6 +410,16 @@ function MatchModal({
 }
 
 export default function DiscoverPage() {
+  const safeResolveDemoPhoto = useCallback((input: unknown): string => {
+    try {
+      const url = resolveDemoProfilePhoto(input);
+      if (url) return url;
+    } catch (error) {
+      console.warn("discover card photo fallback used", { reason: "page_safe_resolve", error });
+    }
+    return "/demo-profiles/women/demo_001/main.jpg";
+  }, []);
+
   const router = useRouter();
   const { t } = useT("DiscoverSwipe");
   const { t: tg } = useT("GrowthEngagement");
@@ -1201,7 +1220,7 @@ export default function DiscoverPage() {
         name={match?.name || ""}
         photoUrl={
           match?.photoUrl
-            ? resolveDemoProfilePhoto({ is_demo_profile: Boolean(match.isDemoProfile), photo_url: match.photoUrl })
+            ? safeResolveDemoPhoto({ is_demo_profile: Boolean(match.isDemoProfile), photo_url: match.photoUrl })
             : null
         }
         partnerUserId={match?.userId ?? null}
@@ -1286,6 +1305,7 @@ export default function DiscoverPage() {
         </div>
       ) : null}
 
+      <RuntimeErrorBoundary label="discover-feed" fallback={<div className="surface" style={{ margin: "10px auto 0", maxWidth: 520, borderRadius: 22, minHeight: 420 }} />}>
       <div className="discover-swipe-column">
         {/* Stage clips translated cards; column keeps actions visually below the deck (not under it). */}
         <div className="discover-swipe-stage">
@@ -1448,18 +1468,20 @@ export default function DiscoverPage() {
                 }}
               >
                 {topCard ? (
-                  <DiscoverProfileCard
-                    card={mapDiscoverCardToProfileData(topCard, demoPremiumFeedActive)}
-                    planTier="free"
-                    viewerProfileId={viewerProfileId}
-                    disabled={swipeInteractionLocked}
-                    exiting={swipeExit ? { liked: swipeExit.liked } : null}
-                    onLike={() => void advanceProfile("like")}
-                    onPass={() => void advanceProfile("pass")}
-                    onIgnore={() => void ignoreCurrentProfile()}
-                    onPeek={() => router.push(`/people/${topCard.user_id}`)}
-                    onMediaFatal={swipeAwayBrokenPhoto}
-                  />
+                  <RuntimeErrorBoundary label="discover-card" fallback={<div className="surface" style={{ width: "100%", height: "100%", borderRadius: 22 }} />}>
+                    <DiscoverProfileCard
+                      card={mapDiscoverCardToProfileData(topCard, demoPremiumFeedActive)}
+                      planTier="free"
+                      viewerProfileId={viewerProfileId}
+                      disabled={swipeInteractionLocked}
+                      exiting={swipeExit ? { liked: swipeExit.liked } : null}
+                      onLike={() => void advanceProfile("like")}
+                      onPass={() => void advanceProfile("pass")}
+                      onIgnore={() => void ignoreCurrentProfile()}
+                      onPeek={() => router.push(`/people/${topCard.user_id}`)}
+                      onMediaFatal={swipeAwayBrokenPhoto}
+                    />
+                  </RuntimeErrorBoundary>
                 ) : null}
               </div>
             </>
@@ -1528,6 +1550,7 @@ export default function DiscoverPage() {
           </div>
         </div>
       </div>
+      </RuntimeErrorBoundary>
     </PageShell>
   );
 }

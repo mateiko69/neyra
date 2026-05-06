@@ -150,6 +150,7 @@ export function ChatMessageList({
   const initialAutoScrollThreadKeyRef = useRef<string>("");
   const initialAutoScrollRafRef = useRef<number | null>(null);
   const lastAutoScrolledMessageIdRef = useRef<string | null>(null);
+  const outgoingAutoScrollDoneForIdRef = useRef<string | null>(null);
   const historyAria = inspectI18nText(t("chat.list.historyAria"), { component: "ChatMessageList", prop: "historyAria" });
 
   // Single audio player for the whole thread (only one plays at a time).
@@ -382,24 +383,20 @@ export function ChatMessageList({
       return;
     }
 
-    // Subsequent message growth: keep pinned only if user is already near bottom.
+    // Subsequent growth: auto-scroll only once per newly added outgoing message.
     if (nextCount === 0 || !grew || !shouldPin) return;
     const lastMessageId = messages[messages.length - 1]?.id ?? null;
     if (lastMessageId && lastAutoScrolledMessageIdRef.current === lastMessageId) return;
+    const lastMessage = messages[messages.length - 1] ?? null;
+    if (!lastMessage || !isOwnMessage(lastMessage, currentUserId, partnerUserId)) return;
+    if (outgoingAutoScrollDoneForIdRef.current === lastMessage.id) return;
+    outgoingAutoScrollDoneForIdRef.current = lastMessage.id;
     lastAutoScrolledMessageIdRef.current = lastMessageId;
+    console.warn("chat autoscroll triggered", { messageId: lastMessage.id });
     requestAnimationFrame(() => {
       bottomAnchorRef.current?.scrollIntoView({ block: "end", behavior: "auto" });
     });
-  }, [showLoadingSkeleton, messages]);
-
-  useLayoutEffect(() => {
-    if (showLoadingSkeleton || !showPartnerTyping) return;
-    const scroller = resolveScrollHost(scrollerRef.current);
-    if (!scroller || !isNearBottom(scroller)) return;
-    requestAnimationFrame(() => {
-      bottomAnchorRef.current?.scrollIntoView({ block: "end", behavior: "auto" });
-    });
-  }, [showLoadingSkeleton, showPartnerTyping]);
+  }, [showLoadingSkeleton, messages, currentUserId, partnerUserId]);
 
   useLayoutEffect(() => {
     if (showLoadingSkeleton) return;
@@ -419,22 +416,6 @@ export function ChatMessageList({
     onScroll();
     return () => scroller.removeEventListener("scroll", onScroll);
   }, [showLoadingSkeleton]);
-
-  useEffect(() => {
-    if (showLoadingSkeleton) return;
-    const pinToBottom = () => {
-      if (!atBottomRef.current) return;
-      bottomAnchorRef.current?.scrollIntoView({ block: "end", behavior: "auto" });
-    };
-    window.addEventListener("resize", pinToBottom);
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => pinToBottom()) : null;
-    const host = resolveScrollHost(scrollerRef.current);
-    if (ro && host) ro.observe(host);
-    return () => {
-      window.removeEventListener("resize", pinToBottom);
-      ro?.disconnect();
-    };
-  }, [showLoadingSkeleton, messages.length]);
 
   useLayoutEffect(() => {
     if (showLoadingSkeleton) return;

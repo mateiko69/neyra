@@ -11,6 +11,7 @@ import { useT } from "../i18n/I18nProvider";
 import { inspectI18nText, renderDebugText } from "../i18n/debugText";
 import { AiDebugPill } from "../AiDebugPill";
 import { PageShell } from "../PageShell";
+import { RuntimeErrorBoundary } from "../RuntimeErrorBoundary";
 import { Button, Chip } from "../ui";
 import { ChatComposer } from "./ChatComposer";
 import { ChatEmptyState } from "./ChatEmptyState";
@@ -1310,6 +1311,11 @@ export function ChatThreadPage() {
     });
   }, [c.draft, c.messages.length]);
 
+  useEffect(() => {
+    if (!aiOpen) return;
+    console.warn("ai panel mounted", { partnerUserId: c.partnerUserId ?? null });
+  }, [aiOpen, c.partnerUserId]);
+
   // NOTE: Gemini quota is very limited (e.g. 5 RPM / 20 RPD).
   // Do NOT auto-call readiness/coach/recovery/escalation on chat open.
   // These are now only triggered by explicit user actions (UI buttons), to prevent quota exhaustion.
@@ -1906,7 +1912,8 @@ export function ChatThreadPage() {
         ) : null}
 
         <div className="chat-thread-messages-slot">
-          <ChatMessageList
+          <RuntimeErrorBoundary label="chat-thread" fallback={<div className="chat-thread-body" />}>
+            <ChatMessageList
             key={c.partnerUserId}
             showLoadingSkeleton={c.showMessageSkeleton}
             showPartnerTyping={c.partnerTyping}
@@ -1932,6 +1939,7 @@ export function ChatThreadPage() {
             onLoadOlder={() => void c.actions.loadOlderMessages()}
             partnerReplyGlowId={partnerReplyGlowId}
           />
+          </RuntimeErrorBoundary>
         </div>
 
         {c.openerDrafting ? (
@@ -1940,6 +1948,7 @@ export function ChatThreadPage() {
           </div>
         ) : null}
 
+        <RuntimeErrorBoundary label="chat-ai-helpers" fallback={null}>
         <div className="chat-thread-ai-helpers">
         {showFirstMessageSuggestion && c.partnerUserId != null ? (
           <div style={{ padding: "14px 18px 0" }}>
@@ -2057,6 +2066,7 @@ export function ChatThreadPage() {
           </>
         ) : null}
         </div>
+        </RuntimeErrorBoundary>
 
         <div className="chat-thread-tail">
           {goodConversation ? (
@@ -2080,7 +2090,8 @@ export function ChatThreadPage() {
           ) : null}
 
           {aiOpen && c.partnerUserId != null ? (
-            <ChatAiBrainPanel
+            <RuntimeErrorBoundary label="ai-suggestion-panel" fallback={null}>
+              <ChatAiBrainPanel
               ref={chatBrainPanelRef}
               key={c.partnerUserId ?? 0}
               partnerUserId={c.partnerUserId ?? null}
@@ -2116,6 +2127,7 @@ export function ChatThreadPage() {
                 window.setTimeout(() => setComposerSendPulse(false), 1200);
               }}
             />
+            </RuntimeErrorBoundary>
           ) : null}
 
         {showCoach ? (

@@ -19,6 +19,7 @@ type Props = {
   photoTestId?: string;
   /** Shown when the image cannot be loaded (neutral — never an auth/session message). */
   previewUnavailableText?: string;
+  onFinalError?: () => void;
 };
 
 type LoadMode = "live" | "dead";
@@ -57,6 +58,7 @@ export function SafeImg({
   style,
   loading = "lazy",
   previewUnavailableText,
+  onFinalError,
 }: Props) {
   const [mode, setMode] = useState<LoadMode>("live");
   const modeRef = useRef<LoadMode>("live");
@@ -115,9 +117,10 @@ export function SafeImg({
       setAttempt(next);
       return;
     }
+    onFinalError?.();
     setMode("dead");
     modeRef.current = "dead";
-  }, [attempt, bustNonce]);
+  }, [attempt, bustNonce, onFinalError]);
 
   return (
     <span className={className} style={{ position: "relative", display: "block", ...style }}>
