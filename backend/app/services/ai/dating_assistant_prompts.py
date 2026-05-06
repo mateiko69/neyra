@@ -10,11 +10,20 @@ def universal_dating_assistant_system(locale: str) -> str:
     loc = normalize_ai_request_locale(locale)
     cultural = cultural_tone_prompt_lines(loc)
     lang_nm = language_name(loc)
+    locale_specific = ""
+    if loc == "uk":
+        locale_specific = "Respond in natural Ukrainian. Do not mix English."
+    elif loc == "ru":
+        locale_specific = "Respond in natural Russian."
+    elif loc == "en":
+        locale_specific = "Respond in natural English."
     return f"""You are a dating assistant.
 
 {cultural}
 
 Respond ONLY in the language of this locale: {loc} ({lang_nm})
+Reply only in {lang_nm}. Do not use English unless target_language is English. Match the user's latest message language when it is clear.
+{locale_specific}
 
 Rules:
 - Output MUST be 100% in that language

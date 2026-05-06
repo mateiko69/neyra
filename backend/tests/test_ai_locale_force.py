@@ -13,6 +13,7 @@ from app.db.base import Base
 from app.models.profile import Profile
 from app.models.user import User
 from app.services.ai.output_script_locale import text_matches_requested_locale
+from app.services.ai.locale_decision import normalize_ai_locale_tag
 
 
 def _memory_db() -> Session:
@@ -46,7 +47,7 @@ def _has_cyrillic(text: str) -> bool:
 
 
 @pytest.mark.parametrize("locale_tag", ["fr", "de", "es", "ar", "ja", "zh", "zh-TW", "uk", "en"])
-def test_ai_opener_passes_through_ui_locale_tag_variants(monkeypatch, locale_tag: str):
+def test_ai_opener_normalizes_ui_locale_tag_variants(monkeypatch, locale_tag: str):
     db = _memory_db()
     try:
         u = User(email=f"u-{locale_tag}@example.com", hashed_password="x", is_active=True)
@@ -86,7 +87,7 @@ def test_ai_opener_passes_through_ui_locale_tag_variants(monkeypatch, locale_tag
             },
         )
         assert r.status_code == 200
-        assert captured.get("locale") == locale_tag
+        assert captured.get("locale") == normalize_ai_locale_tag(locale_tag)
 
     finally:
         db.close()
@@ -215,14 +216,14 @@ def test_ai_improve_reply_passes_through_ui_locale_tag(monkeypatch):
             },
         )
         assert r.status_code == 200
-        assert captured.get("locale") == "de"
+        assert captured.get("locale") == "en"
         rows = r.json().get("variants") or []
         assert len(rows) >= 1
     finally:
         db.close()
 
 
-def test_ai_timed_replies_fallback_french_matches_locale():
+def test_ai_timed_replies_fallback_french_normalizes_to_en():
     from app.core import config
 
     db = _memory_db()
@@ -247,13 +248,13 @@ def test_ai_timed_replies_fallback_french_matches_locale():
         assert r.status_code == 200
         rows = r.json().get("options") or []
         joined = " ".join(str(x.get("text") or "") for x in rows)
-        assert text_matches_requested_locale(joined, "fr")
+        assert text_matches_requested_locale(joined, "en")
     finally:
         db.close()
 
 
-@pytest.mark.parametrize("tag,expect_zh_tw", [("zh", False), ("zh-TW", True)])
-def test_ai_timed_replies_zh_scripts(tag: str, expect_zh_tw: bool):
+@pytest.mark.parametrize("tag", [("zh"), ("zh-TW")])
+def test_ai_timed_replies_zh_normalizes_to_en(tag: str):
     from app.core import config
 
     db = _memory_db()
@@ -278,16 +279,13 @@ def test_ai_timed_replies_zh_scripts(tag: str, expect_zh_tw: bool):
         assert r.status_code == 200
         rows = r.json().get("options") or []
         joined = " ".join(str(x.get("text") or "") for x in rows)
-        assert text_matches_requested_locale(joined, tag)
-        if expect_zh_tw:
-            assert "什麼" in joined or "嗎" in joined
-        else:
-            assert "什么" in joined or "嘿" in joined
+        assert (r.json() or {}).get("locale") == "en"
+        assert text_matches_requested_locale(joined, "en")
     finally:
         db.close()
 
 
-def test_ai_timed_replies_arabic_not_latin_only():
+def test_ai_timed_replies_arabic_normalizes_to_en():
     from app.core import config
 
     db = _memory_db()
@@ -312,7 +310,8 @@ def test_ai_timed_replies_arabic_not_latin_only():
         assert r.status_code == 200
         rows = r.json().get("options") or []
         joined = " ".join(str(x.get("text") or "") for x in rows)
-        assert text_matches_requested_locale(joined, "ar")
+        assert (r.json() or {}).get("locale") == "en"
+        assert text_matches_requested_locale(joined, "en")
     finally:
         db.close()
 
@@ -386,6 +385,64 @@ def test_ai_timed_replies_defaults_to_en_when_locale_and_native_missing(monkeypa
                 "nudge_type": "now",
                 "interest_stage": "warming",
                 "mutuality_score": 40,
+            },
+        )
+        assert r.status_code == 200
+        assert (r.json() or {}).get("locale") == "en"
+    finally:
+        db.close()
+
+
+def test_timed_replies_latest_message_uk_overrides_ui_en(monkeypatch):
+    from app.core import config
+
+    monkeypatch.setattr(config.settings, "ENABLE_AI_SUGGESTIONS", False, raising=False)
+    db = _memory_db()
+    try:
+        u = User(email="u-msg-uk-over-ui-en@example.com", hashed_password="x", is_active=True)
+        db.add(u)
+        db.flush()
+        db.add(Profile(user_id=int(u.id), display_name="Me", photo_urls="me.jpg", city="Kyiv", bio="hi"))
+        db.commit()
+        c = _client(db, u)
+        r = c.post(
+            "/api/v1/ai/timed-replies",
+            json={
+                "messages": [
+                    {"role": "them", "text": "hello"},
+                    {"role": "me", "text": "Привіт, як справи?"},
+                ],
+                "nudge_type": "now",
+                "locale": "en",
+            },
+        )
+        assert r.status_code == 200
+        assert (r.json() or {}).get("locale") == "uk"
+    finally:
+        db.close()
+
+
+def test_timed_replies_latest_message_en_overrides_ui_uk(monkeypatch):
+    from app.core import config
+
+    monkeypatch.setattr(config.settings, "ENABLE_AI_SUGGESTIONS", False, raising=False)
+    db = _memory_db()
+    try:
+        u = User(email="u-msg-en-over-ui-uk@example.com", hashed_password="x", is_active=True)
+        db.add(u)
+        db.flush()
+        db.add(Profile(user_id=int(u.id), display_name="Me", photo_urls="me.jpg", city="Kyiv", bio="hi"))
+        db.commit()
+        c = _client(db, u)
+        r = c.post(
+            "/api/v1/ai/timed-replies",
+            json={
+                "messages": [
+                    {"role": "them", "text": "привіт"},
+                    {"role": "me", "text": "Hey, how are you?"},
+                ],
+                "nudge_type": "now",
+                "locale": "uk",
             },
         )
         assert r.status_code == 200

@@ -664,6 +664,7 @@ export async function apiFetch<T = any>(path: string, options: ApiFetchOptions =
       const raw = String(localStorage.getItem("neyra:locale") || "").trim();
       if (raw && !headers["X-UI-Locale"]) headers["X-UI-Locale"] = raw;
       if (raw && !headers["X-Locale"]) headers["X-Locale"] = raw;
+      if (raw && !headers["X-Neyra-Locale"]) headers["X-Neyra-Locale"] = raw;
     }
   } catch {
     /* ignore */

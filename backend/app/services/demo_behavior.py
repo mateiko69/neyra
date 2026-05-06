@@ -25,6 +25,7 @@ from app.models.user import User
 from app.services.ai.orchestrator import AIOrchestrator
 from app.services.analytics import track_event
 from app.services.app_language import normalize_app_language, resolve_recipient_language
+from app.services.ai.locale_decision import resolve_ai_locale_decision
 from app.services.demo_bot_script import demo_outbound_step, scripted_demo_message
 from app.services.demo_message_templates import get_demo_template_message
 from app.services.demo_mode import (
@@ -695,6 +696,7 @@ def _deliver_pending(db: Session, profile: Profile, demo_user: User) -> None:
     recent_lines = _recent_demo_outbound_texts(db, int(demo_user.id), partner_id, limit=10)
 
     # Direct-question intent first, via AIOrchestrator pipeline.
+    latest_user_message = ""
     try:
         last_inbound = None
         if trigger_message_id:
@@ -709,6 +711,13 @@ def _deliver_pending(db: Session, profile: Profile, demo_user: User) -> None:
                 .first()
             )
             last_inbound = str(getattr(m2, "content", "") or "").strip() if m2 else ""
+        latest_user_message = str(last_inbound or "").strip()
+        decided_locale, _source = resolve_ai_locale_decision(
+            latest_user_message=latest_user_message,
+            interface_locale=target_lang,
+            profile_locale=target_lang,
+        )
+        target_lang = decided_locale
         direct = AIOrchestrator.generate_demo_reply(
             speaker_profile=profile,
             partner_profile=partner_profile,
