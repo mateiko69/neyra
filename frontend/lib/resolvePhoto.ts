@@ -1,4 +1,5 @@
 import { photosFromList, primaryPhotoFromList, resolveMediaUrl } from "./media";
+import { getDemoProfilePhoto } from "./demoPhoto";
 
 const DEMO_MAIN_RE = /^\/demo-profiles\/(men|women)\/([^/]+)\/main\.jpg(?:\?.*)?$/i;
 
@@ -108,24 +109,15 @@ function mergePartnerProfileFields(profile: Record<string, unknown>): Record<str
   return out;
 }
 
+// legacy helper kept for back-compat; prefer `getDemoProfilePhoto` from `demoPhoto.ts`.
 function deriveDemoPath(profile: Record<string, unknown>, genderFolder: "men" | "women"): string | null {
   const demoFolder = toSlug(String(profile.demo_folder ?? profile.demoFolder ?? "").trim());
   if (demoFolder) return `/demo-profiles/${genderFolder}/${demoFolder}/main.jpg`;
-
-  const idRaw = String(profile.id ?? profile.user_id ?? profile.userId ?? profile.partner_user_id ?? "").trim();
-  const idLower = idRaw.toLowerCase();
-  const match = idLower.match(/(?:man|woman)?_?demo_(\d{1,3})$/i);
-  if (match?.[1]) {
-    const padded = `demo_${match[1].padStart(3, "0")}`;
-    return `/demo-profiles/${genderFolder}/${padded}/main.jpg`;
-  }
-
   const name = toSlug(String(profile.display_name ?? profile.name ?? profile.partner_display_name ?? "").trim());
   if (name) {
     if (DEMO_NAME_TO_FOLDER[name]) return `/demo-profiles/${genderFolder}/${DEMO_NAME_TO_FOLDER[name]}/main.jpg`;
     return `/demo-profiles/${genderFolder}/${name}/main.jpg`;
   }
-
   return null;
 }
 
@@ -170,7 +162,7 @@ export function resolveDemoProfilePhoto(profile: unknown): string {
   }
 
   if (isDemo) {
-    const derived = deriveDemoPath(merged, genderFolder);
+    const derived = getDemoProfilePhoto({ ...merged, gender: merged.gender ?? genderFolder });
     if (derived) return derived;
     return DEMO_FALLBACK_BY_GENDER[genderFolder];
   }

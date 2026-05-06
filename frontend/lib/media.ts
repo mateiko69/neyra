@@ -42,6 +42,11 @@ export function resolveMediaUrl(url: string): string {
   if (!url) return "";
   const u = url.trim();
   if (!u) return "";
+  // Bundled demo catalog assets MUST always resolve from the frontend origin (never API).
+  // Important: this function is used during server-render of client components too (window undefined).
+  if (u.startsWith("/demo-profiles/") || u.startsWith("demo-profiles/")) {
+    return u.startsWith("/") ? u : `/${u}`;
+  }
   if (typeof window !== "undefined") {
     const origin = window.location.origin.replace(/\/+$/, "");
     const absPrefix = `${origin}/`;
@@ -65,10 +70,7 @@ export function resolveMediaUrl(url: string): string {
       const publicOrigin = new URL(publicBase).origin;
       /** Demo bundle paths should render from the web origin (Vercel static), not the API host. */
       if (parsed.pathname.startsWith("/demo-profiles/")) {
-        if (typeof window !== "undefined") {
-          return path;
-        }
-        return `${publicBase}${path}`;
+        return path;
       }
       const isAppPath = path.startsWith("/uploads/") || path.startsWith("/demo-profiles/");
       if (isAppPath && shouldRewriteMediaHost(parsed.hostname) && parsed.origin !== publicOrigin) {
