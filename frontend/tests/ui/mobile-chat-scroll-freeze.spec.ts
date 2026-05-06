@@ -128,6 +128,14 @@ test.describe("Mobile chat scroll does not freeze after send", () => {
     await expect(profileCard).toBeVisible({ timeout: 25_000 });
     const profileCardHeight = await profileCard.evaluate((el) => Math.round(el.getBoundingClientRect().height));
     expect(profileCardHeight).toBeLessThanOrEqual(140);
+    const overflowTrigger = page.locator(".chat-thread-overflow__trigger").first();
+    await expect(overflowTrigger).toBeVisible({ timeout: 25_000 });
+    await overflowTrigger.click();
+    const menuItems = page.locator(".chat-thread-overflow__menu .chat-thread-overflow__item");
+    await expect(menuItems).toHaveCount(2);
+    await expect(menuItems.nth(0)).toContainText(/delete message/i);
+    await expect(menuItems.nth(1)).toContainText(/ignore/i);
+    await menuItems.nth(1).click();
 
     const scrollHost = page.getByTestId("chat-messages").first();
     await expect(scrollHost).toBeVisible({ timeout: 25_000 });

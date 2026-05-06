@@ -95,6 +95,16 @@ test.describe("Discover demo photos resolve to frontend assets", () => {
       localStorage.setItem("neyra:auth_storage_version", "1");
     });
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
+    const passButton = page.getByRole("button", { name: /pass/i }).first();
+    const likeButton = page.getByRole("button", { name: /like/i }).first();
+    await expect(passButton).toBeVisible();
+    await expect(likeButton).toBeVisible();
+    const passBox = await passButton.boundingBox();
+    const likeBox = await likeButton.boundingBox();
+    expect(passBox).not.toBeNull();
+    expect(likeBox).not.toBeNull();
+    expect((passBox?.x ?? 0) + (passBox?.width ?? 0) * 0.5).toBeLessThan((likeBox?.x ?? 0) + (likeBox?.width ?? 0) * 0.5);
+    await expect(page.getByRole("button", { name: /ignore/i })).toHaveCount(0);
     const img = page.getByTestId("discover-photo").first();
     if (await img.count()) {
       const src = await img.getAttribute("src");

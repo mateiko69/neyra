@@ -54,9 +54,6 @@ export function ChatThreadOverflowMenu({ disabled, partnerIgnored, canDelete, on
         <div className="chat-thread-overflow__menu" role="menu">
           {partnerIgnored ? (
             <>
-              <button type="button" className="chat-thread-overflow__item" role="menuitem" onClick={() => (close(), void onUnignore())}>
-                {t("chat.actions.unignore")}
-              </button>
               <button
                 type="button"
                 className="chat-thread-overflow__item"
@@ -65,6 +62,9 @@ export function ChatThreadOverflowMenu({ disabled, partnerIgnored, canDelete, on
                 onClick={() => (close(), void onDelete())}
               >
                 {t("chat.actions.delete")}
+              </button>
+              <button type="button" className="chat-thread-overflow__item" role="menuitem" onClick={() => (close(), void onUnignore())}>
+                {t("chat.actions.unignore")}
               </button>
             </>
           ) : (

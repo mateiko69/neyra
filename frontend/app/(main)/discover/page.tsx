@@ -928,20 +928,6 @@ export default function DiscoverPage() {
         void runDiscoverSwipeApi(snapshot, profileId, liked);
       });
 
-      if (action === "ignore") {
-        void apiFetch(`/users/${profileId}/ignore`, {
-          method: "POST",
-          metaReason: "discover-ignore-profile",
-          body: JSON.stringify({}),
-          softFail: true,
-        })
-          .then(() => {
-            void trackAnalyticsEvent("discover_profile_ignored", { target_user_id: profileId, surface: "discover" });
-          })
-          .catch(() => {
-            void trackAnalyticsEvent("discover_profile_ignored_local_only", { target_user_id: profileId, surface: "discover" });
-          });
-      }
     },
     [cards, swipeExit, finalizeSwipeExitOnce],
   );
@@ -968,12 +954,6 @@ export default function DiscoverPage() {
     void trackAnalyticsEvent("paywall_clicked", { surface: "discover_boost", source: "boost_profile_cta" });
     router.push("/premium?source=discover_boost");
     setBusy(false);
-  }
-
-  async function ignoreCurrentProfile() {
-    if (swipeInteractionLocked) return;
-    void advanceProfile("ignore");
-    setToast(t("discover.actions.ignoredToast"));
   }
 
   /** Bundled demo photo failed twice — drop card and sync pass without blocking UX. */
@@ -1124,14 +1104,6 @@ export default function DiscoverPage() {
             <div className="discover-actions-mvp__row">
               <Button
                 type="button"
-                className="discover-action-tap discover-action-tap--like discover-action-tap--mvp"
-                disabled={swipeInteractionLocked || !topCardValid}
-                onClick={() => void advanceProfile("like")}
-              >
-                ❤️ {t("discover.actions.like")}
-              </Button>
-              <Button
-                type="button"
                 variant="secondary"
                 className="discover-action-tap discover-action-tap--pass discover-action-tap--mvp"
                 disabled={swipeInteractionLocked || !topCardValid}
@@ -1139,16 +1111,15 @@ export default function DiscoverPage() {
               >
                 ✖ {t("discover.actions.pass")}
               </Button>
+              <Button
+                type="button"
+                className="discover-action-tap discover-action-tap--like discover-action-tap--mvp"
+                disabled={swipeInteractionLocked || !topCardValid}
+                onClick={() => void advanceProfile("like")}
+              >
+                ❤️ {t("discover.actions.like")}
+              </Button>
             </div>
-            <Button
-              type="button"
-              variant="secondary"
-              className="discover-action-tap discover-action-tap--ignore discover-action-tap--mvp"
-              disabled={swipeInteractionLocked || !topCardValid}
-              onClick={() => void advanceProfile("ignore")}
-            >
-              🚫 {t("discover.actions.ignore")}
-            </Button>
             <Button
               type="button"
               variant="secondary"
@@ -1459,7 +1430,7 @@ export default function DiscoverPage() {
                       exiting={swipeExit ? { liked: swipeExit.liked } : null}
                       onLike={() => void advanceProfile("like")}
                       onPass={() => void advanceProfile("pass")}
-                      onIgnore={() => void ignoreCurrentProfile()}
+                      onIgnore={() => void 0}
                       onPeek={() => router.push(`/people/${topCard.user_id}`)}
                       onMediaFatal={swipeAwayBrokenPhoto}
                     />
@@ -1491,15 +1462,6 @@ export default function DiscoverPage() {
               onClick={() => void advanceProfile("pass")}
             >
               {t("discover.card.pass")}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="discover-action-tap discover-action-tap--ignore"
-              disabled={swipeInteractionLocked || !topCardValid}
-              onClick={() => void ignoreCurrentProfile()}
-            >
-              {t("discover.actions.ignore")}
             </Button>
             <Button
               type="button"
