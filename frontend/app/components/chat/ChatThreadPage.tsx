@@ -2322,7 +2322,7 @@ export function ChatThreadPage() {
               messages={c.messages}
               draft={c.draft}
               disabled={!c.canCompose || Boolean(c.blockedThread)}
-              aiCtx={{ uiLocale: uiLocaleTag }}
+              aiCtx={{ uiLocale: uiLocaleTag, overrideLanguage: aiSuggestionLocale === "auto" ? null : aiSuggestionLocale }}
               aiTier={aiTier}
               onInsertDraft={(text) => {
                 c.setDraft(text);

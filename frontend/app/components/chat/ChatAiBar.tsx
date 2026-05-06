@@ -197,7 +197,7 @@ export const ChatAiBar = forwardRef<ChatAiBarHandle, Props>(function ChatAiBar({
   }, [activeAiLocale, uiLocaleTag]);
 
   async function requestSuggestions() {
-    if (!partnerUserId || !viewerUserId) return;
+    if (!partnerUserId) return;
     if (disabled) return;
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -268,7 +268,7 @@ export const ChatAiBar = forwardRef<ChatAiBarHandle, Props>(function ChatAiBar({
   const canRewrite = draftTrim.length > 0 && !disabled;
 
   async function runRewrite() {
-    if (!partnerUserId || !viewerUserId) return;
+    if (!partnerUserId) return;
     if (!canRewrite) return;
     setRewriteOpen(true);
     setRewriteLoading(true);
