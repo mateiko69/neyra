@@ -1,5 +1,5 @@
 /** App routes that never require a session for first paint / redirect targets. */
-const PUBLIC_EXACT = new Set(["/", "/premium", "/privacy", "/terms", "/refund", "/contact"]);
+const PUBLIC_EXACT = new Set(["/", "/premium", "/privacy", "/terms", "/refunds", "/refund", "/contact"]);
 
 const PUBLIC_PREFIXES = [
   "/intro",

@@ -6,7 +6,7 @@ const cases: { path: string; expectText: RegExp }[] = [
   { path: "/premium", expectText: /Plans for every pace/i },
   { path: "/privacy", expectText: /Privacy Policy/i },
   { path: "/terms", expectText: /Terms of Service/i },
-  { path: "/refund", expectText: /Refund Policy/i },
+  { path: "/refunds", expectText: /Refund Policy/i },
   { path: "/contact", expectText: /support@neyra\.app/i },
 ];
 

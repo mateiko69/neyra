@@ -1,5 +1,5 @@
 /** Routes that use PublicMarketingShell styling and must not show in-app bottom/tab navigation. */
-const PUBLIC_MARKETING_EXACT = new Set(["/", "/premium", "/privacy", "/terms", "/refund", "/contact"]);
+const PUBLIC_MARKETING_EXACT = new Set(["/", "/premium", "/privacy", "/terms", "/refunds", "/refund", "/contact"]);
 
 export function normalizePath(pathname: string): string {
   return pathname.split("?")[0] || "/";

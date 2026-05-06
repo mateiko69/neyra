@@ -86,7 +86,7 @@ export function PublicMarketingShell({ children }: { children: ReactNode }) {
               </li>
               <FooterPipe />
               <li>
-                <Link href="/refund">Refund Policy</Link>
+                <Link href="/refunds">Refund Policy</Link>
               </li>
               <FooterPipe />
               <li>

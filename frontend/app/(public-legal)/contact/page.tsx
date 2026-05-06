@@ -46,7 +46,7 @@ export default function ContactPage() {
           <Link href="/terms">Terms of Service</Link>
         </li>
         <li>
-          <Link href="/refund">Refund Policy</Link>
+          <Link href="/refunds">Refund Policy</Link>
         </li>
       </ul>
 

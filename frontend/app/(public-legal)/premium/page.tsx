@@ -81,7 +81,7 @@ export default function PremiumPage() {
             Terms
           </Link>
           ,{" "}
-          <Link href="/refund" style={{ color: "var(--accent)" }}>
+          <Link href="/refunds" style={{ color: "var(--accent)" }}>
             Refund Policy
           </Link>
           , and{" "}

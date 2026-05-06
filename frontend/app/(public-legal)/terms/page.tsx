@@ -67,7 +67,7 @@ export default function TermsPage() {
       <p>
         You may cancel your subscription using the mechanism provided at purchase or within account settings. Unless
         applicable law says otherwise, cancellation stops future renewals; you generally retain access through the end
-        of the paid period. See the <Link href="/refund">Refund Policy</Link> for additional detail.
+        of the paid period. See the <Link href="/refunds">Refund Policy</Link> for additional detail.
       </p>
 
       <h2>7. Acceptable use and safety</h2>

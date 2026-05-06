@@ -37,7 +37,7 @@ export function LandingFooter() {
         <Link className="body" style={{ color: "var(--accent)" }} href="/terms">
           {t("landing.footer.terms")}
         </Link>
-        <Link className="body" style={{ color: "var(--accent)" }} href="/refund">
+        <Link className="body" style={{ color: "var(--accent)" }} href="/refunds">
           {t("landing.footer.refund")}
         </Link>
         <Link className="body" style={{ color: "var(--accent)" }} href="/contact">
