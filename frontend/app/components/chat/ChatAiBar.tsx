@@ -156,6 +156,15 @@ export const ChatAiBar = forwardRef<ChatAiBarHandle, Props>(function ChatAiBar({
     setRewriteLoading(false);
   }, [partnerUserId, uiLocaleTag]);
 
+  useEffect(() => {
+    // Locale switch must not keep suggestions generated for another language.
+    setPack({ light: "", flirty: "", deep: "" });
+    setOpen(false);
+    setTyping(false);
+    setLoading(false);
+    setNonBlockingError("");
+  }, [uiLocaleTag]);
+
   async function requestSuggestions() {
     if (!partnerUserId || !viewerUserId) return;
     if (disabled) return;

@@ -343,6 +343,7 @@ export function ChatComposer({
         {onToggleAi ? (
           <button
             type="button"
+            data-testid="chat-ai-button"
             className={["chat-composer__ai", aiActive ? "chat-composer__ai--active" : ""].filter(Boolean).join(" ")}
             onClick={onToggleAi}
             disabled={disabled || sending || isSendingVoice || aiLoading}

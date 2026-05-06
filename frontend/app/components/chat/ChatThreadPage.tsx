@@ -1950,6 +1950,11 @@ export function ChatThreadPage() {
             olderLoading={c.olderLoading}
             onLoadOlder={() => void c.actions.loadOlderMessages()}
             partnerReplyGlowId={partnerReplyGlowId}
+            canDeleteThread={c.matchId != null}
+            partnerIgnored={Boolean(c.partner?.ignoredByMe)}
+            onDeleteThread={() => void c.actions.deleteChat()}
+            onIgnorePartner={() => void c.actions.ignorePartner()}
+            onUnignorePartner={() => void c.actions.unignorePartner()}
           />
           </RuntimeErrorBoundary>
         </div>
@@ -2352,6 +2357,10 @@ export function ChatThreadPage() {
             onToggleAi={() => {
               if (isMobile) {
                 if (aiComposerBusy) return;
+                if (!chatAiBarRef.current) {
+                  setSuccessNudge({ message: t("common.tryAgain"), ttlMs: 4000 });
+                  return;
+                }
                 setAiComposerBusy(true);
                 void chatAiBarRef.current?.triggerFromComposer().finally(() => setAiComposerBusy(false));
                 return;

@@ -40,6 +40,12 @@ type ChatMessageListProps = {
   partnerReplyGlowId?: string | null;
   /** Optional non-overlay content rendered in the same scroll flow below messages. */
   afterMessagesContent?: ReactNode;
+  /** Thread-level actions surfaced via per-message menu. */
+  canDeleteThread?: boolean;
+  partnerIgnored?: boolean;
+  onDeleteThread?: () => void;
+  onIgnorePartner?: () => void;
+  onUnignorePartner?: () => void;
 };
 
 function dayKey(value: string | null): string {
@@ -133,6 +139,11 @@ export function ChatMessageList({
   onLoadOlder,
   partnerReplyGlowId = null,
   afterMessagesContent = null,
+  canDeleteThread = false,
+  partnerIgnored = false,
+  onDeleteThread,
+  onIgnorePartner,
+  onUnignorePartner,
 }: ChatMessageListProps) {
   const { t, locale } = useT("ChatMessageList");
   const visibleMessages = useMemo(() => {
@@ -144,6 +155,7 @@ export function ChatMessageList({
   const [showNewMessages, setShowNewMessages] = useState(false);
   const [newMessageCount, setNewMessageCount] = useState(0);
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
+  const [openActionsMenuId, setOpenActionsMenuId] = useState<string | null>(null);
   const atBottomRef = useRef(true);
   const seenMessageIdsRef = useRef<Set<string>>(new Set());
   const initialAutoScrollDoneRef = useRef(false);
@@ -443,6 +455,12 @@ export function ChatMessageList({
     setOpenReactionPickerId(null);
   }, [messages, openReactionPickerId]);
 
+  useLayoutEffect(() => {
+    if (!openActionsMenuId) return;
+    if (messages.some((message) => message.id === openActionsMenuId)) return;
+    setOpenActionsMenuId(null);
+  }, [messages, openActionsMenuId]);
+
   function scrollToBottom() {
     const scroller = resolveScrollHost(scrollerRef.current);
     const anchor = bottomAnchorRef.current;
@@ -700,8 +718,18 @@ export function ChatMessageList({
                         ) : null}
                       </div>
 
-                      {message.rawId != null && (onReplyMessage || onReactMessage) ? (
+                      {message.rawId != null && (onReplyMessage || onReactMessage || onDeleteThread || onIgnorePartner || onUnignorePartner) ? (
                         <div className="chat-message-actions" aria-label={t("chat.list.messageActionsAria")}>
+                          <button
+                            type="button"
+                            data-testid="message-actions-button"
+                            className="chat-message-action chat-message-action--menu"
+                            aria-label={locale === "uk" ? "Дії" : "More actions"}
+                            aria-expanded={openActionsMenuId === message.id}
+                            onClick={() => setOpenActionsMenuId((current) => (current === message.id ? null : message.id))}
+                          >
+                            ⋯
+                          </button>
                           {onReplyMessage ? (
                             <button type="button" className="chat-message-action" onClick={() => onReplyMessage(message)}>
                               {renderDebugText(t("chat.list.reply"), { component: "ChatMessageList", prop: "replyButton" })}
@@ -726,6 +754,72 @@ export function ChatMessageList({
                                 component: "ChatMessageList",
                                 prop: "reactionButton",
                               })}
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      {openActionsMenuId === message.id ? (
+                        <div
+                          className={[
+                            "chat-message-actions-menu",
+                            ownMessage ? "chat-message-actions-menu--own" : "chat-message-actions-menu--partner",
+                          ]
+                            .filter(Boolean)
+                            .join(" ")}
+                          role="menu"
+                        >
+                          {onReplyMessage ? (
+                            <button
+                              type="button"
+                              className="chat-message-actions-menu__item"
+                              role="menuitem"
+                              onClick={() => {
+                                setOpenActionsMenuId(null);
+                                onReplyMessage(message);
+                              }}
+                            >
+                              {t("chat.list.reply")}
+                            </button>
+                          ) : null}
+                          {onReactMessage ? (
+                            <button
+                              type="button"
+                              className="chat-message-actions-menu__item"
+                              role="menuitem"
+                              onClick={() => {
+                                setOpenActionsMenuId(null);
+                                setOpenReactionPickerId((current) => (current === message.id ? null : message.id));
+                              }}
+                            >
+                              {t("chat.list.react")}
+                            </button>
+                          ) : null}
+                          {ownMessage && canDeleteThread && onDeleteThread ? (
+                            <button
+                              type="button"
+                              className="chat-message-actions-menu__item"
+                              role="menuitem"
+                              onClick={() => {
+                                setOpenActionsMenuId(null);
+                                onDeleteThread();
+                              }}
+                            >
+                              {t("chat.actions.delete")}
+                            </button>
+                          ) : null}
+                          {!ownMessage && (partnerIgnored ? onUnignorePartner : onIgnorePartner) ? (
+                            <button
+                              type="button"
+                              className="chat-message-actions-menu__item"
+                              role="menuitem"
+                              onClick={() => {
+                                setOpenActionsMenuId(null);
+                                if (partnerIgnored) onUnignorePartner?.();
+                                else onIgnorePartner?.();
+                              }}
+                            >
+                              {partnerIgnored ? t("chat.actions.unignore") : t("chat.actions.ignore")}
                             </button>
                           ) : null}
                         </div>

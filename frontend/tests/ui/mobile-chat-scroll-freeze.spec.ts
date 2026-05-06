@@ -74,7 +74,46 @@ test.describe("Mobile chat scroll does not freeze after send", () => {
         return;
       }
       if (method === "GET" && path.includes(`/api/v1/messages/${partnerId}`)) {
-        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(serverMessages) });
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ messages: serverMessages, match_id: 123 }),
+        });
+        return;
+      }
+      if (method === "POST" && path.endsWith("/api/v1/ai/chat-brain/suggestions")) {
+        let body: any = null;
+        try {
+          body = req.postDataJSON();
+        } catch {
+          body = null;
+        }
+        const lang = String(body?.language || body?.locale || "en").toLowerCase();
+        const isUk = lang.startsWith("uk");
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            ok: true,
+            variants: isUk
+              ? {
+                  light: "Привіт! Як проходить твій день?",
+                  flirty: "Ти звучиш цікаво, хочеш продовжити розмову?",
+                  deep: "Мені подобається твоя енергія, що для тебе важливо у стосунках?",
+                }
+              : {
+                  light: "Hey! How is your day going?",
+                  flirty: "You seem fun, want to keep chatting?",
+                  deep: "I like your vibe - what matters most to you in a relationship?",
+                },
+            coaching: { action: "write_now" },
+            ui: { suggestions_visible: true },
+            recommended_variant: "light",
+            recommendation_reason: "fits_context",
+            variant_insights: {},
+            meta: { mode: "reply", language: isUk ? "uk" : "en", ai_used: true },
+          }),
+        });
         return;
       }
 
@@ -118,6 +157,8 @@ test.describe("Mobile chat scroll does not freeze after send", () => {
       localStorage.setItem("token", "test_token_1234567890");
       localStorage.setItem("neyra:auth_storage_version", "1");
     });
+    await page.goto("/login", { waitUntil: "domcontentloaded" });
+    await page.evaluate(() => localStorage.setItem("neyra:locale", "en"));
 
     await page.goto(`/chat/${partnerId}`, { waitUntil: "domcontentloaded" });
     // Ensure we didn't get redirected away from the thread.
@@ -141,14 +182,35 @@ test.describe("Mobile chat scroll does not freeze after send", () => {
     await expect(scrollHost).toBeVisible({ timeout: 25_000 });
     await expect(page.getByTestId("ai-suggestions")).toBeVisible({ timeout: 25_000 });
     const input = page.getByTestId("chat-composer-input").first();
-    const aiComposerButton = page.locator(".chat-composer__ai").first();
+    const aiComposerButton = page.getByTestId("chat-ai-button").first();
     await expect(aiComposerButton).toBeVisible({ timeout: 25_000 });
     await aiComposerButton.click();
     const getSuggestions = page.locator('[data-testid="ai-suggestions"] button').first();
     await expect(getSuggestions).toBeVisible({ timeout: 25_000 });
     await getSuggestions.click();
     const compactSuggestions = page.locator('[data-testid="ai-suggestions"] .chat-ai__suggestion');
+    await expect(compactSuggestions.first()).toContainText(/how is your day|want to keep chatting|what matters most/i);
+    await page.screenshot({ path: path.join(artifactDir, "mobile-chat-actions-en.png"), fullPage: false });
     const suggestionCount = await compactSuggestions.count();
+    await page.evaluate(() => localStorage.setItem("neyra:locale", "uk"));
+    await page.reload({ waitUntil: "domcontentloaded" });
+    const aiComposerButtonUk = page.getByTestId("chat-ai-button").first();
+    await expect(aiComposerButtonUk).toBeVisible({ timeout: 25_000 });
+    await aiComposerButtonUk.click();
+    await page.locator('[data-testid="ai-suggestions"] button').first().click();
+    await expect(page.locator('[data-testid="ai-suggestions"] .chat-ai__suggestion').first()).toContainText(
+      /Привіт|продовжити розмову|стосунках/i,
+    );
+
+    const ownActionButton = page.locator(".chat-message-row--own [data-testid='message-actions-button']").first();
+    await expect(ownActionButton).toBeVisible({ timeout: 25_000 });
+    await ownActionButton.click();
+    await expect(page.locator(".chat-message-actions-menu").first()).toContainText(/Delete message|Видалити повідомлення/i);
+    const partnerActionButton = page.locator(".chat-message-row--partner [data-testid='message-actions-button']").first();
+    await partnerActionButton.click();
+    await expect(page.locator(".chat-message-actions-menu").first()).toContainText(/Ignore|Ігнорувати/i);
+    await page.screenshot({ path: path.join(artifactDir, "mobile-chat-actions-uk.png"), fullPage: false });
+
     if (suggestionCount >= 1) {
       await compactSuggestions.first().click();
       await expect(input).not.toHaveValue("", { timeout: 25_000 });
@@ -221,7 +283,7 @@ test.describe("Mobile chat scroll does not freeze after send", () => {
     await input.fill("ok");
     await expect(input).toHaveValue(/ok/);
     const bodyText = await page.locator("body").innerText();
-    expect(bodyText).not.toMatch(/[ґЂРÂ�]|бЃ/);
+    expect(bodyText).not.toMatch(/ЋҐ|‰|бЃ|Â�/);
     await page.screenshot({ path: path.join(artifactDir, "mobile-chat-final-tuned.png"), fullPage: false });
   });
 });
