@@ -2228,14 +2228,40 @@ html[data-i18n-debug="true"] {
 @media (max-width: 1023px) {
   .shell-main {
     min-height: 100dvh;
-    padding: max(12px, env(safe-area-inset-top, 0px)) 16px calc(96px + env(safe-area-inset-bottom, 0px));
+    padding: max(12px, env(safe-area-inset-top, 0px)) 16px calc(118px + env(safe-area-inset-bottom, 0px));
     box-sizing: border-box;
   }
   .shell-nav-center { display: none; }
   .shell-top-inner {
-    grid-template-columns: 1fr auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 12px;
+    grid-template-columns: unset;
+    max-width: 100%;
+  }
+  .shell-brand-slot {
+    flex: 1 1 auto;
+    min-width: min(200px, 100%);
+    max-width: 100%;
+    order: 0;
+  }
+  .shell-actions {
+    flex: 0 1 auto;
+    justify-self: unset;
+    margin-left: auto;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 100%;
   }
   .shell-nav-spacer { display: none; }
+  .nav-language-select,
+  button.nav-pill-quiet,
+  .nav-pill-quiet {
+    min-height: 36px;
+  }
 }
 
 @media (max-width: 520px) {
@@ -6850,6 +6876,20 @@ html[data-i18n-debug="true"] {
   display: block;
 }
 
+.discover-mobile-mvp-card__photo-wrap > .discover-mobile-mvp-card__photo-safe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.discover-mobile-mvp-card__photo-wrap > .discover-mobile-mvp-card__photo-safe img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 22%;
+  display: block;
+}
+
 .discover-mobile-mvp-card__photo-fallback {
   width: 100%;
   height: 100%;
@@ -8129,10 +8169,17 @@ html[data-i18n-debug="true"] {
   width: 56px;
   height: 56px;
   border-radius: 18px;
-  object-fit: cover;
+  overflow: hidden;
   flex-shrink: 0;
   border: 2px solid rgba(255,255,255,0.1);
   box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+}
+
+.match-row__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .match-row__text {

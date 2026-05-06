@@ -32,6 +32,7 @@ uploads/
 backend/uploads/
 reports/
 backups/
+frontend/artifacts/
 
 ### OS/editor
 .DS_Store

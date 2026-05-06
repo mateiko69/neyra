@@ -671,21 +671,12 @@ export default function ProfilePage() {
                   {saving === "photos" ? t("common.saving") : t("common.save")}
                 </Button>
               </div>
-            ) : (
+            ) : photoUploadDisabled ? null : (
               <Button
                 type="button"
                 data-testid="profile-photo-edit"
                 variant="secondary"
                 onClick={() => setEditing("photos")}
-                disabled={photoUploadDisabled}
-                title={
-                  photoUploadDisabled
-                    ? profile?.is_demo_profile || profile?.demo_only_mode
-                      ? t("profile.photos.editDisabledDemoTooltip")
-                      : t("profile.photos.editDisabledUploadTooltip")
-                    : undefined
-                }
-                className={photoUploadDisabled ? "profile-photo-edit--locked" : undefined}
               >
                 {t("common.edit")}
               </Button>

@@ -291,6 +291,7 @@ export function PhotoUploader({ urls, primaryIndex, onChange, onError, disabled 
   }
 
   const inputDisabled = disabled || busy || slotsUsed >= MAX_PHOTOS;
+  const interactionsLocked = Boolean(disabled);
 
   function openFilePicker() {
     if (inputDisabled) return;
@@ -303,32 +304,34 @@ export function PhotoUploader({ urls, primaryIndex, onChange, onError, disabled 
 
   return (
     <div className="grid" style={{ gap: 12 }}>
-      {urls.length === 0 && pending.length === 0 ? (
+      {urls.length === 0 && pending.length === 0 && !interactionsLocked ? (
         <div className="photo-upload-empty" aria-hidden={false}>
           <div className="photo-upload-empty-title">{t("photos.empty.title")}</div>
           <p className="photo-upload-empty-desc">{t("photos.empty.description")}</p>
         </div>
       ) : null}
 
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-        <div style={{ display: "inline-block" }}>
-          {/* Off-screen, not display:none - programmatic .click() works reliably across browsers. */}
-          <input
-            ref={inputRef}
-            type="file"
-            accept={ACCEPT_IMAGES}
-            multiple
-            tabIndex={-1}
-            aria-label={t("photos.chooseAria")}
-            onChange={(event) => void onFilesSelected(event.target.files)}
-            style={offScreenFileInput}
-          />
-          <Button type="button" variant="secondary" disabled={inputDisabled} onClick={openFilePicker}>
-            {busy ? t("photos.uploading") : t("photos.add")}
-          </Button>
+      {!interactionsLocked ? (
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ display: "inline-block" }}>
+            {/* Off-screen, not display:none - programmatic .click() works reliably across browsers. */}
+            <input
+              ref={inputRef}
+              type="file"
+              accept={ACCEPT_IMAGES}
+              multiple
+              tabIndex={-1}
+              aria-label={t("photos.chooseAria")}
+              onChange={(event) => void onFilesSelected(event.target.files)}
+              style={offScreenFileInput}
+            />
+            <Button type="button" variant="secondary" disabled={inputDisabled} onClick={openFilePicker}>
+              {busy ? t("photos.uploading") : t("photos.add")}
+            </Button>
+          </div>
+          <span className="caption">{t("photos.caption", { used: slotsUsed, count: MAX_PHOTOS })}</span>
         </div>
-        <span className="caption">{t("photos.caption", { used: slotsUsed, count: MAX_PHOTOS })}</span>
-      </div>
+      ) : null}
 
       {successHint ? (
         <div className="caption" style={{ color: "var(--success)", fontWeight: 600 }}>
@@ -336,8 +339,8 @@ export function PhotoUploader({ urls, primaryIndex, onChange, onError, disabled 
         </div>
       ) : null}
 
-      {urls.length > 0 && primaryIndex !== 0 ? (
-        <Button type="button" variant="ghost" onClick={movePrimaryToFront} disabled={disabled || busy}>
+      {!interactionsLocked && urls.length > 0 && primaryIndex !== 0 ? (
+        <Button type="button" variant="ghost" onClick={movePrimaryToFront} disabled={busy}>
           {t("photos.makePrimaryFirst")}
         </Button>
       ) : null}
@@ -361,26 +364,28 @@ export function PhotoUploader({ urls, primaryIndex, onChange, onError, disabled 
               style={{ width: "100%", height: 120, objectFit: "cover", display: "block" }}
               previewUnavailableText={t("photos.previewUnavailable")}
             />
-            <div style={{ display: "flex", gap: 4, padding: 6, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                className="chip"
-                style={{ cursor: "pointer", fontSize: 11 }}
-                disabled={disabled || busy}
-                onClick={() => setPrimary(index)}
-              >
-                {index === primaryIndex ? t("photos.primary") : t("photos.setPrimary")}
-              </button>
-              <button
-                type="button"
-                className="chip"
-                style={{ cursor: "pointer", fontSize: 11 }}
-                disabled={disabled || busy}
-                onClick={() => removeAt(index)}
-              >
-                {t("photos.remove")}
-              </button>
-            </div>
+            {!interactionsLocked ? (
+              <div style={{ display: "flex", gap: 4, padding: 6, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="chip"
+                  style={{ cursor: "pointer", fontSize: 11 }}
+                  disabled={busy}
+                  onClick={() => setPrimary(index)}
+                >
+                  {index === primaryIndex ? t("photos.primary") : t("photos.setPrimary")}
+                </button>
+                <button
+                  type="button"
+                  className="chip"
+                  style={{ cursor: "pointer", fontSize: 11 }}
+                  disabled={busy}
+                  onClick={() => removeAt(index)}
+                >
+                  {t("photos.remove")}
+                </button>
+              </div>
+            ) : null}
           </div>
         ))}
 
@@ -429,15 +434,17 @@ export function PhotoUploader({ urls, primaryIndex, onChange, onError, disabled 
                   {resolveI18nText(slot.error, t)}
                 </div>
               ) : null}
-              <button
-                type="button"
-                className="chip"
-                style={{ cursor: "pointer", fontSize: 11 }}
-                disabled={disabled || (slot.uploading && !slot.error)}
-                onClick={() => removePending(slot.id)}
-              >
-                {t("photos.remove")}
-              </button>
+              {!interactionsLocked ? (
+                <button
+                  type="button"
+                  className="chip"
+                  style={{ cursor: "pointer", fontSize: 11 }}
+                  disabled={slot.uploading && !slot.error}
+                  onClick={() => removePending(slot.id)}
+                >
+                  {t("photos.remove")}
+                </button>
+              ) : null}
             </div>
           </div>
         ))}

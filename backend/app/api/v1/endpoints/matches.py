@@ -98,6 +98,8 @@ def list_matches(limit: int = 50, offset: int = 0, current_user: User = Depends(
             "partner_display_name": profile.display_name if profile else "Unknown",
             "partner_age": profile.age if profile else None,
             "partner_city": profile.city if profile else "",
+            "partner_gender": (profile.gender or "") if profile else "",
+            "partner_is_demo_profile": bool(getattr(profile, "is_demo_profile", False)) if profile else False,
             "partner_photo": first_photo,
             "partner_verified": approved,
             "partner_is_premium": partner_premium,

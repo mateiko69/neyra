@@ -12,7 +12,11 @@ import { VerifiedBadge } from "../../components/trust/VerifiedBadge";
 import { PremiumBadge } from "../../components/trust/PremiumBadge";
 import { Badge, Chip } from "../../components/ui";
 import { SafeImg } from "../../components/SafeImg";
-import { demoCatalogFallbackMain, resolveDemoProfilePhoto } from "../../../lib/resolvePhoto";
+import {
+  bundledDemoMainFallbackRing,
+  demoCatalogFallbackMain,
+  resolveDemoProfilePhoto,
+} from "../../../lib/resolvePhoto";
 import { DiscoverInlineOpeners } from "./DiscoverInlineOpeners";
 
 export type DiscoverCardData = {
@@ -276,8 +280,6 @@ function DiscoverProfileCardInner({
   const isPremium = Boolean(card.is_premium);
   const isDemoProfile = Boolean(card.is_demo_profile);
   const demoPersonality = String(card.demo_personality_type || "").trim() || "calm";
-  const demoPhotoFallback = useMemo(() => demoCatalogFallbackMain(card.gender), [card.gender]);
-
   const vrTag = card.variable_reward ?? null;
   const vrDelay = card.variable_reward_delay_ms != null && Number.isFinite(Number(card.variable_reward_delay_ms)) ? Math.max(0, Math.trunc(Number(card.variable_reward_delay_ms))) : 0;
   const [showVariableReward, setShowVariableReward] = useState(false);
@@ -343,7 +345,8 @@ function DiscoverProfileCardInner({
                       className="discover-card__img"
                       loading={index === 0 ? "eager" : "lazy"}
                       src={url}
-                      fallbackSrc={demoPhotoFallback}
+                      fallbackSrc={resolveDemoProfilePhoto(card)}
+                      extraFallbackSources={bundledDemoMainFallbackRing(card.gender)}
                       alt={index === 0 ? name : t("discover.card.photoAlt", { name, index: index + 1 })}
                       photoTestId={index === 0 ? "discover-photo" : undefined}
                     />
@@ -355,7 +358,8 @@ function DiscoverProfileCardInner({
                     className="discover-card__img"
                     loading="eager"
                     src={resolveDemoProfilePhoto(card)}
-                    fallbackSrc={demoPhotoFallback}
+                    fallbackSrc={demoCatalogFallbackMain(card.gender)}
+                    extraFallbackSources={bundledDemoMainFallbackRing(card.gender)}
                     alt={name}
                     photoTestId="discover-photo"
                   />

@@ -16,7 +16,11 @@ import { consumeNextPageToast } from "../../../lib/nextPageToast";
 import { queueNextPageToast } from "../../../lib/nextPageToast";
 import { PAGE_BOOT_FETCH_DELAY_MS, PAGE_SECONDARY_FETCH_DELAY_MS, schedulePageLoad } from "../../../lib/pageLoad";
 import { resolveMediaUrl } from "../../../lib/media";
-import { resolvePhoto } from "../../../lib/resolvePhoto";
+import {
+  bundledDemoMainFallbackRing,
+  demoCatalogFallbackMain,
+  resolvePhoto,
+} from "../../../lib/resolvePhoto";
 import { AiDebugPill } from "../../components/AiDebugPill";
 import { EmptyState } from "../../components/EmptyState";
 import { useT } from "../../components/i18n/I18nProvider";
@@ -35,6 +39,8 @@ type MatchRow = {
   partner_display_name: string;
   partner_age: number | null;
   partner_city: string;
+  partner_gender?: string | null;
+  partner_is_demo_profile?: boolean | null;
   partner_photo: string | null;
   partner_verified?: boolean;
   partner_is_premium?: boolean;
@@ -573,6 +579,7 @@ export default function MatchesPage() {
               const act = activityBadge(match, convo);
               const partnerName = String((match as any)?.partner_display_name ?? "").trim() || t("common.someone");
               const partnerPhoto = resolveMediaUrl(String(resolvePhoto(match) || "").trim());
+              const isDemoPartner = Boolean(match.partner_is_demo_profile);
               const inactiveLabel = opts?.inactive ? t("matches.inactive.label") : "";
               const hasConversation = Boolean(String(convo?.last_message_preview || "").trim());
               const openerPack = openerByPartnerId.get(match.partner_user_id) ?? null;
@@ -597,6 +604,12 @@ export default function MatchesPage() {
                     <SafeImg
                       className="match-row__avatar"
                       src={partnerPhoto}
+                      fallbackSrc={
+                        isDemoPartner ? demoCatalogFallbackMain(match.partner_gender ?? null) : ""
+                      }
+                      extraFallbackSources={
+                        isDemoPartner ? bundledDemoMainFallbackRing(match.partner_gender ?? null) : []
+                      }
                       alt=""
                       loading="lazy"
                       photoTestId="match-avatar-img"

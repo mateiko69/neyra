@@ -9,6 +9,8 @@ type Props = {
   src?: string | null;
   /** Second URL tried if primary fails (e.g. bundled demo main.jpg). */
   fallbackSrc?: string | null;
+  /** Additional URLs tried in order after `fallbackSrc` (deduped; e.g. both gender JPGs). */
+  extraFallbackSources?: readonly string[] | null;
   alt: string;
   className?: string;
   style?: CSSProperties;
@@ -21,9 +23,22 @@ type Props = {
 
 type LoadMode = "live" | "dead";
 
+function buildResolvedChain(src: unknown, fallbackSrc: unknown, extras: readonly string[] | null | undefined): string[] {
+  const out: string[] = [];
+  const push = (raw: unknown) => {
+    const resolved = typeof raw === "string" ? resolveMediaUrl(raw.trim()) : "";
+    if (resolved && !out.includes(resolved)) out.push(resolved);
+  };
+  push(src ?? "");
+  push(fallbackSrc ?? "");
+  for (const raw of extras ?? []) push(raw);
+  return out;
+}
+
 export function SafeImg({
   src,
   fallbackSrc,
+  extraFallbackSources,
   alt,
   className,
   photoTestId,
@@ -35,40 +50,48 @@ export function SafeImg({
   const modeRef = useRef<LoadMode>("live");
   modeRef.current = mode;
 
-  const resolvedPrimary = useMemo(() => resolveMediaUrl(src?.trim() || ""), [src]);
-  const resolvedFallback = useMemo(
-    () => (fallbackSrc?.trim() ? resolveMediaUrl(fallbackSrc.trim()) : ""),
-    [fallbackSrc],
+  const extrasKey = (extraFallbackSources ?? []).join("\0");
+
+  const chain = useMemo(
+    () => buildResolvedChain(src, fallbackSrc, extraFallbackSources),
+    [src, fallbackSrc, extrasKey],
   );
 
-  const [useFallback, setUseFallback] = useState(false);
+  const chainRef = useRef(chain);
+  chainRef.current = chain;
+
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     setMode("live");
     modeRef.current = "live";
-    setUseFallback(false);
-  }, [src, fallbackSrc]);
+    setAttempt(0);
+  }, [src, fallbackSrc, extrasKey]);
 
   const displaySrc = useMemo(() => {
     if (mode === "dead") return PRIMARY_IMAGE_PLACEHOLDER;
-    const primary = resolvedPrimary;
-    const fb = resolvedFallback;
-    const chosen = useFallback && fb ? fb : primary || fb;
+    const chosen =
+      chain.length > 0 ? chain[Math.min(attempt, Math.max(0, chain.length - 1))] : "";
     if (!chosen) return PRIMARY_IMAGE_PLACEHOLDER;
     return chosen;
-  }, [mode, resolvedPrimary, resolvedFallback, useFallback]);
+  }, [mode, chain, attempt]);
 
   const onError = useCallback(() => {
     if (modeRef.current === "dead") return;
-    if (!useFallback && resolvedFallback && resolvedPrimary && resolvedFallback !== resolvedPrimary) {
-      setUseFallback(true);
-      modeRef.current = "live";
-      setMode("live");
-      return;
-    }
-    setMode("dead");
-    modeRef.current = "dead";
-  }, [resolvedFallback, resolvedPrimary, useFallback]);
+    setAttempt((prev) => {
+      const len = chainRef.current.length;
+      const next = prev + 1;
+      if (len <= 0) {
+        setMode("dead");
+        modeRef.current = "dead";
+        return prev;
+      }
+      if (next < len) return next;
+      setMode("dead");
+      modeRef.current = "dead";
+      return prev;
+    });
+  }, []);
 
   return (
     <span className={className} style={{ position: "relative", display: "block", ...style }}>

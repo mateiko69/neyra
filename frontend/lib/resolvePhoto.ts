@@ -38,6 +38,13 @@ export function demoCatalogFallbackMain(genderRaw: unknown): string {
   return DEMO_FALLBACK_BY_GENDER[folder] ?? DEMO_FALLBACK_BY_GENDER.women;
 }
 
+/** Bundled JPG fallbacks — try preferred gender folder first, then the other (demo reliability). */
+export function bundledDemoMainFallbackRing(genderRaw?: unknown): string[] {
+  const folder = normalizeGenderFolder(genderRaw);
+  const other: "men" | "women" = folder === "men" ? "women" : "men";
+  return [DEMO_FALLBACK_BY_GENDER[folder], DEMO_FALLBACK_BY_GENDER[other]];
+}
+
 function toSlug(input: string): string {
   return String(input || "")
     .trim()
@@ -145,7 +152,9 @@ export function resolveDemoProfilePhoto(profile: unknown): string {
       merged.isDemo ??
       String(merged.demo_mode ?? "").trim() === "1",
   );
-  const genderFolder = normalizeGenderFolder(merged.gender ?? merged.sex ?? merged.partner_gender);
+  const genderFolder = normalizeGenderFolder(
+    merged.gender ?? merged.sex ?? merged.partner_gender ?? merged.partnerGender,
+  );
   const allCandidates = collectPhotoCandidates(merged);
 
   for (const raw of allCandidates) {

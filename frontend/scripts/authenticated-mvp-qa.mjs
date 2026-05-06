@@ -1,4 +1,25 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { chromium, devices, request as playwrightRequest } from "playwright";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const QA_ARTIFACT_DIR = path.join(__dirname, "..", "artifacts", "qa-mvp");
+
+function ensureArtifactDir() {
+  fs.mkdirSync(QA_ARTIFACT_DIR, { recursive: true });
+}
+
+function assertBundledPhotoSrc(src, label) {
+  if (!src || typeof src !== "string") throw new Error(`${label}: missing img src`);
+  const s = src.trim();
+  if (/^data:image\/svg\+xml/i.test(s)) {
+    throw new Error(`${label}: data:image/svg+xml placeholder (NEYRA gradient) — real photo did not load`);
+  }
+  if (!s.includes("/demo-profiles/")) {
+    throw new Error(`${label}: expected /demo-profiles/ bundled URL, got ${s.slice(0, 160)}`);
+  }
+}
 
 const WEB_BASE = process.env.QA_WEB_BASE || "https://www.getneyra.app";
 const API_BASE = (process.env.QA_API_BASE || "https://api.getneyra.app/api/v1/").replace(/\/?$/, "/");
@@ -72,7 +93,10 @@ async function registerAndPrepare(displayName, gender, interestedIn) {
     vibe: "warm",
     interests: "music,coffee,travel",
     lifestyle_tags: "active,kind",
-    photo_urls: `https://picsum.photos/seed/${encodeURIComponent(displayName)}/640/960`,
+    photo_urls:
+      String(gender || "").toLowerCase() === "man"
+        ? "/demo-profiles/men/demo_001/main.jpg"
+        : "/demo-profiles/women/demo_001/main.jpg",
     native_language: "en",
     min_preferred_age: 18,
     max_preferred_age: 80,
@@ -137,13 +161,38 @@ async function runViewport(name, contextOpts, { discoverToken, sessionToken, cha
 
   await mark(`${name} /discover photo visible`, async () => {
     await injectToken(page, discoverToken);
+    const imgWait = page
+      .waitForResponse(
+        (r) => {
+          try {
+            const u = new URL(r.url());
+            return (
+              r.request().resourceType() === "image" &&
+              u.pathname.includes("/demo-profiles/") &&
+              r.status() === 200
+            );
+          } catch {
+            return false;
+          }
+        },
+        { timeout: 35_000 },
+      )
+      .catch(() => null);
     await page.goto(`${WEB_BASE}/discover`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await imgWait;
     const pic = page.getByTestId("discover-photo");
     await pic.first().waitFor({ state: "visible", timeout: 25_000 });
     await waitForTestIdImageDecoded(page, "discover-photo");
     await assertNoBrokenText();
-    const nw = await pic.first().evaluate((el) => (el instanceof HTMLImageElement ? el.naturalWidth || 0 : 0));
+    const { nw, src } = await pic.first().evaluate((el) => {
+      if (!(el instanceof HTMLImageElement)) return { nw: 0, src: "" };
+      return { nw: el.naturalWidth || 0, src: el.currentSrc || el.src || "" };
+    });
     if (nw < 1) throw new Error(`discover-photo naturalWidth=${nw}`);
+    assertBundledPhotoSrc(src, `${name} discover-photo`);
+    const shotPath = path.join(QA_ARTIFACT_DIR, `${name}-discover-card.png`);
+    await page.screenshot({ path: shotPath, fullPage: false });
+    if (!fs.existsSync(shotPath)) throw new Error(`screenshot missing ${shotPath}`);
   });
 
   await mark(`${name} /discover pass/ignore/like/undo/start-ai`, async () => {
@@ -179,8 +228,15 @@ async function runViewport(name, contextOpts, { discoverToken, sessionToken, cha
     const avatar = page.getByTestId("match-avatar-img").first();
     await avatar.waitFor({ state: "visible", timeout: 25_000 });
     await waitForTestIdImageDecoded(page, "match-avatar-img");
-    const nw = await avatar.evaluate((el) => (el instanceof HTMLImageElement ? el.naturalWidth || 0 : 0));
+    const { nw, src } = await avatar.evaluate((el) => {
+      if (!(el instanceof HTMLImageElement)) return { nw: 0, src: "" };
+      return { nw: el.naturalWidth || 0, src: el.currentSrc || el.src || "" };
+    });
     if (nw < 1) throw new Error(`match avatar naturalWidth=${nw}`);
+    assertBundledPhotoSrc(src, `${name} match-avatar-img`);
+    const shotPath = path.join(QA_ARTIFACT_DIR, `${name}-matches-list.png`);
+    await page.screenshot({ path: shotPath, fullPage: false });
+    if (!fs.existsSync(shotPath)) throw new Error(`screenshot missing ${shotPath}`);
     const sayHiAnchor = page.locator("a.match-row__btn-chat").first();
     const oneTapChip = page.locator(".match-row__oneTap-chip").first();
     if (await sayHiAnchor.count()) {
@@ -245,7 +301,11 @@ async function runViewport(name, contextOpts, { discoverToken, sessionToken, cha
     await injectToken(page, sessionToken);
     await page.goto(`${WEB_BASE}/profile`, { waitUntil: "domcontentloaded", timeout: 60_000 });
     await assertNoBrokenText();
-    const disabledMsg = page.getByText(/Photo upload is temporarily disabled|Завантаження фото тимчасово вимкнене/i).first();
+    const disabledMsg = page
+      .getByText(
+        /Photo editing is disabled|Photo upload is temporarily disabled|disabled in demo|вимкнене в демо-режимі|Завантаження фото тимчасово вимкнене/i,
+      )
+      .first();
     const photoEdit = page.getByTestId("profile-photo-edit");
     for (let i = 0; i < 60; i++) {
       if ((await disabledMsg.count()) > 0 || (await photoEdit.count()) > 0) break;
@@ -268,6 +328,7 @@ async function runViewport(name, contextOpts, { discoverToken, sessionToken, cha
 }
 
 async function main() {
+  ensureArtifactDir();
   const qaA = await registerAndPrepare("QaAlex", "man", "women");
   const qaB = await registerAndPrepare("QaBella", "woman", "men");
 

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useRouter } from "next/navigation";
 import { ApiThrottleSkipError, RateLimitError, apiFetch, getToken, invalidateApiGetCache } from "../../../lib/api";
 import { fetchDiscoverFeed } from "../../../lib/discoverFeed";
-import { PRIMARY_IMAGE_PLACEHOLDER, photosFromList, resolveMediaUrl } from "../../../lib/media";
+import { photosFromList, resolveMediaUrl } from "../../../lib/media";
 import { preloadDiscoverPhotoUrls } from "../../../lib/demoProfiles";
 import { getAiOpeners, type AiOpenerMatchContext } from "../../../lib/chat/api";
 import { discoverSwipeFeedback } from "../../../lib/discoverSwipeFeedback";
@@ -20,7 +20,11 @@ import { trackAnalyticsEvent } from "../../../lib/analytics";
 import { localStorageDayShown, localStorageMarkDay, utcDayKey } from "../../../lib/retention/dedupe";
 import { hasValueMoment, recordMatchMoment, recordOutboundLikeMoment } from "../../../lib/monetization/valueMoments";
 import { DiscoverProfileCard, type DiscoverCardData } from "./DiscoverProfileCard";
-import { resolveDemoProfilePhoto } from "../../../lib/resolvePhoto";
+import {
+  bundledDemoMainFallbackRing,
+  demoCatalogFallbackMain,
+  resolveDemoProfilePhoto,
+} from "../../../lib/resolvePhoto";
 
 type DiscoverCard = {
   user_id: number;
@@ -1050,8 +1054,7 @@ export default function DiscoverPage() {
   }
 
   if (discoverButtonOnly) {
-    const mobilePhotoSrc =
-      topCard ? resolveDemoProfilePhoto(topCard).trim() || PRIMARY_IMAGE_PLACEHOLDER : PRIMARY_IMAGE_PLACEHOLDER;
+    const mobilePhotoSrc = topCard ? resolveDemoProfilePhoto(topCard) : "";
     const mobileName = String(topCard?.display_name || t("discover.card.profileFallback")).trim();
     const mobileAge = topCard?.age != null ? `, ${topCard.age}` : "";
     const mobileCity = String(topCard?.city || "").trim();
@@ -1080,10 +1083,12 @@ export default function DiscoverPage() {
             <div className="discover-mobile-embed-card">
               <article className="surface discover-mobile-mvp-card">
                 <div className="discover-mobile-mvp-card__photo-wrap">
-                  <img
-                    data-testid="discover-photo"
-                    className="discover-mobile-mvp-card__photo"
+                  <SafeImg
+                    photoTestId="discover-photo"
+                    className="discover-mobile-mvp-card__photo-safe"
                     src={mobilePhotoSrc}
+                    fallbackSrc={topCard ? demoCatalogFallbackMain(topCard.gender ?? null) : "/demo-profiles/women/demo_001/main.jpg"}
+                    extraFallbackSources={bundledDemoMainFallbackRing(topCard?.gender ?? null)}
                     alt={mobileName}
                     loading="eager"
                   />
