@@ -70,7 +70,10 @@ def ensure_short_question(text: str, *, locale: str | None) -> str:
             return "Интересно 🙂 ты за короткий апдейт или развернутый?"
         if loc == "uk":
             return "Цікаво 🙂 ти за короткий апдейт чи розгорнуто?"
-        return "Nice 🙂 coffee-chat pace or walk-and-talk pace for you?"
+        from app.services.ai.ai_fallback_phrases import timed_now_emergency_triple
+
+        a, b, c = timed_now_emergency_triple(loc)
+        return str((a or b or c) or "").strip()[:220] or "?"
 
     # Humanize away from robotic phrasing first (still deterministic).
     s = _humanize_question(s, locale=loc)

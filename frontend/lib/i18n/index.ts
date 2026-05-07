@@ -573,7 +573,8 @@ export function getUiLocaleForAiRequests(): Locale {
 
 /** Canonical locale + human label for AI POST bodies (`locale` + `language_hint`). */
 export function getAiLocalePayload(): { locale: Locale; language_hint: string } {
-  const locale = getUiLocaleForAiRequests();
+  /** Prefer in-memory i18n snapshot so AI bodies match the UI immediately after `setGlobalLocale`. */
+  const locale = (snapshot.locale || getStoredLocale()) as Locale;
   const row = LOCALES.find((l) => l.code === locale);
   const language_hint = row ? `${row.label} (${row.labelEn})` : locale;
   return { locale, language_hint };

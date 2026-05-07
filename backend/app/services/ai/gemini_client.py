@@ -251,6 +251,14 @@ class GeminiClient:
         )
 
         prompt_text = f"{safety_prefix}\n{system_prompt}\n\n{user_prompt}"
+        # Scope cache by target language so EN memo cannot serve PT/FR UI (prompt body varies but belt-and-suspenders).
+        locale_hint = ""
+        try:
+            _ml = re.search(r"LANGUAGE:\s*([A-Za-z]{2,}(?:-[A-Za-z]{2,})?)", prompt_text)
+            if _ml:
+                locale_hint = str(_ml.group(1) or "").strip().lower()[:24]
+        except Exception:
+            locale_hint = ""
         payload: dict[str, Any] = {
             "contents": [
                 {
@@ -286,6 +294,8 @@ class GeminiClient:
             "model": model,
             "prompt": prompt_text,
             "generation": payload.get("generationConfig") or {},
+            "locale_hint": locale_hint or None,
+            "surface": (surface or "")[:80] or None,
         }
         ck = cache_key("gemini_prompt_v1", cache_payload)
         cached = cache_get(ck)

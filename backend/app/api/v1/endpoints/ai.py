@@ -42,6 +42,11 @@ from app.services.retention.daily_boosts import (
     get_daily_boosts_state,
 )
 from app.services.app_language import locale_from_accept_language_header
+from app.services.ai.locale_pipeline import (
+    log_ai_locale_resolved,
+    log_ai_response_debug,
+    resolve_ai_locale_strict_chain,
+)
 from app.services.monetization.subscription_service import SubscriptionService
 from app.infrastructure.ai.provider_factory import get_ai_provider
 from app.services.ai.gemini_client import GeminiClient, GeminiError, log_ai_provider_final
@@ -740,11 +745,9 @@ def _timed_replies_fallback(
         allow_edgy_mode=False,
         locale=loc_ai,
     )
-    d_light, d_flirty, d_deep = (
-        "Nice 🙂 I’d keep this easy to answer—are you more weekend-plans or weekend-flow?",
-        "Okay 🙂 I’m leaning playful—coffee-chat energy or long-walk energy for you?",
-        "Love that you said it 🙂 curious—solo recharge or people-time when you unwind?",
-    )
+    from app.services.ai.ai_fallback_phrases import timed_now_emergency_triple
+
+    d_light, d_flirty, d_deep = timed_now_emergency_triple(loc_ai)
 
     light = _ensure_question_short(str((base[0] or {}).get("text") or d_light))
     flirty = _ensure_question_short(str((base[1] or {}).get("text") or d_flirty))
@@ -2175,29 +2178,31 @@ async def _fallback_3_replies_localized(
         )
         return sanitize_fallback_lines_for_locale(base, "uk", context="reply_3_open")
 
-    base = _fallback_3_replies_en(last_message, continue_mode=continue_mode)
     if loc == "en":
-        return base
+        return _fallback_3_replies_en(last_message, continue_mode=continue_mode)
+
+    from app.services.ai.ai_fallback_phrases import timed_now_emergency_triple
+
+    a, b, c = timed_now_emergency_triple(loc)
+    phrase_bank = [_ensure_question_short(a), _ensure_question_short(b), _ensure_question_short(c)]
     try:
-        tr = await batch_translate_lines(base, loc)
-        if len(tr) == len(base):
-            return [_ensure_question_short(x) for x in tr]
+        en_based = _fallback_3_replies_en(last_message, continue_mode=continue_mode)
+        tr = await batch_translate_lines(en_based, loc)
+        if len(tr) == len(en_based) and all((x or "").strip() for x in tr):
+            return sanitize_fallback_lines_for_locale(
+                [_ensure_question_short(x) for x in tr],
+                loc,
+                context="reply_3_open_translated",
+            )
     except Exception:
         pass
-    return base
+    return sanitize_fallback_lines_for_locale(phrase_bank, loc, context="reply_3_open_phrase_bank")
 
 
 def _copilot_fallback_labels(loc: str) -> tuple[str, str, str]:
-    n = normalize_ai_request_locale(loc)
-    if n == "uk":
-        return ("Тепло", "Флірт", "Грайливо")
-    if n == "ru":
-        return ("Тепло", "Флирт", "Игриво")
-    if n == "zh-TW":
-        return ("溫暖", "調情", "活潑")
-    if n == "zh":
-        return ("温暖", "暧昧", "活泼")
-    return ("Warm", "Flirty", "Playful")
+    from app.services.ai.ai_fallback_engine import copilot_fallback_labels
+
+    return copilot_fallback_labels(loc)
 
 
 def _recent_question_texts(chat: list[dict], *, limit: int = 6) -> list[str]:
@@ -2361,6 +2366,7 @@ def _resolve_ai_locale_for_request(
     current_user: User,
     latest_user_message: str | None = None,
     prefer_message_locale: bool = False,
+    route_label: str = "ai",
 ) -> str:
     profile_locale = ""
     try:
@@ -2380,18 +2386,6 @@ def _resolve_ai_locale_for_request(
             ).strip()
     except Exception:
         transport_locale = ""
-    requested_ai_locale = str(ai_locale or "").strip().lower()
-    if requested_ai_locale and requested_ai_locale != "auto":
-        forced = normalize_chat_ai_locale(requested_ai_locale)
-        logger.info(
-            "ai_locale_decision",
-            extra={"event": "ai_locale_decision", "source": "ai_locale_override", "locale": forced},
-        )
-        return forced
-
-    # Body locale wins over transport headers (explicit JSON beats X-Locale mirrors).
-    explicit_body = str(req_locale or "").strip()
-    interface_locale = explicit_body or transport_locale
     accept_hdr = ""
     try:
         if request is not None:
@@ -2399,53 +2393,73 @@ def _resolve_ai_locale_for_request(
     except Exception:
         accept_hdr = ""
 
+    requested_ai_locale = str(ai_locale or "").strip().lower()
+    if requested_ai_locale and requested_ai_locale != "auto":
+        forced = normalize_chat_ai_locale(requested_ai_locale)
+        log_ai_locale_resolved(
+            route=route_label,
+            resolved_locale=forced,
+            resolution_source="ai_locale_override",
+            req_locale_raw=str(req_locale or "").strip() or None,
+            profile_locale_raw=profile_locale or None,
+            accept_language=accept_hdr or None,
+            transport_locale=transport_locale or None,
+            ai_locale_override=str(ai_locale or "").strip() or None,
+            prefer_message_locale=prefer_message_locale,
+        )
+        return forced
+
+    chain_loc, chain_src = resolve_ai_locale_strict_chain(
+        req_locale=req_locale,
+        profile_locale=profile_locale or None,
+        accept_language_header=accept_hdr or None,
+        transport_locale=transport_locale or None,
+    )
+
     if prefer_message_locale:
         decided_locale, source = resolve_ai_locale_decision(
             latest_user_message=latest_user_message,
-            interface_locale=interface_locale,
-            profile_locale=profile_locale,
+            interface_locale=chain_loc if chain_loc != "en" else None,
+            profile_locale=None,
         )
+        msg_detect = None
+        try:
+            from app.services.ai.locale_decision import detect_message_locale
+
+            msg_detect = detect_message_locale(latest_user_message)
+        except Exception:
+            msg_detect = None
         if decided_locale == "en" and source == "fallback":
             acc = locale_from_accept_language_header(accept_hdr)
             if acc:
                 decided_locale = normalize_chat_ai_locale(acc)
                 source = "accept_language"
-        logger.info(
-            "ai_locale_decision",
-            extra={"event": "ai_locale_decision", "source": source, "locale": decided_locale},
+        log_ai_locale_resolved(
+            route=route_label,
+            resolved_locale=decided_locale,
+            resolution_source=f"message:{source}",
+            req_locale_raw=str(req_locale or "").strip() or None,
+            profile_locale_raw=profile_locale or None,
+            accept_language=accept_hdr or None,
+            transport_locale=transport_locale or None,
+            ai_locale_override=None,
+            prefer_message_locale=True,
+            message_locale_detected=msg_detect,
         )
         return decided_locale
 
-    if interface_locale:
-        decided = normalize_chat_ai_locale(interface_locale)
-        logger.info(
-            "ai_locale_decision",
-            extra={"event": "ai_locale_decision", "source": "request", "locale": decided},
-        )
-        return decided
-
-    if str(profile_locale or "").strip():
-        decided = normalize_chat_ai_locale(profile_locale)
-        logger.info(
-            "ai_locale_decision",
-            extra={"event": "ai_locale_decision", "source": "profile", "locale": decided},
-        )
-        return decided
-
-    acc_loc = locale_from_accept_language_header(accept_hdr)
-    if acc_loc:
-        decided = normalize_chat_ai_locale(acc_loc)
-        logger.info(
-            "ai_locale_decision",
-            extra={"event": "ai_locale_decision", "source": "accept_language", "locale": decided},
-        )
-        return decided
-
-    logger.info(
-        "ai_locale_decision",
-        extra={"event": "ai_locale_decision", "source": "fallback", "locale": "en"},
+    log_ai_locale_resolved(
+        route=route_label,
+        resolved_locale=chain_loc,
+        resolution_source=chain_src,
+        req_locale_raw=str(req_locale or "").strip() or None,
+        profile_locale_raw=profile_locale or None,
+        accept_language=accept_hdr or None,
+        transport_locale=transport_locale or None,
+        ai_locale_override=None,
+        prefer_message_locale=False,
     )
-    return "en"
+    return chain_loc
 
 
 async def _enforce_ai_texts_locale_once(
@@ -3164,6 +3178,7 @@ def chat_brain_suggestions(
         current_user=current_user,
         latest_user_message=partner_last_plain,
         prefer_message_locale=False,
+        route_label="POST /ai/chat-brain/suggestions",
     )
     lang_hint_in = str(getattr(body, "language_hint", None) or "").strip() or None
     norm_for_log = normalize_chat_ai_locale(getattr(body, "language", None) or "en")
@@ -3326,6 +3341,21 @@ def chat_brain_suggestions(
     if not out.get("ok"):
         raise HTTPException(status_code=400, detail=out)
     lang_resp = normalize_chat_ai_locale(str((out.get("meta") or {}).get("language") or body.language or "en"))
+    try:
+        _pp_dbg = db.query(Profile).filter(Profile.user_id == int(current_user.id)).first()
+        _prof_dbg = str(getattr(_pp_dbg, "preferred_language", "") or "").strip() if _pp_dbg else ""
+    except Exception:
+        _prof_dbg = ""
+    log_ai_response_debug(
+        route="POST /ai/chat-brain/suggestions",
+        resolved_locale=str(body.language or ""),
+        profile_locale=_prof_dbg or None,
+        request_locale=str(raw_ui_lang or "").strip() or None,
+        accept_language=request.headers.get("accept-language") if request else None,
+        final_language=lang_resp,
+        fallback_used=not bool((out.get("meta") or {}).get("ai_used")),
+        cache_hit=False,
+    )
     if isinstance(out.get("variants"), dict):
         out["variants"] = _guard_uk_chat_brain_response_variants(
             lang_resp, out["variants"], partner_last_plain
@@ -3664,6 +3694,7 @@ async def opener_suggestions(
         current_user=current_user,
         latest_user_message=latest_user_message,
         prefer_message_locale=False,
+        route_label="POST /ai/opener",
     )
     log_ai_locale_context(logger, endpoint="opener", ui_locale=raw_ui, ai_locale=req.locale)
     logger.info("AI locale used: %s", req.locale)
@@ -4335,6 +4366,7 @@ async def chat_copilot(
         current_user=current_user,
         latest_user_message=latest_user_message,
         prefer_message_locale=False,
+        route_label="POST /ai/chat-copilot",
     )
     logger.info("AI locale used: %s", copilot_locale)
     _loc_goal_cp = copilot_locale
@@ -5608,14 +5640,20 @@ async def timed_replies(
         (str((m or {}).get("text") or "").strip() for m in reversed(req.messages or []) if str((m or {}).get("role") or "").strip().lower() == "me" and str((m or {}).get("text") or "").strip()),
         "",
     )
+    latest_partner_message = next(
+        (str((m or {}).get("text") or "").strip() for m in reversed(req.messages or []) if str((m or {}).get("role") or "").strip().lower() == "them" and str((m or {}).get("text") or "").strip()),
+        "",
+    )
+    latest_for_locale_hint = latest_partner_message or latest_user_message
     loc = _resolve_ai_locale_for_request(
         req_locale=raw_ui,
         ai_locale=getattr(req, "ai_locale", None),
         request=request,
         db=db,
         current_user=current_user,
-        latest_user_message=latest_user_message,
-        prefer_message_locale=False,
+        latest_user_message=latest_for_locale_hint,
+        prefer_message_locale=True,
+        route_label="POST /ai/timed-replies",
     )
     log_ai_locale_context(
         logger,
@@ -6605,6 +6643,7 @@ async def wingman_improve_reply(
         current_user=current_user,
         latest_user_message=req.draft,
         prefer_message_locale=False,
+        route_label="POST /ai/improve-reply",
     )
     log_ai_locale_context(logger, endpoint="improve-reply", ui_locale=raw_ui, ai_locale=req.locale)
     logger.info("AI locale used: %s", req.locale)

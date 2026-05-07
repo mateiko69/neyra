@@ -87,17 +87,30 @@ def _hash_pick(seed: str, alphabet: list[str], idx: int) -> str:
     return alphabet[int(h[:8], 16) % len(alphabet)]
 
 
+_COPILOT_LABELS: dict[str, tuple[str, str, str]] = {
+    "en": ("Light", "Playful", "Deep"),
+    "uk": ("Тепло", "Флірт", "Грайливо"),
+    "ru": ("Легко", "Флирт", "Глубже"),
+    "zh-TW": ("輕鬆", "俏皮", "深入"),
+    "zh": ("轻松", "活泼", "深入"),
+    "pt": ("Leve", "Brincalhão", "Profundo"),
+    "fr": ("Doux", "Taquin", "Profond"),
+    "de": ("Locker", "Verspielt", "Tief"),
+    "es": ("Ligero", "Juguetón", "Profundo"),
+    "it": ("Leggero", "Giocoso", "Profondo"),
+    "pl": ("Lekko", "Zalotnie", "Głęboko"),
+    "tr": ("Yumuşak", "Oyuncu", "Derin"),
+    "ja": ("軽め", "冗談気味", "深め"),
+    "ko": ("가볍게", "장난스럽게", "깊게"),
+    "ar": ("خفيف", "مرِح", "عميق"),
+    "he": ("קליל", "שובב", "עמוק"),
+    "hi": ("हल्का", "चंचल", "गहरा"),
+}
+
+
 def copilot_fallback_labels(locale: str | None) -> tuple[str, str, str]:
     n = normalize_ai_request_locale(locale or "en")
-    if n == "uk":
-        return ("Тепло", "Флірт", "Грайливо")
-    if n == "ru":
-        return ("Легко", "Флирт", "Глубже")
-    if n == "zh-TW":
-        return ("輕鬆", "俏皮", "深入")
-    if n == "zh":
-        return ("轻松", "活泼", "深入")
-    return ("Light", "Playful", "Deep")
+    return _COPILOT_LABELS.get(n) or _COPILOT_LABELS["en"]
 
 
 def copilot_suggestion_rows(
