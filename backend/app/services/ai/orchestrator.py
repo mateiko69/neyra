@@ -394,6 +394,20 @@ class AIOrchestrator:
                 "ctx_len": len(req.conversation_context or []),
             },
         )
+        try:
+            from app.services.ai.locale_pipeline import log_ai_response_debug
+            from app.services.ai.output_script_locale import sniff_dominant_script_for_log
+
+            joined = " ".join(suggestions[:3])
+            log_ai_response_debug(
+                route="POST /ai/opener",
+                resolved_locale=str(getattr(req, "locale", None) or "en"),
+                fallback_used=provider_used == "fallback",
+                cache_hit=False,
+                output_language_guess=sniff_dominant_script_for_log(joined),
+            )
+        except Exception:
+            pass
         return {
             "items": final_items,
             "suggestions": suggestions[:3],

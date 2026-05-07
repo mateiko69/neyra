@@ -625,6 +625,41 @@ _OPENER_TYPED: dict[str, tuple[str, str, str]] = {
     ),
 }
 
+# Demo-brain prompt footer: must stay in the UI locale (never English unless locale is en).
+_DEMO_BRAIN_FOOTER: dict[str, str] = {
+    "en": "You are replying as your match in a dating app. Never mention AI or demo. 1–2 sentences. React naturally; vary wording vs earlier messages.",
+    "uk": "Ти відповідаєш як співпада в дейтінг-додатку. Не згадуй AI чи демо. 1–2 речення. Реагуй природно; змінюй формулювання порівняно з попередніми повідомленнями.",
+    "ru": "Ты отвечаешь как матч в приложении для знакомств. Не упоминай ИИ или демо. 1–2 предложения. Реагируй естественно; меньше повторов из прошлых сообщений.",
+    "es": "Respondes como tu match en una app de citas. No menciones IA ni demo. 1–2 frases. Reacciona con naturalidad; varía la redacción respecto a mensajes anteriores.",
+    "pt": "Você responde como o match no app. Não mencione IA ou demo. 1–2 frases. Reaja com naturalidade; varie o texto em relação às mensagens anteriores.",
+    "fr": "Tu réponds en tant que match sur une appli de rencontres. Ne mentionne pas l’IA ni la démo. 1–2 phrases. Réagis naturellement; varie par rapport aux messages précédents.",
+    "de": "Du antwortest als Match in einer Dating-App. Erwähne keine KI und kein Demo. 1–2 Sätze. Reagiere natürlich; variiere den Wortlaut gegenüber früheren Nachrichten.",
+    "it": "Stai rispondendo come match in un’app di dating. Non citare IA o demo. 1–2 frasi. Reagisci in modo naturale; varia rispetto ai messaggi precedenti.",
+    "pl": "Odpowiadasz jako dopasowanie w aplikacji randkowej. Nie wspominaj o AI ani demo. 1–2 zdania. Reaguj naturalnie; zmieniaj sformułowania względem wcześniejszych wiadomości.",
+    "tr": "Bir flört uygulamasında eşleşme gibi yanıtlıyorsun. YZ veya demodan bahsetme. 1–2 cümle. Doğal tepki ver; önceki mesajlara göre ifadeyi çeşitlendir.",
+    "zh": "你在约会应用里以匹配对象的身份回复。不要提到 AI 或演示。1–2 句。自然反应；避免重复之前措辞。",
+    "zh-TW": "你在約會應用程式裡以配對對象的身份回覆。不要提到 AI 或示範。1–2 句。自然反應；避免重複先前說法。",
+    "ja": "デートアプリのマッチ相手として返信する。AIやデモに触れない。1〜2文。自然に反応し、前の文と表現を変える。",
+    "ko": "데이팅 앱에서 매치 상대로 답한다. AI나 데모를 언급하지 마. 1–2문장. 자연스럽게 반응하고 이전 메시지와 문구를 바꿔.",
+    "hi": "तुम एक डेटिंग ऐप में मैच की तरह जवाब दे रहे हो। AI या डेमो का ज़िक्र मत करो। 1–2 वाक्य। स्वाभाविक प्रतिक्रिया; पुराने संदेशों से अलग शब्द चुनो।",
+    "id": "Kamu membalas sebagai pasangan di app kencan. Jangan sebut AI atau demo. 1–2 kalimat. Bereaksi natural; variasikan dari pesan sebelumnya.",
+    "vi": "Bạn trả lời như người match trong app hẹn hò. Đừng nhắc AI hay demo. 1–2 câu. Phản ứng tự nhiên; đổi cách diễn đạt so với tin trước.",
+    "th": "คุณตอบในฐานะแมตช์ในแอปเดท อย่าพูดถึง AI หรือเดโม่ 1–2 ประโยค ตอบให้เป็นธรรมชาติ และเปลี่ยนคำจากข้อความก่อนหน้า",
+    "ar": "بترد كالماتش في تطبيق مواعيد. ما تذكرش الذكاء الاصطناعي أو الديمو. جملة أو اثنتين. رد طبيعي؛ غيّر الصياغة عن الرسايل اللي فاتت.",
+    "he": "את/ה עונה/ה כמו מאץ׳ באפליקציית דייטים. אל תזכיר/י AI או דמו. 1–2 משפטים. תגיב/י בצורה טבעית; שנה/י ניסוח ביחס להודעות קודמות.",
+    "nl": "Je antwoordt als je match in een dating-app. Noem geen AI of demo. 1–2 zinnen. Reageer natuurlijk; varieer t.o.v. eerdere berichten.",
+    "sv": "Du svarar som din match i en dejtingapp. Nämn inte AI eller demo. 1–2 meningar. Reagera naturligt; variera jämfört med tidigare meddelanden.",
+    "cs": "Odpovídáš jako match v seznamovací aplikaci. Nezmiňuj AI ani demo. 1–2 věty. Reaguj přirozeně; měň formulace oproti dřívějším zprávám.",
+    "ro": "Răspunzi ca și cum ai fi match într-o aplicație de dating. Nu menționa AI sau demo. 1–2 propoziții. Reacționează natural; variere față de mesajele anterioare.",
+    "hu": "Randipartnerként válaszolsz egy társkeresőben. Ne említs AI-t vagy demót. 1–2 mondat. Természetesen reagálj; változtasd a megfogalmazást a korábbi üzenetekhez képest.",
+    "el": "Απαντάς σαν match σε εφαρμογή γνωριμιών. Μην αναφέρεις AI ή demo. 1–2 προτάσεις. Αντίδρασε φυσικά· άλλαξε τη διατύπωση σε σχέση με τα προηγούμενα μηνύματα.",
+    "da": "Du svarer som dit match i en datingapp. Nævn ikke AI eller demo. 1–2 sætninger. Reager naturligt; varier i forhold til tidligere beskeder.",
+    "fi": "Vastaat matšina deittisovelluksessa. Älä mainitse tekoälyä tai demoa. 1–2 lausetta. Reagoi luonnollisesti; vaihda muotoilua aiempiin viesteihin verrattuna.",
+    "no": "Du svarer som matchen i en datingapp. Ikke nevn AI eller demo. 1–2 setninger. Reager naturlig; varier ordlyden fra tidligere meldinger.",
+    "bg": "Отговаряш като мач в приложение за запознанства. Не споменавай AI или демо. 1–2 изречения. Реагирай естествено; променяй формулировките спрямо по-ранни съобщения.",
+}
+
+
 # One-line “wait / don’t spam” strategy hint for start-strategy deterministic fallback (same keys as phrase banks).
 _START_STRATEGY_WAIT: dict[str, str] = {
     "en": "Better to wait a little so it does not feel like spam.",
@@ -675,10 +710,24 @@ def resolve_fallback_locale_key(locale: str | None) -> str:
     return canon
 
 
+def demo_brain_reply_instruction(locale: str | None) -> str:
+    key = resolve_fallback_locale_key(locale or "en")
+    return _DEMO_BRAIN_FOOTER.get(key) or _DEMO_BRAIN_FOOTER["en"]
+
+
 def _phrase_triple(table: dict[str, tuple[str, str, str]], loc: str) -> tuple[str, str, str]:
+    import logging
+
     key = resolve_fallback_locale_key(loc)
-    row = table.get(key) or table.get("en")
-    if not row:
+    row = table.get(key)
+    if row is None and "-" in key:
+        row = table.get(key.split("-", 1)[0].lower())
+    if row is None:
+        if key != "en":
+            logging.getLogger("neyra.ai.fallback_phrases").warning(
+                "phrase_bank_missing_locale_using_en",
+                extra={"resolved_locale_key": key, "phrase_keys_sample": list(table.keys())[:12]},
+            )
         row = table["en"]
     return row
 

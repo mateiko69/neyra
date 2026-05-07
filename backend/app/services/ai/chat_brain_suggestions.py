@@ -160,23 +160,25 @@ def _basic_topic_context(meta: dict[str, Any], locale: str) -> str:
     )
 
 
-def _demo_brain_hook_suffix(db: Session, user_id: int, transcript_lines: list[tuple[str, str]]) -> str:
+def _demo_brain_hook_suffix(db: Session, user_id: int, transcript_lines: list[tuple[str, str]], *, locale: str | None) -> str:
     if not is_demo_user_id(db, int(user_id)):
         return ""
-    n_demo = sum(1 for role, _ in transcript_lines if role == "me")
-    hooks = [
-        "DEMO_STRATEGY_1: Warm + curious; easy question back.",
-        "DEMO_STRATEGY_2: Playful hook; fun binary choice.",
-        "DEMO_STRATEGY_3: Expand their topic; show real interest.",
-        "DEMO_STRATEGY_4: One small personal detail (stay in character).",
-        "DEMO_STRATEGY_5: Invite slightly deeper or lightly flirty direction; respectful.",
-    ]
-    idx = min(max(n_demo, 0), 4)
-    return (
-        hooks[idx]
-        + "\nYou are replying as the matched user in a dating app. Never say you are AI/demo. "
-        "1–2 sentences. Do not agree blindly — react naturally. Vary wording vs earlier messages.\n"
+    from app.services.ai.ai_fallback_phrases import (
+        demo_brain_reply_instruction,
+        timed_now_emergency_triple,
+        timed_revive_triple,
+        timed_reengage_triple,
+        resolve_fallback_locale_key,
     )
+
+    loc = resolve_fallback_locale_key(locale or "en")
+    n_demo = sum(1 for role, _ in transcript_lines if role == "me")
+    rg = timed_reengage_triple(loc)
+    rv = timed_revive_triple(loc)
+    nw = timed_now_emergency_triple(loc)
+    hooks = [rg[0], rg[1], rv[0], nw[0], nw[1]]
+    idx = min(max(n_demo, 0), 4)
+    return hooks[idx] + "\n" + demo_brain_reply_instruction(loc) + "\n"
 
 
 def _transcript_text_history(transcript_lines: list[tuple[str, str]]) -> list[str]:
@@ -1237,7 +1239,7 @@ def run_chat_brain_suggestions(
         + capability_prompt_block(pt_goal)
         + (conversation_goal_prompt_extra if is_premium_tier else "")
         + (
-            _demo_brain_hook_suffix(db, user_id, transcript_lines)
+            _demo_brain_hook_suffix(db, user_id, transcript_lines, locale=lang)
             + (personalization_prompt_suffix(db, user_id=user_id) if is_premium_tier else "")
             + stage_prompt_hint(
                 str(stage_info.get("stage") or "warmup"),

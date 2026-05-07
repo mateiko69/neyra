@@ -105,6 +105,19 @@ _COPILOT_LABELS: dict[str, tuple[str, str, str]] = {
     "ar": ("خفيف", "مرِح", "عميق"),
     "he": ("קליל", "שובב", "עמוק"),
     "hi": ("हल्का", "चंचल", "गहरा"),
+    "nl": ("Licht", "Speels", "Diep"),
+    "sv": ("Lätt", "Lekfull", "Djup"),
+    "cs": ("Lehce", "Hravě", "Hlouběji"),
+    "ro": ("Ușor", "Jucăuș", "Profund"),
+    "hu": ("Lágy", "Játékos", "Mély"),
+    "el": ("Ελαφρύ", "Παιχνιδιάρικο", "Βαθύ"),
+    "da": ("Let", "Legesygt", "Dybt"),
+    "fi": ("Kevyt", "Leikkisä", "Syvä"),
+    "no": ("Lett", "Leken", "Dypt"),
+    "bg": ("Леко", "Игриво", "Дълбоко"),
+    "th": ("เบาๆ", "ขำขัน", "ลึก"),
+    "id": ("Ringan", "Genit", "Mendalam"),
+    "vi": ("Nhẹ", "Tinh nghịch", "Sâu"),
 }
 
 

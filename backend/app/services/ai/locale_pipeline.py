@@ -91,6 +91,7 @@ def log_ai_response_debug(
     final_language: str | None = None,
     fallback_used: bool = False,
     cache_hit: bool = False,
+    output_language_guess: str | None = None,
     extra: dict | None = None,
 ) -> None:
     payload = {
@@ -103,6 +104,7 @@ def log_ai_response_debug(
         "final_language": (str(final_language or resolved_locale or "").strip()[:24] or None),
         "fallback_used": bool(fallback_used),
         "cache_hit": bool(cache_hit),
+        "output_language_guess": (str(output_language_guess or "").strip()[:32] or None),
     }
     if extra:
         payload["extra"] = extra

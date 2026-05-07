@@ -33,6 +33,7 @@ SUPPORTED_LOCALES: Final[set[str]] = {
     "da",
     "fi",
     "no",
+    "bg",
 }
 
 

@@ -2417,6 +2417,22 @@ def _resolve_ai_locale_for_request(
     )
 
     if prefer_message_locale:
+        # Explicit JSON locale always wins over partner-message sniffing (short English pings must not collapse UI locale).
+        explicit_ui = str(req_locale or "").strip()
+        if explicit_ui and explicit_ui.lower() not in {"auto"}:
+            log_ai_locale_resolved(
+                route=route_label,
+                resolved_locale=chain_loc,
+                resolution_source="request_body",
+                req_locale_raw=str(req_locale or "").strip() or None,
+                profile_locale_raw=profile_locale or None,
+                accept_language=accept_hdr or None,
+                transport_locale=transport_locale or None,
+                ai_locale_override=None,
+                prefer_message_locale=True,
+            )
+            return chain_loc
+
         decided_locale, source = resolve_ai_locale_decision(
             latest_user_message=latest_user_message,
             interface_locale=chain_loc if chain_loc != "en" else None,
@@ -3346,6 +3362,15 @@ def chat_brain_suggestions(
         _prof_dbg = str(getattr(_pp_dbg, "preferred_language", "") or "").strip() if _pp_dbg else ""
     except Exception:
         _prof_dbg = ""
+    try:
+        from app.services.ai.output_script_locale import sniff_dominant_script_for_log
+
+        _vb = out.get("variants") or {}
+        _brain_guess = sniff_dominant_script_for_log(
+            " ".join(str(_vb.get(k) or "") for k in ("light", "flirty", "deep"))
+        )
+    except Exception:
+        _brain_guess = None
     log_ai_response_debug(
         route="POST /ai/chat-brain/suggestions",
         resolved_locale=str(body.language or ""),
@@ -3355,6 +3380,7 @@ def chat_brain_suggestions(
         final_language=lang_resp,
         fallback_used=not bool((out.get("meta") or {}).get("ai_used")),
         cache_hit=False,
+        output_language_guess=_brain_guess,
     )
     if isinstance(out.get("variants"), dict):
         out["variants"] = _guard_uk_chat_brain_response_variants(
@@ -4225,6 +4251,7 @@ def _finalize_chat_copilot_response(
     last_message: str,
     continue_mode: bool,
     fallback_rows: list[dict],
+    cache_hit: bool = False,
 ) -> dict:
     opts = payload.get("options") or []
     ok = (
@@ -4235,6 +4262,19 @@ def _finalize_chat_copilot_response(
     if ok:
         out = dict(payload)
         out.setdefault("fallback", False)
+        try:
+            from app.services.ai.output_script_locale import sniff_dominant_script_for_log
+
+            joined_cp = " ".join(str((o or {}).get("text") or "") for o in (opts or [])[:3])
+            log_ai_response_debug(
+                route="POST /ai/chat-copilot",
+                resolved_locale=copilot_locale,
+                fallback_used=bool(out.get("fallback")),
+                cache_hit=cache_hit,
+                output_language_guess=sniff_dominant_script_for_log(joined_cp),
+            )
+        except Exception:
+            pass
         return out
     from app.services.ai.ai_fallback_engine import copilot_suggestion_rows
 
@@ -4262,6 +4302,19 @@ def _finalize_chat_copilot_response(
         "fallback": True,
         "source": "fallback_engine",
     }
+    try:
+        from app.services.ai.output_script_locale import sniff_dominant_script_for_log
+
+        joined_cp = " ".join(str((o or {}).get("text") or "") for o in (repaired or [])[:3])
+        log_ai_response_debug(
+            route="POST /ai/chat-copilot",
+            resolved_locale=copilot_locale,
+            fallback_used=True,
+            cache_hit=cache_hit,
+            output_language_guess=sniff_dominant_script_for_log(joined_cp),
+        )
+    except Exception:
+        pass
     return merged
 
 
@@ -5668,15 +5721,23 @@ async def timed_replies(
 
     def _emit_timed_locale_log(options: list[dict], *, source: str) -> None:
         joined = " ".join(str(o.get("text") or "") for o in (options or []))
+        _guess_tr = sniff_dominant_script_for_log(joined)
         log_ai_locale_result(
             logger,
             endpoint="timed-replies",
             requested_locale=str(raw_ui) if raw_ui is not None else None,
             normalized_locale=loc,
-            returned_language=sniff_dominant_script_for_log(joined),
+            returned_language=_guess_tr,
             fallback_used=source != "ai",
             cache_hit=False,
             source=source,
+        )
+        log_ai_response_debug(
+            route="POST /ai/timed-replies",
+            resolved_locale=loc,
+            fallback_used=source != "ai",
+            cache_hit=False,
+            output_language_guess=_guess_tr,
         )
 
     nudge = (req.nudge_type or "").strip().lower()
