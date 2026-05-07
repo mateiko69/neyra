@@ -4,6 +4,7 @@
  * parallel identical requests mean fewer duplicate preflights; we do not send OPTIONS from here.
  */
 import { API_URL as resolvedApiUrl } from "./apiBase";
+import { getCurrentLocaleForApi } from "./appLocaleForApi";
 import { formatApiError } from "./apiErrorFormat";
 import { getAuthBootstrapResult, invalidateAuthBootstrapCache, type AuthBootstrapResult } from "./auth/bootstrap";
 import { dispatchAuthExpired } from "./auth/navigation";
@@ -658,13 +659,21 @@ export async function apiFetch<T = any>(path: string, options: ApiFetchOptions =
     "Content-Type": "application/json",
     ...((fetchOpts.headers as Record<string, string>) || {}),
   };
-  // Strict single-language UI: always send UI locale with requests (best-effort, no i18n import to avoid cycles).
+  // Single-language UI transport: canonical `X-App-Locale` plus legacy mirrors for older backends.
   try {
     if (typeof window !== "undefined") {
-      const raw = String(localStorage.getItem("neyra:locale") || "").trim();
-      if (raw && !headers["X-UI-Locale"]) headers["X-UI-Locale"] = raw;
-      if (raw && !headers["X-Locale"]) headers["X-Locale"] = raw;
-      if (raw && !headers["X-Neyra-Locale"]) headers["X-Neyra-Locale"] = raw;
+      const live = String(getCurrentLocaleForApi() || "").trim();
+      const raw = live || String(localStorage.getItem("neyra:locale") || "").trim();
+      if (raw) {
+        if (!headers["X-App-Locale"]) headers["X-App-Locale"] = raw;
+        if (!headers["X-UI-Locale"]) headers["X-UI-Locale"] = raw;
+        if (!headers["X-Locale"]) headers["X-Locale"] = raw;
+        if (!headers["X-Neyra-Locale"]) headers["X-Neyra-Locale"] = raw;
+        if (!headers["Accept-Language"]) {
+          const intl = raw === "zh-CN" ? "zh-Hans" : raw === "zh-TW" ? "zh-Hant" : raw.replace(/_/g, "-");
+          headers["Accept-Language"] = `${intl},en;q=0.2`;
+        }
+      }
     }
   } catch {
     /* ignore */

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 import asyncio
 import os
+import hashlib
 import json
 import random
 import re
@@ -24,7 +25,6 @@ from app.services.ai.chat_brain_suggestions import ChatBrainRequest, fallback_pa
 from app.services.ai.ai_locale_logging import log_ai_locale_context, log_ai_locale_result
 from app.services.ai.ai_request_locale import normalize_ai_request_locale
 from app.services.ai.locale import normalize_chat_ai_locale
-from app.services.ai.locale_decision import resolve_ai_locale_decision
 from app.services.ai.locale_prompt_language_names import english_language_name_for_ai_prompt
 from app.services.ai.coach_advice_locales import coach_advice_for_move
 from app.services.ai.ai_fallback_phrases import opener_typed_fallback, start_strategy_wait_reason, timed_revive_triple
@@ -41,12 +41,13 @@ from app.services.retention.daily_boosts import (
     consume_daily_boost_slot,
     get_daily_boosts_state,
 )
-from app.services.app_language import locale_from_accept_language_header
 from app.services.ai.locale_pipeline import (
+    log_ai_locale_final,
     log_ai_locale_resolved,
     log_ai_response_debug,
     resolve_ai_locale_strict_chain,
 )
+from app.services.ai.locale_prompt_language_names import english_language_name_for_ai_prompt
 from app.services.monetization.subscription_service import SubscriptionService
 from app.infrastructure.ai.provider_factory import get_ai_provider
 from app.services.ai.gemini_client import GeminiClient, GeminiError, log_ai_provider_final
@@ -2357,6 +2358,23 @@ async def _with_timeout(coro, *, timeout_s: float = _AI_PROVIDER_TIMEOUT_S):
     return await asyncio.wait_for(coro, timeout=timeout_s)
 
 
+def _ai_chat_fingerprint(messages: list[dict], *, limit: int = 36) -> str:
+    tail = [{"role": str((m or {}).get("role") or ""), "text": str((m or {}).get("text") or "")[:260]} for m in (messages or [])[-limit:]]
+    blob = json.dumps(tail, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest()[:56]
+
+
+def _req_body_locale_preference(body: Any) -> str | None:
+    """Non-empty ``locale`` or ``language`` from JSON body (see ``resolve_ai_locale_strict_chain``)."""
+    loc = str(getattr(body, "locale", None) or "").strip()
+    if loc and loc.lower() not in {"auto"}:
+        return loc
+    lang = str(getattr(body, "language", None) or "").strip()
+    if lang and lang.lower() not in {"auto"}:
+        return lang
+    return None
+
+
 def _resolve_ai_locale_for_request(
     *,
     req_locale: str | None,
@@ -2374,9 +2392,11 @@ def _resolve_ai_locale_for_request(
         profile_locale = str(getattr(me_profile, "preferred_language", "") or "").strip()
     except Exception:
         profile_locale = ""
+    app_locale_header = ""
     transport_locale = ""
     try:
         if request is not None:
+            app_locale_header = str(request.headers.get("X-App-Locale") or "").strip()
             transport_locale = str(
                 request.headers.get("X-Neyra-Locale")
                 or request.headers.get("X-Locale")
@@ -2385,6 +2405,7 @@ def _resolve_ai_locale_for_request(
                 or ""
             ).strip()
     except Exception:
+        app_locale_header = ""
         transport_locale = ""
     accept_hdr = ""
     try:
@@ -2410,60 +2431,20 @@ def _resolve_ai_locale_for_request(
         return forced
 
     chain_loc, chain_src = resolve_ai_locale_strict_chain(
-        req_locale=req_locale,
+        request_locale=req_locale,
+        app_locale_header=app_locale_header or None,
+        legacy_ui_locale=transport_locale or None,
         profile_locale=profile_locale or None,
         accept_language_header=accept_hdr or None,
-        transport_locale=transport_locale or None,
     )
-
-    if prefer_message_locale:
-        # Explicit JSON locale always wins over partner-message sniffing (short English pings must not collapse UI locale).
-        explicit_ui = str(req_locale or "").strip()
-        if explicit_ui and explicit_ui.lower() not in {"auto"}:
-            log_ai_locale_resolved(
-                route=route_label,
-                resolved_locale=chain_loc,
-                resolution_source="request_body",
-                req_locale_raw=str(req_locale or "").strip() or None,
-                profile_locale_raw=profile_locale or None,
-                accept_language=accept_hdr or None,
-                transport_locale=transport_locale or None,
-                ai_locale_override=None,
-                prefer_message_locale=True,
-            )
-            return chain_loc
-
-        decided_locale, source = resolve_ai_locale_decision(
-            latest_user_message=latest_user_message,
-            interface_locale=chain_loc if chain_loc != "en" else None,
-            profile_locale=None,
-        )
-        msg_detect = None
+    msg_detect = None
+    if prefer_message_locale and latest_user_message:
         try:
             from app.services.ai.locale_decision import detect_message_locale
 
             msg_detect = detect_message_locale(latest_user_message)
         except Exception:
             msg_detect = None
-        if decided_locale == "en" and source == "fallback":
-            acc = locale_from_accept_language_header(accept_hdr)
-            if acc:
-                decided_locale = normalize_chat_ai_locale(acc)
-                source = "accept_language"
-        log_ai_locale_resolved(
-            route=route_label,
-            resolved_locale=decided_locale,
-            resolution_source=f"message:{source}",
-            req_locale_raw=str(req_locale or "").strip() or None,
-            profile_locale_raw=profile_locale or None,
-            accept_language=accept_hdr or None,
-            transport_locale=transport_locale or None,
-            ai_locale_override=None,
-            prefer_message_locale=True,
-            message_locale_detected=msg_detect,
-        )
-        return decided_locale
-
     log_ai_locale_resolved(
         route=route_label,
         resolved_locale=chain_loc,
@@ -2471,9 +2452,10 @@ def _resolve_ai_locale_for_request(
         req_locale_raw=str(req_locale or "").strip() or None,
         profile_locale_raw=profile_locale or None,
         accept_language=accept_hdr or None,
-        transport_locale=transport_locale or None,
+        transport_locale=f"app={app_locale_header or '-'}|ui={transport_locale or '-'}",
         ai_locale_override=None,
-        prefer_message_locale=False,
+        prefer_message_locale=bool(prefer_message_locale),
+        message_locale_detected=msg_detect,
     )
     return chain_loc
 
@@ -3184,7 +3166,7 @@ def chat_brain_suggestions(
         raise HTTPException(status_code=403, detail=api_error("chat.user_blocked"))
     if not users_are_matched(db, current_user.id, pid):
         raise HTTPException(status_code=403, detail=api_error("chat.match_required"))
-    raw_ui_lang = getattr(body, "language", None)
+    raw_ui_lang = getattr(body, "locale", None) or getattr(body, "language", None)
     partner_last_plain = _last_partner_message_plain(db, me_user_id=int(current_user.id), partner_user_id=pid)
     body.language = _resolve_ai_locale_for_request(
         req_locale=str(raw_ui_lang or "").strip() or None,
@@ -3706,7 +3688,7 @@ async def opener_suggestions(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    raw_ui = getattr(req, "locale", None)
+    raw_ui = _req_body_locale_preference(req)
     latest_user_message = ""
     try:
         latest_user_message = next((str(x or "").strip() for x in reversed(req.conversation_context or []) if str(x or "").strip()), "")
@@ -4412,7 +4394,7 @@ async def chat_copilot(
 
     latest_user_message = next((str(x.get("text") or "").strip() for x in reversed(chat) if str(x.get("role") or "") == "me" and str(x.get("text") or "").strip()), "")
     copilot_locale = _resolve_ai_locale_for_request(
-        req_locale=getattr(req, "locale", None),
+        req_locale=_req_body_locale_preference(req),
         ai_locale=getattr(req, "ai_locale", None),
         request=request,
         db=db,
@@ -4506,12 +4488,14 @@ async def chat_copilot(
                 clientR = GeminiClient()
                 revive_system = (
                     "You are NEYRA Copilot.\n"
+                    f"BCP47_LOCALE_CODE: {copilot_locale}\n"
+                    f"FULL_LANGUAGE_NAME_EN: {english_language_name_for_ai_prompt(copilot_locale)}\n"
                     "Goal: Revive conversation naturally.\n"
                     "Rules:\n"
                     "- 3 DISTINCT replies\n"
                     "- Each ends with a question\n"
                     "- 1–2 sentences\n"
-                    f"- IMPORTANT: Answer ONLY in {copilot_locale}\n"
+                    f"- IMPORTANT: Answer ONLY in {copilot_locale} ({english_language_name_for_ai_prompt(copilot_locale)}).\n"
                     "- No cringe\n"
                     "Types:\n"
                     "1. Topic shift\n"
@@ -4522,7 +4506,20 @@ async def chat_copilot(
                     "Do not add extra keys."
                 )
                 revive_payload = {"messages": [x.get("text", "") for x in chat[-30:]]}
-                out = await clientR.generate_json(system_prompt=revive_system, user_prompt=f"INPUT_JSON:\n{revive_payload}", temperature=0.65, max_output_tokens=320)
+                out = await clientR.generate_json(
+                    system_prompt=revive_system,
+                    user_prompt=f"INPUT_JSON:\n{revive_payload}",
+                    temperature=0.65,
+                    max_output_tokens=320,
+                    surface="chat-copilot",
+                    cache_context={
+                        "route": "POST /ai/chat-copilot#revive",
+                        "user_id": int(current_user.id),
+                        "partner_user_id": int(partner_user_id),
+                        "locale": copilot_locale,
+                        "message_hash": _ai_chat_fingerprint(chat),
+                    },
+                )
                 rows0 = out.get("options") if isinstance(out, dict) else None
                 if isinstance(rows0, list):
                     mapped: list[dict] = []
@@ -4534,11 +4531,11 @@ async def chat_copilot(
                         if not text:
                             continue
                         if t == "topic_shift":
-                            mapped.append({"label": "Topic shift", "style": "light", "text": text})
+                            mapped.append({"label": lb_l, "style": "light", "text": text})
                         elif t == "personal_hook":
-                            mapped.append({"label": "Personal hook", "style": "deep", "text": text})
+                            mapped.append({"label": lb_d, "style": "deep", "text": text})
                         else:
-                            mapped.append({"label": "Playful", "style": "flirty", "text": text})
+                            mapped.append({"label": lb_f, "style": "flirty", "text": text})
                     if len(mapped) == 3:
                         revive_options = mapped
             except Exception:
@@ -4648,13 +4645,15 @@ async def chat_copilot(
     system = (
         (
             "You are NEYRA AI Dating Copilot — help the user reply in a human, specific way (not interview templates).\n"
+            f"BCP47_UI_LOCALE: {copilot_locale}\n"
+            f"FULL_LANGUAGE_NAME_EN: {english_language_name_for_ai_prompt(copilot_locale)}\n"
             "Generate EXACTLY 3 different replies for the USER to send.\n"
             "Coach goals:\n"
             "- Anchor every line in the partner's LAST message: reuse a concrete noun, plan, feeling, or joke they mentioned.\n"
             "- If they asked a question, engage with that thread first (do not deflect with generic meta-questions).\n"
             "- Keep momentum: each line invites an easy answer without sounding like a form.\n"
             "Rules:\n"
-            f"You MUST respond ONLY in {copilot_locale}. Never switch language. Never use English unless locale is en.\n"
+            f"You MUST respond ONLY in {copilot_locale} ({english_language_name_for_ai_prompt(copilot_locale)}). Never switch language. Never use English unless locale is en.\n"
             "- Each reply: 1–2 sentences max; MUST end with one clear question.\n"
             "- Each reply must be UNIQUE in structure and angle.\n"
             "- Never invent facts not present in chat or profiles.\n"
@@ -4698,11 +4697,14 @@ async def chat_copilot(
         "memory": mem_ctx.get("AI_MEMORY") if isinstance(mem_ctx, dict) else {},
         "notes": photo_ctx_note,
     }
+    _cpl_lab_w, _cpl_lab_f, _cpl_lab_p = _copilot_fallback_labels(copilot_locale)
     user_prompt = (
         f"INPUT_JSON:\n{user}\n\n"
         "Use `partner_message_tone`, `partner_message_intent`, and `reply_guidance` to match how they wrote.\n"
         "Return JSON with keys: strategy, meeting_readiness (0-100 or null), "
-        "meeting_suggestion (string or null), options[3] with labels ['Warm','Flirty','Playful'], safety_notes[]."
+        "meeting_suggestion (string or null), options[3] with labels matching the localized lane names "
+        f"({_cpl_lab_w}, {_cpl_lab_f}, {_cpl_lab_p}), safety_notes[]. "
+        "Do not use English labels when the UI locale is not en."
     )
 
     client = GeminiClient()
@@ -4734,6 +4736,13 @@ async def chat_copilot(
             temperature=0.72,
             surface="chat-copilot",
             model=settings.GEMINI_CHAT_MODEL,
+            cache_context={
+                "route": "POST /ai/chat-copilot",
+                "user_id": int(current_user.id),
+                "partner_user_id": int(partner_user_id),
+                "locale": copilot_locale,
+                "message_hash": _ai_chat_fingerprint(chat),
+            },
         )
         light = _ensure_question_short(str(triple.light or ""))
         flirty = _ensure_question_short(str(triple.flirty or ""))
@@ -5687,7 +5696,7 @@ async def timed_replies(
 ):
     from app.services.ai.output_script_locale import sniff_dominant_script_for_log
 
-    raw_ui = getattr(req, "locale", None)
+    raw_ui = _req_body_locale_preference(req)
     hint_raw = str(getattr(req, "language_hint", None) or "").strip() or None
     latest_user_message = next(
         (str((m or {}).get("text") or "").strip() for m in reversed(req.messages or []) if str((m or {}).get("role") or "").strip().lower() == "me" and str((m or {}).get("text") or "").strip()),
@@ -5738,6 +5747,15 @@ async def timed_replies(
             fallback_used=source != "ai",
             cache_hit=False,
             output_language_guess=_guess_tr,
+        )
+        log_ai_locale_final(
+            route="POST /ai/timed-replies",
+            locale=loc,
+            source=source,
+            cache_hit=False,
+            fallback_used=source != "ai",
+            output_language_guess=_guess_tr,
+            output_snippet=joined[:560],
         )
 
     nudge = (req.nudge_type or "").strip().lower()
@@ -5885,7 +5903,9 @@ async def timed_replies(
 
     base_rules = (
         f"{cultural_tone_prompt_lines(loc)}\n"
-        f"You MUST respond ONLY in {loc} language. Never switch language. Never use English unless locale is en.\n"
+        f"BCP47_UI_LOCALE: {loc}\n"
+        f"FULL_LANGUAGE_NAME_EN: {english_language_name_for_ai_prompt(loc)}\n"
+        f"You MUST respond ONLY in {loc} ({english_language_name_for_ai_prompt(loc)}). Never switch language. Never use English unless locale is en.\n"
         f"Respond ONLY in {loc}. Do NOT switch languages.\n"
         "STRICT: Return all suggestions ONLY in this locale. Do not use English unless locale is 'en'.\n"
         "Return STRICT JSON only: {\"options\":[{\"style\":\"light\",\"text\":\"...\"},{\"style\":\"flirty\",\"text\":\"...\"},{\"style\":\"deep\",\"text\":\"...\"}]}\n"
@@ -5959,6 +5979,13 @@ async def timed_replies(
             temperature=0.75 if nudge != "now" else 0.7,
             max_output_tokens=420,
             surface="timed-replies",
+            cache_context={
+                "route": "POST /ai/timed-replies",
+                "user_id": int(current_user.id),
+                "partner_user_id": None,
+                "locale": loc,
+                "message_hash": _ai_chat_fingerprint(chat),
+            },
         )
         rows = out.get("options") if isinstance(out, dict) else None
         if not isinstance(rows, list):
@@ -6695,7 +6722,7 @@ async def wingman_improve_reply(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    raw_ui = getattr(req, "locale", None)
+    raw_ui = _req_body_locale_preference(req)
     req.locale = _resolve_ai_locale_for_request(
         req_locale=raw_ui,
         ai_locale=getattr(req, "ai_locale", None),

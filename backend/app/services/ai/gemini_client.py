@@ -31,6 +31,7 @@ from app.services.ai.diagnostics import (
     set_gemini_cooldown,
 )
 from app.services.ai.diagnostics import set_last_gemini_error, set_last_provider_used
+from app.services.ai.locale_pipeline import AI_PROMPT_VERSION
 
 log = logging.getLogger("neyra.ai.gemini")
 
@@ -184,6 +185,7 @@ class GeminiClient:
         max_output_tokens: int | None = None,
         model: str | None = None,
         surface: str | None = None,
+        cache_context: dict[str, Any] | None = None,
     ) -> BaseModel:
         """
         Calls Gemini ``generateContent``. After the first failure on transient errors (5xx, 408, 429,
@@ -289,6 +291,7 @@ class GeminiClient:
             _log_gemini_error(err, persist=True)
             raise err
 
+        ctx = cache_context or {}
         cache_payload = {
             "provider": "gemini",
             "model": model,
@@ -296,6 +299,12 @@ class GeminiClient:
             "generation": payload.get("generationConfig") or {},
             "locale_hint": locale_hint or None,
             "surface": (surface or "")[:80] or None,
+            "prompt_version": AI_PROMPT_VERSION,
+            "route_scope": str(ctx.get("route") or "")[:120] or None,
+            "user_id_scope": ctx.get("user_id"),
+            "partner_id_scope": ctx.get("partner_user_id"),
+            "locale_scope": str(ctx.get("locale") or "").strip()[:24] or None,
+            "message_hash_scope": str(ctx.get("message_hash") or "").strip()[:80] or None,
         }
         ck = cache_key("gemini_prompt_v1", cache_payload)
         cached = cache_get(ck)

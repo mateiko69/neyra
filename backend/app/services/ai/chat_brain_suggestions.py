@@ -30,6 +30,7 @@ from app.services.ai.chat_brain_style_profile import (
 from app.services.ai.ai_request_locale import normalize_chat_ai_locale
 from app.services.ai.locale import is_text_locale
 from app.services.ai.ai_output_validation import pack_question_quota_met, validate_chat_brain_line
+from app.services.ai.locale_prompt_language_names import english_language_name_for_ai_prompt
 from app.services.ai.topic_brain import (
     TOPIC_CONFIDENCE_LOW_THRESHOLD,
     detect_conversation_topic,
@@ -68,6 +69,7 @@ class ChatBrainRequest(BaseModel):
     partner_user_id: int = Field(..., ge=1)
     mode: str = "auto"
     tone: str = "auto"
+    locale: str | None = Field(default=None, max_length=12)
     language: str = "en"
     ai_locale: str | None = Field(default=None, max_length=24)
     language_hint: str | None = Field(default=None, max_length=96)
@@ -964,6 +966,7 @@ async def _gemini_full_pack(
     suffix = (coach_user_suffix or "").strip()
     user = (
         f"LANGUAGE: {lang}\n"
+        f"FULL_LANGUAGE_NAME_EN: {english_language_name_for_ai_prompt(lang)}\n"
         f"YOU MUST RESPOND ONLY IN {lang}. NO OTHER LANGUAGE.\n"
         f"{lang_hint_line}"
         f"MODE GUIDANCE: {_mode_instruction(mode)}\n"
@@ -1033,6 +1036,7 @@ async def _gemini_one_line(
     suffix = (coach_user_suffix or "").strip()
     user = (
         f"LANGUAGE: {lang}\n"
+        f"FULL_LANGUAGE_NAME_EN: {english_language_name_for_ai_prompt(lang)}\n"
         f"YOU MUST RESPOND ONLY IN {lang}. NO OTHER LANGUAGE.\n"
         f"{lang_hint_line}"
         f"MODE: {mode}\nVARIANT_TO_REPLACE: {target}\n"

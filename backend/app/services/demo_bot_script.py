@@ -10,6 +10,13 @@ import re
 from typing import Any
 
 from app.services.app_language import normalize_app_language
+from app.services.ai.ai_request_locale import normalize_ai_request_locale
+from app.services.ai.ai_fallback_phrases import (
+    opener_typed_fallback,
+    timed_now_emergency_triple,
+    timed_reengage_triple,
+    timed_revive_triple,
+)
 
 # --- Interest snippets (short, natural) ---------------------------------
 
@@ -223,7 +230,24 @@ def scripted_demo_message(
             return f"Це весело, {name} — ризикну трохи сміливішим питанням.{_flirt_suffix(lang, min(3, flirt_level + 1))}"
         return f"Мені подобається ця розмова, {name}.{_flirt_suffix(lang, flirt_level)}"
 
-    text = uk() if code == "uk" else en()
+    def _localized_phrases() -> str:
+        loc = normalize_ai_request_locale(lang or "en")
+        op = opener_typed_fallback(loc)
+        fe = timed_now_emergency_triple(loc)
+        tr = timed_revive_triple(loc)
+        rg = timed_reengage_triple(loc)
+        pool = [op[0][1], op[1][1], op[2][1], rg[0], rg[1], tr[0], tr[1], fe[0], fe[1]]
+        line = pool[int(step) % len(pool)].strip()
+        if step == 0:
+            return f"{name} — {line}".strip()
+        if personality == "playful" and step == 1:
+            return f"{name}: {line}"
+        return line
+
+    if code not in {"en", "uk"}:
+        text = _localized_phrases()
+    else:
+        text = uk() if code == "uk" else en()
     text = re.sub(r"\s+", " ", text).strip()
     # Scripted first-5 arc should always contain a question to keep momentum.
     if text and ("?" not in text and "？" not in text):

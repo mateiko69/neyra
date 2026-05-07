@@ -2,6 +2,7 @@
 
 import { useCallback, useLayoutEffect, useMemo, useSyncExternalStore } from "react";
 import { apiFetch, getToken, invalidateApiGetCache } from "../api";
+import { getCurrentLocaleForApi, setAppLocaleForApi } from "../appLocaleForApi";
 import { clearAiSuggestionCaches } from "../aiSuggestionCache";
 import {
   neyraAiLocaleChanged,
@@ -86,6 +87,12 @@ let snapshot: I18nSnapshot = {
   debug: I18N_DEBUG,
 };
 
+/** Before React hydrates `initializeI18n`, outbound fetches already use `apiFetch` — mirror stored UI locale. */
+if (typeof window !== "undefined") {
+  const storedBoot = normalizeLocale(localStorage.getItem(STORAGE_KEY));
+  if (storedBoot) setAppLocaleForApi(storedBoot);
+}
+
 function normalizeLocale(raw: string | null | undefined): Locale | null {
   return normalizeLocaleInput(raw);
 }
@@ -154,6 +161,7 @@ function getServerSnapshot() {
 }
 
 function applyLocale(next: Locale, ready: boolean) {
+  setAppLocaleForApi(next);
   snapshot = {
     ...snapshot,
     ready,
@@ -561,8 +569,13 @@ export function getStoredLocale(): Locale {
   return stored || snapshot.locale || DEFAULT_LOCALE;
 }
 
+export { getCurrentLocaleForApi } from "../appLocaleForApi";
+
 /** Same codes the app ships in `LOCALES` — used for AI request bodies and locale-keyed caches. */
 export function getCurrentUiLocale(): Locale {
+  if (typeof window !== "undefined" && snapshot.locale) {
+    return snapshot.locale;
+  }
   return getStoredLocale();
 }
 
@@ -573,8 +586,10 @@ export function getUiLocaleForAiRequests(): Locale {
 
 /** Canonical locale + human label for AI POST bodies (`locale` + `language_hint`). */
 export function getAiLocalePayload(): { locale: Locale; language_hint: string } {
-  /** Prefer in-memory i18n snapshot so AI bodies match the UI immediately after `setGlobalLocale`. */
-  const locale = (snapshot.locale || getStoredLocale()) as Locale;
+  /** Prefer process-wide locale from API layer (tracks `applyLocale`) over stale snapshot/localStorage. */
+  const locale = (
+    normalizeLocale(getCurrentLocaleForApi()) || snapshot.locale || getStoredLocale()
+  ) as Locale;
   const row = LOCALES.find((l) => l.code === locale);
   const language_hint = row ? `${row.label} (${row.labelEn})` : locale;
   return { locale, language_hint };
