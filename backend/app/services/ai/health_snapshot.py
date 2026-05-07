@@ -50,13 +50,19 @@ def classify_gemini_error(text: str | None) -> str:
     return "provider_error"
 
 
-def fallback_effectively_active(*, fallback_count_24h: int, last_provider: str | None) -> bool:
+def fallback_effectively_active(
+    *,
+    fallback_count_24h: int,
+    last_provider: str | None,
+    cooldown_active: bool = False,
+    operator_notice_active: bool = False,
+) -> bool:
     if int(fallback_count_24h or 0) > 0:
         return True
     lp = (last_provider or "").strip().lower()
     if lp in {"fallback", "local", "deterministic"}:
         return True
-    if gemini_cooldown_active() or ai_provider_operator_notice():
+    if bool(cooldown_active) or bool(operator_notice_active):
         return True
     return False
 
@@ -69,6 +75,9 @@ def compute_ai_operational_status(
     last_gemini_error: str | None,
     quota_error: str | None,
     fallback_count_24h: int,
+    last_provider_used: str | None = None,
+    cooldown_active: bool = False,
+    operator_notice_active: bool = False,
 ) -> tuple[str, bool, str | None, str]:
     """
     Returns:
@@ -80,8 +89,13 @@ def compute_ai_operational_status(
     enable = bool(getattr(settings, "ENABLE_AI_SUGGESTIONS", False))
     merged_err = " ".join(x for x in [last_gemini_error or "", quota_error or ""] if x).strip()
     err_class = classify_gemini_error(merged_err)
-    last_pv = get_last_provider_used()
-    fb_ok = fallback_effectively_active(fallback_count_24h=fallback_count_24h, last_provider=last_pv)
+    last_pv = (last_provider_used or "").strip() or None
+    fb_ok = fallback_effectively_active(
+        fallback_count_24h=fallback_count_24h,
+        last_provider=last_pv,
+        cooldown_active=cooldown_active,
+        operator_notice_active=operator_notice_active,
+    )
 
     gs = (gemini_status or "").strip().lower()
     pn = (provider_name or "").strip().lower()
@@ -113,7 +127,7 @@ def compute_ai_operational_status(
         return ("fail", False, msg + " No healthy fallback signal detected.", err_class)
 
     # Free-tier / quota / cooldown — expected noise; never critical if fallback path exists.
-    if err_class in {"quota_rate_limit", "rate_limit"} or gemini_cooldown_active():
+    if err_class in {"quota_rate_limit", "rate_limit"} or bool(cooldown_active):
         msg = "Gemini free-tier/provider errors detected. Fallback is active."
         if fb_ok:
             return ("degraded", True, msg + " Upgrade Google AI billing or wait for quota reset.", err_class)
@@ -180,6 +194,9 @@ def build_system_doctor_ai_extension(
         last_gemini_error=last_err,
         quota_error=quota_err,
         fallback_count_24h=int(fallback_count_24h or 0),
+        last_provider_used=get_last_provider_used(),
+        cooldown_active=gemini_cooldown_active(),
+        operator_notice_active=ai_provider_operator_notice(),
     )
     engine_probe = verify_fallback_suggestion_engine()
     agg = get_recent_ai_provider_error_buckets(limit=5)
@@ -214,7 +231,12 @@ def build_system_doctor_ai_extension(
     fb_engine_ok = bool(engine_probe.get("ok"))
     fb_roundtrip_ok = fb_engine_ok and (
         bool(int(fallback_count_24h or 0) > 0)
-        or fallback_effectively_active(fallback_count_24h=int(fallback_count_24h or 0), last_provider=get_last_provider_used())
+        or fallback_effectively_active(
+            fallback_count_24h=int(fallback_count_24h or 0),
+            last_provider=get_last_provider_used(),
+            cooldown_active=gemini_cooldown_active(),
+            operator_notice_active=ai_provider_operator_notice(),
+        )
     )
 
     gem_layer = None

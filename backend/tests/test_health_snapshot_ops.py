@@ -3,7 +3,6 @@ from __future__ import annotations
 import pytest
 
 from app.core.config import settings
-from app.services.ai import diagnostics as diag_mod
 from app.services.ai.health_snapshot import (
     classify_gemini_error,
     compute_ai_operational_status,
@@ -23,7 +22,6 @@ def test_classify_gemini_error_buckets():
 
 def test_gemini_429_with_fallback_is_degraded_not_fail(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(settings, "ENABLE_AI_SUGGESTIONS", True)
-    monkeypatch.setattr(diag_mod, "get_last_provider_used", lambda: "fallback")
     st, fb, _, cls = compute_ai_operational_status(
         gemini_status="ok",
         has_gemini_key=True,
@@ -31,6 +29,7 @@ def test_gemini_429_with_fallback_is_degraded_not_fail(monkeypatch: pytest.Monke
         last_gemini_error="429: exhausted",
         quota_error=None,
         fallback_count_24h=5,
+        last_provider_used="fallback",
     )
     assert st == "degraded"
     assert fb is True
@@ -39,7 +38,6 @@ def test_gemini_429_with_fallback_is_degraded_not_fail(monkeypatch: pytest.Monke
 
 def test_gemini_failure_without_fallback_is_fail(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(settings, "ENABLE_AI_SUGGESTIONS", True)
-    monkeypatch.setattr(diag_mod, "get_last_provider_used", lambda: "gemini")
     st, fb, _, _ = compute_ai_operational_status(
         gemini_status="ok",
         has_gemini_key=True,
@@ -47,6 +45,7 @@ def test_gemini_failure_without_fallback_is_fail(monkeypatch: pytest.MonkeyPatch
         last_gemini_error="503: unavailable",
         quota_error=None,
         fallback_count_24h=0,
+        last_provider_used="gemini",
     )
     assert st == "fail"
     assert fb is False
@@ -54,7 +53,6 @@ def test_gemini_failure_without_fallback_is_fail(monkeypatch: pytest.MonkeyPatch
 
 def test_missing_gemini_key_with_fallback_not_critical(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(settings, "ENABLE_AI_SUGGESTIONS", True)
-    monkeypatch.setattr(diag_mod, "get_last_provider_used", lambda: "fallback")
     st, fb, _, cls = compute_ai_operational_status(
         gemini_status="disabled",
         has_gemini_key=False,
@@ -62,6 +60,7 @@ def test_missing_gemini_key_with_fallback_not_critical(monkeypatch: pytest.Monke
         last_gemini_error=None,
         quota_error=None,
         fallback_count_24h=2,
+        last_provider_used="fallback",
     )
     assert st == "degraded"
     assert fb is True
