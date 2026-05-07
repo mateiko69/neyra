@@ -24,6 +24,12 @@ import { getAiLocalePayload, getCurrentUiLocale, getStoredLocale, getUiLocaleFor
 import { detectMixedScripts, isTextLikelyInExpectedLanguage, resolveChatLanguage, resolveTone, type ChatTone, type ConversationState } from "./aiLanguageTone";
 import { neyraAiLocaleDevLog, neyraAiLocaleRequestingSuggestions } from "./neyraAiLocaleLog";
 import { trackAnalyticsEvent } from "../analytics";
+import {
+  chatBrainSuggestionsInflight,
+  chatBrainSuggestionsMemo,
+  clearOpenerSessionMemoryCache,
+  openerSessionMem,
+} from "./aiDedupeStores";
 
 /** One in-flight sync per partner — avoids duplicate mark-seen / cache churn racing the thread load. */
 const syncUnreadInFlight = new Map<number, Promise<void>>();
@@ -86,7 +92,7 @@ function resolveAiLocaleOverride(ctx: AiLanguageToneContext | undefined | null):
 }
 
 function resolveAiLanguageTone(ctx: AiLanguageToneContext | undefined | null): { language: string; tone: ChatTone; languageReason: string } {
-  const uiLocale = ctx?.uiLocale ?? getStoredLocale() ?? "en";
+  const uiLocale = ctx?.uiLocale ?? getCurrentUiLocale() ?? getStoredLocale() ?? getUiLocaleForAiRequests() ?? "en";
   const languageBase = resolveChatLanguage(ctx?.viewer ?? null, ctx?.partner ?? null, uiLocale);
   const language = (ctx?.overrideLanguage ?? "").trim() || languageBase.language;
   const tone = resolveTone({
@@ -191,7 +197,7 @@ export type StartStrategyResponse = {
 };
 
 export async function fetchStartStrategy(options: { partnerUserId: number; messages?: string[] }): Promise<StartStrategyResponse | null> {
-  const locale = getStoredLocale() || "en";
+  const locale = String(getCurrentUiLocale() || getStoredLocale() || "en").trim() || "en";
   const language = locale;
   const raw = await apiFetch("/ai/start-strategy", {
     method: "POST",
@@ -387,9 +393,6 @@ export type ChatBrainSuggestionsResponse = {
   meta: ChatBrainSuggestionsMeta;
 };
 
-/** Same POST body (partner + mode + locale) → reuse response; avoids duplicate Gemini hits from validation retries + parallel surfaces. */
-const chatBrainSuggestionsMemo = new Map<string, { at: number; res: ChatBrainSuggestionsResponse }>();
-const chatBrainSuggestionsInflight = new Map<string, Promise<ChatBrainSuggestionsResponse>>();
 const CHAT_BRAIN_MEMO_TTL_MS = 120_000;
 
 /** Test hook: reset memo/inflight for duplicate-call assertions. */
@@ -511,11 +514,11 @@ export async function postChatBrainSuggestions(options: {
   const memoKey = stableChatBrainMemoKey(body);
   const memoHit = chatBrainSuggestionsMemo.get(memoKey);
   if (memoHit && Date.now() - memoHit.at < CHAT_BRAIN_MEMO_TTL_MS) {
-    if (String(getCurrentUiLocale() || "en") !== String(uiLocale || "en")) throw new Error("stale_chat_ai_locale");
-    return memoHit.res;
+    // Memo key already scopes by `language`; keep only a guard for wrong-type cache entries.
+    return memoHit.res as ChatBrainSuggestionsResponse;
   }
   const inflightHit = chatBrainSuggestionsInflight.get(memoKey);
-  if (inflightHit) return inflightHit;
+  if (inflightHit) return inflightHit as Promise<ChatBrainSuggestionsResponse>;
 
   const expectedLang = String(body.language || "en").trim() || "en";
   const localeAtStart = uiLocale;
@@ -707,10 +710,10 @@ export async function postChatBrainSuggestions(options: {
   return { ok: true, variants, meta, coaching, ui, recommended_variant, recommendation_reason, variant_insights };
   })();
 
-  chatBrainSuggestionsInflight.set(memoKey, run);
+  chatBrainSuggestionsInflight.set(memoKey, run as unknown as Promise<unknown>);
   try {
     const out = await run;
-    chatBrainSuggestionsMemo.set(memoKey, { at: Date.now(), res: out });
+    chatBrainSuggestionsMemo.set(memoKey, { at: Date.now(), res: out as unknown });
     return out;
   } finally {
     chatBrainSuggestionsInflight.delete(memoKey);
@@ -1599,11 +1602,10 @@ function openerStyleForV1(style: AiOpenerStyle | undefined): string | null {
 export type AiOpenersResult = { items: AiOpenerItem[]; suggestions: string[]; bestIndex: number };
 
 const SESSION_OPENERS_CACHE_PREFIX = "neyra:ai_openers:v1:";
-const openerSessionMem = new Map<string, AiOpenersResult>();
 
 /** Clear in-memory opener cache (call when UI language changes; storage keys cleared separately). */
 export function clearAiOpenersMemoryCache() {
-  openerSessionMem.clear();
+  clearOpenerSessionMemoryCache();
 }
 
 function openerCacheKey(input: {
@@ -1644,14 +1646,14 @@ export async function getAiOpeners(
     }
     const styleKey = openerStyleForV1(options.style);
     const ck = openerCacheKey({ threadId, matchName: match_name, uiLocale, aiLocale, style: styleKey });
-    const memHit = openerSessionMem.get(ck);
+    const memHit = openerSessionMem.get(ck) as AiOpenersResult | undefined;
     if (memHit) return memHit;
     try {
       const rawCached = sessionStorage.getItem(ck);
       if (rawCached) {
         const parsed = JSON.parse(rawCached) as AiOpenersResult | null;
         if (parsed && Array.isArray(parsed.suggestions) && Array.isArray(parsed.items)) {
-          openerSessionMem.set(ck, parsed);
+          openerSessionMem.set(ck, parsed as unknown);
           return parsed;
         }
       }
@@ -1716,7 +1718,7 @@ export async function getAiOpeners(
       }));
     }
     const out = { items: items.slice(0, 3), suggestions, bestIndex };
-    openerSessionMem.set(ck, out);
+    openerSessionMem.set(ck, out as unknown);
     try {
       sessionStorage.setItem(ck, JSON.stringify(out));
     } catch {

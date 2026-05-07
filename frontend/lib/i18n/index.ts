@@ -525,6 +525,15 @@ export function setGlobalLocale(next: Locale) {
   applyLocale(next, true);
   emitChange();
 
+  try {
+    invalidateApiGetCache("/matches");
+    invalidateApiGetCache("/messages/conversations");
+    invalidateApiGetCache("/discover/feed");
+    invalidateApiGetCache("/nav/badges");
+  } catch {
+    /* ignore */
+  }
+
   void (async () => {
     await ensureLocaleOverlayLoaded(next);
     applyLocale(next, true);

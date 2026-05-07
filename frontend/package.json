@@ -14,7 +14,7 @@
     "audit-i18n-full": "node scripts/i18n-full-audit-fix.mjs",
     "apply-native-tone": "node scripts/apply-native-tone.mjs",
     "ai-i18n": "node scripts/ai-i18n.mjs",
-    "test:i18n": "node --test tests/i18n-locales.test.mjs && tsx --test tests/i18n-all-locales.test.ts && tsx --test tests/fastapi-validation.test.ts && tsx --test tests/ui-locale-normalize.test.ts && tsx --test tests/chat-ai-locale-suggestions.test.ts && tsx --test tests/contextual-chat-fallback.test.ts && tsx --test tests/chat-brain-memo-key.test.ts && tsx --test tests/onboarding-dob-iso.test.ts && tsx --test tests/onboarding-profile-prefill.test.ts && tsx --test tests/auth-session-bootstrap.test.ts && tsx --test tests/discover-swipe-guard.test.ts && tsx --test tests/background-api-softfail.test.ts && tsx --test tests/public-marketing-routes.test.ts",
+    "test:i18n": "node --test tests/i18n-locales.test.mjs && tsx --test tests/i18n-all-locales.test.ts && tsx --test tests/fastapi-validation.test.ts && tsx --test tests/ui-locale-normalize.test.ts && tsx --test tests/chat-ai-locale-suggestions.test.ts && tsx --test tests/contextual-chat-fallback.test.ts && tsx --test tests/chat-brain-memo-key.test.ts && tsx --test tests/ai-dedupe-locale-clear.test.ts && tsx --test tests/onboarding-dob-iso.test.ts && tsx --test tests/onboarding-profile-prefill.test.ts && tsx --test tests/auth-session-bootstrap.test.ts && tsx --test tests/discover-swipe-guard.test.ts && tsx --test tests/background-api-softfail.test.ts && tsx --test tests/public-marketing-routes.test.ts",
     "test:ui": "playwright test",
     "test:public-smoke": "playwright test tests/ui/public-pages-smoke.spec.ts",
     "type-check": "tsc --noEmit",

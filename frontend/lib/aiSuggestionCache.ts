@@ -1,3 +1,5 @@
+import { clearAllAiDedupeStores } from "./chat/aiDedupeStores";
+
 const AI_CACHE_PREFIXES = [
   "neyra:ai_openers:v1:",
   "neyra:ai_reply_options:",
@@ -21,14 +23,10 @@ function clearFromStorage(storage: Storage) {
 /** Clear only AI suggestion caches (does not touch auth/app caches). */
 export function clearAiSuggestionCaches() {
   if (typeof window === "undefined") return;
+  clearAllAiDedupeStores();
   void import("./chat/chatBrainSuggestionsCache")
     .then((m) => {
       if (typeof m.clearChatBrainSuggestionMemoryCaches === "function") m.clearChatBrainSuggestionMemoryCaches();
-    })
-    .catch(() => {});
-  void import("./chat/api")
-    .then((m) => {
-      if (typeof m.clearAiOpenersMemoryCache === "function") m.clearAiOpenersMemoryCache();
     })
     .catch(() => {});
   try {

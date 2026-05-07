@@ -91,6 +91,32 @@ def resolve_ai_request_locale(value: str | None) -> str:
     return normalize_app_language(value)
 
 
+def locale_from_accept_language_header(header_value: str | None) -> str:
+    """
+    Pick the best supported app language from an Accept-Language header (RFC 7231-style list).
+    Order matches typical browser lists (first choices win; ignore q-values for simplicity).
+    """
+    if not header_value:
+        return ""
+    tokens: list[str] = []
+    for part in header_value.split(","):
+        chunk = part.strip()
+        if not chunk:
+            continue
+        lang_range = chunk.split(";", 1)[0].strip()
+        if lang_range:
+            tokens.append(lang_range)
+    for t in tokens:
+        n = normalize_app_language(t)
+        if n and n != "en":
+            return n
+    for t in tokens:
+        n = normalize_app_language(t)
+        if n:
+            return n
+    return ""
+
+
 def resolve_recipient_language(db: Session, recipient_user_id: int) -> str:
     """
     Language for messages *to* recipient_user_id (real user receiving demo bot text).

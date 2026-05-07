@@ -266,6 +266,7 @@ export const ChatAiBrainPanel = forwardRef<ChatAiBrainPanelHandle, Props>(functi
       if (!partnerUserId || disabled) return;
       const regenKey = opts.regenerateVariant || "all";
       const key = `${requestKeyBase}:${BRAIN_TAB}:${regenKey}`;
+      const lastGoodKey = `${partnerUserId}:${lang}`;
 
       const left = freeLeftRef.current;
       if (left != null && left <= 0) {
@@ -345,7 +346,7 @@ export const ChatAiBrainPanel = forwardRef<ChatAiBrainPanelHandle, Props>(functi
         });
         if (!isFreeTier) {
           CHAT_BRAIN_SUGGESTIONS_CACHE.set(key, res);
-          CHAT_BRAIN_LAST_GOOD_BY_PARTNER.set(partnerUserId, res);
+          CHAT_BRAIN_LAST_GOOD_BY_PARTNER.set(lastGoodKey, res);
         }
         if (isFreeTier) {
           incrementFreeAiChatSuggestionsUsed();
@@ -375,7 +376,7 @@ export const ChatAiBrainPanel = forwardRef<ChatAiBrainPanelHandle, Props>(functi
           setPack((prev) => {
             if (prev) return prev;
             const fromKey = CHAT_BRAIN_SUGGESTIONS_CACHE.get(key);
-            const restored = fromKey ?? CHAT_BRAIN_LAST_GOOD_BY_PARTNER.get(partnerUserId) ?? null;
+            const restored = fromKey ?? CHAT_BRAIN_LAST_GOOD_BY_PARTNER.get(lastGoodKey) ?? null;
             if (restored) {
               CHAT_BRAIN_SUGGESTIONS_CACHE.set(key, restored);
             }

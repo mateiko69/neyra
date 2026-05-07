@@ -41,6 +41,7 @@ from app.services.retention.daily_boosts import (
     consume_daily_boost_slot,
     get_daily_boosts_state,
 )
+from app.services.app_language import locale_from_accept_language_header
 from app.services.monetization.subscription_service import SubscriptionService
 from app.infrastructure.ai.provider_factory import get_ai_provider
 from app.services.ai.gemini_client import GeminiClient, GeminiError, log_ai_provider_final
@@ -2388,25 +2389,63 @@ def _resolve_ai_locale_for_request(
         )
         return forced
 
-    interface_locale = transport_locale or str(req_locale or "").strip()
-    if not prefer_message_locale:
-        decided = normalize_chat_ai_locale(interface_locale or profile_locale or "en")
+    # Body locale wins over transport headers (explicit JSON beats X-Locale mirrors).
+    explicit_body = str(req_locale or "").strip()
+    interface_locale = explicit_body or transport_locale
+    accept_hdr = ""
+    try:
+        if request is not None:
+            accept_hdr = str(request.headers.get("accept-language") or "")
+    except Exception:
+        accept_hdr = ""
+
+    if prefer_message_locale:
+        decided_locale, source = resolve_ai_locale_decision(
+            latest_user_message=latest_user_message,
+            interface_locale=interface_locale,
+            profile_locale=profile_locale,
+        )
+        if decided_locale == "en" and source == "fallback":
+            acc = locale_from_accept_language_header(accept_hdr)
+            if acc:
+                decided_locale = normalize_chat_ai_locale(acc)
+                source = "accept_language"
         logger.info(
             "ai_locale_decision",
-            extra={"event": "ai_locale_decision", "source": "interface", "locale": decided},
+            extra={"event": "ai_locale_decision", "source": source, "locale": decided_locale},
+        )
+        return decided_locale
+
+    if interface_locale:
+        decided = normalize_chat_ai_locale(interface_locale)
+        logger.info(
+            "ai_locale_decision",
+            extra={"event": "ai_locale_decision", "source": "request", "locale": decided},
         )
         return decided
 
-    decided_locale, source = resolve_ai_locale_decision(
-        latest_user_message=latest_user_message,
-        interface_locale=interface_locale,
-        profile_locale=profile_locale,
-    )
+    if str(profile_locale or "").strip():
+        decided = normalize_chat_ai_locale(profile_locale)
+        logger.info(
+            "ai_locale_decision",
+            extra={"event": "ai_locale_decision", "source": "profile", "locale": decided},
+        )
+        return decided
+
+    acc_loc = locale_from_accept_language_header(accept_hdr)
+    if acc_loc:
+        decided = normalize_chat_ai_locale(acc_loc)
+        logger.info(
+            "ai_locale_decision",
+            extra={"event": "ai_locale_decision", "source": "accept_language", "locale": decided},
+        )
+        return decided
+
     logger.info(
         "ai_locale_decision",
-        extra={"event": "ai_locale_decision", "source": source, "locale": decided_locale},
+        extra={"event": "ai_locale_decision", "source": "fallback", "locale": "en"},
     )
-    return decided_locale
+    return "en"
 
 
 async def _enforce_ai_texts_locale_once(
