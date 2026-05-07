@@ -9,14 +9,16 @@ from __future__ import annotations
 import re
 from typing import Any, Literal
 
-from app.services.ai.ai_fallback_phrases import timed_now_emergency_triple, timed_revive_triple
+from app.services.ai.ai_fallback_phrases import (
+    timed_now_emergency_triple,
+    timed_reengage_triple,
+    timed_revive_triple,
+)
 from app.services.ai.ai_request_locale import normalize_ai_request_locale
 from app.services.ai.conversation.conversation_stage_engine import detect_stage
+from app.services.ai.soft_meeting_ladder_phrases import soft_meeting_ladder_triple
 
 CloserStage = Literal["opener", "early_chat", "engaged", "high_interest", "stalled", "ready_for_meeting"]
-
-# Narrative map (product language → existing closer_stage values):
-# opening → opener | interest → early_chat | comfort → engaged | flirt → high_interest | meeting → ready_for_meeting
 
 _INTERNAL_TO_CLOSER: dict[str, CloserStage] = {
     "opener": "opener",
@@ -27,30 +29,44 @@ _INTERNAL_TO_CLOSER: dict[str, CloserStage] = {
     "meeting_ready": "ready_for_meeting",
 }
 
+# `{near}` expands to `_near_clause` (empty string ok).
+_MEETING_WALK_NEAR: dict[str, str] = {
+    "en": "Maybe coffee or a walk{near} sometime?",
+    "uk": "може якось кава чи прогулянка{near}?",
+    "ru": "может как-нибудь кофе или прогулка{near}?",
+    "es": "¿Un café o un paseo{near} algún día?",
+    "pt": "Um café ou um passeio{near} qualquer dia?",
+    "fr": "Un café ou une balade{near}, quand ça peut?",
+    "de": "Mal Kaffee oder ein Spaziergang{near}?",
+    "it": "Un caffè o una passeggiata{near} un giorno?",
+    "pl": "Kawa lub spacer{near}, jak będziesz miał(a) ochotę?",
+    "tr": "Kahve veya kısa bir yürüyüş{near} nasıl olur?",
+    "zh": "要不要{near}一起喝杯咖啡或散个步？",
+    "zh-TW": "要不要{near}一起喝杯咖啡或散個步？",
+    "ja": "近いうち{near}、コーヒーか散歩どう？",
+    "ko": "시간 될 때{near} 커피나 짧게 산책 어때?",
+    "hi": "कभी कॉफ़ी या छोटी सैर{near}?",
+    "id": "Kopi atau jalan santai{near}?",
+    "vi": "Cà phê hoặc đi bộ{near} được không?",
+    "th": "ไปคาเฟ่หรือเดินเล่น{near}กันได้ไหม?",
+    "ar": "قهوة أو نزهة قصيرة{near}؟",
+    "he": "קפה או טיול קצר{near}?",
+    "nl": "Koffie of een wandeling{near}?",
+    "sv": "Fika eller en promenad{near}?",
+    "cs": "Káva nebo procházka{near}?",
+    "ro": "O cafea sau o plimbare{near}?",
+    "hu": "Kávé vagy egy rövid séta{near}?",
+    "el": "Καφές ή ήρεμος περίπατος{near};",
+    "da": "Kaffe eller en gang{near}?",
+    "fi": "Kahvi tai kävely{near}?",
+    "no": "Kaffe eller en tur{near}?",
+    "bg": "Кафе или къса разходка{near}?",
+}
+
 
 def soft_meeting_ladder_three(locale: str | None) -> tuple[str, str, str]:
-    """
-    Three-step soft meeting framing (UA-first product copy). Never imperative \"let's meet\".
-    Step 1: observer hint → Step 2: optional coffee/walk → Step 3: reassurance.
-    """
-    loc = normalize_ai_request_locale(locale or "en")
-    if loc == "uk":
-        return (
-            "це вже звучить як розмова, яку краще продовжити не в чаті 😄",
-            "може якось кава чи прогулянка?",
-            "без напрягу 🙂",
-        )
-    if loc == "ru":
-        return (
-            "это уже звучит как разговор, который логичнее продолжить не в чате 😄",
-            "может как-нибудь кофе или прогулка?",
-            "без давления 🙂",
-        )
-    return (
-        "This already feels like the kind of conversation that’s easier to continue away from the keyboard 😄",
-        "Maybe coffee or a walk sometime?",
-        "No pressure 🙂",
-    )
+    """Three-step soft meeting framing — full locale coverage."""
+    return soft_meeting_ladder_triple(locale)
 
 
 def _soft_line(text: str, max_len: int = 320) -> str:
@@ -72,10 +88,15 @@ def polish_timed_fallback_line(text: str, *, closer_stage: str | None) -> str:
     return _q_short(text)
 
 
-def _q_short(text: str, max_len: int = 320) -> str:
+def _q_short(text: str, max_len: int = 320, *, locale: str | None = None) -> str:
     s = (text or "").strip()
     if not s:
-        return "What’s been the best part of your day so far?"
+        lo = normalize_ai_request_locale(locale or "en")
+        if lo != "en":
+            a, _, _ = timed_now_emergency_triple(lo)
+            s = (a or "").strip()
+        if not s:
+            s = "What’s been the best part of your day so far?"
     s = re.sub(r"\s+", " ", s)
     if len(s) > max_len:
         s = s[: max_len - 1].rstrip() + "…"
@@ -85,11 +106,6 @@ def _q_short(text: str, max_len: int = 320) -> str:
 
 
 def compute_closer_stage(messages: Any, *, stalled_chat: bool) -> tuple[str, dict[str, Any]]:
-    """
-    Returns (closer_stage, detect_stage_meta).
-
-    If stalled_chat is True (quiet thread / long pause), closer_stage is forced to stalled.
-    """
     if stalled_chat:
         return "stalled", {"stage": "stalled", "mutuality_score": 0.0, "energy_score": 0.0}
     meta = detect_stage(messages)
@@ -105,7 +121,6 @@ def closer_show_moment_hint(
     stage_mr: str,
     total_messages: int,
 ) -> bool:
-    """Soft UI hint when momentum is good but we are not spamming full meeting cards."""
     if total_messages < 8:
         return False
     if score < 65:
@@ -127,14 +142,50 @@ def _near_clause(locale: str, city: str | None) -> str:
         return f" в {c}"
     if loc == "es":
         return f" en {c}"
+    if loc == "pt":
+        return f" em {c}"
+    if loc == "it":
+        return f" a {c}"
+    if loc == "fr":
+        return f" à {c}"
+    if loc in {"de", "nl"}:
+        return f" in {c}"
+    if loc == "pl":
+        return f" w {c}"
+    if loc in {"sv", "da", "no"}:
+        return f" i {c}"
+    if loc == "fi":
+        return f" kohteessa {c}"
+    if loc == "cs":
+        return f" v {c}"
+    if loc == "ro":
+        return f" în {c}"
+    if loc == "hu":
+        return f" ({c})"
+    if loc == "tr":
+        return f" ({c})"
+    if loc in {"zh", "zh-TW", "ja", "ko", "vi", "hi", "id", "th"}:
+        return f" ({c})"
+    if loc in {"ar", "he", "el", "bg"}:
+        return f" — {c}"
     return f" in {c}"
 
 
+def _meeting_walk_line_with_near(loc: str, near: str) -> str:
+    """Second soft-ladder row with optional geographic hint."""
+    n = normalize_ai_request_locale(loc or "en")
+    tpl = _MEETING_WALK_NEAR.get(n)
+    if not tpl:
+        for fb in ("de", "fr", "es", "pt", "it", "pl", "ru", "uk", "en"):
+            tpl = _MEETING_WALK_NEAR.get(fb)
+            if tpl:
+                break
+    tpl = tpl or _MEETING_WALK_NEAR["en"]
+    return _soft_line(tpl.format(near=near or ""))
+
+
 def closer_meeting_suggestions_three(locale: str, closer_stage: str, *, city: str | None = None) -> list[str]:
-    """
-    Exactly three safe, low-pressure lines oriented toward continuing or meeting.
-    At ``ready_for_meeting``, uses a three-step soft ladder (hint → idea → reassurance); no coercion.
-    """
+    """Three safe localized lines toward continuing or softly meeting."""
     loc = normalize_ai_request_locale(locale or "en")
     cs = (closer_stage or "").strip().lower()
     if cs not in {
@@ -149,22 +200,22 @@ def closer_meeting_suggestions_three(locale: str, closer_stage: str, *, city: st
     near = _near_clause(loc, city)
 
     if cs == "stalled":
-        try:
-            a, b, c = timed_revive_triple(loc)
-        except Exception:
-            a, b, c = timed_revive_triple("en")
-        return [_q_short(a), _q_short(b), _q_short(c)]
+        a, b, c = timed_revive_triple(loc)
+        return [_q_short(a, locale=loc), _q_short(b, locale=loc), _q_short(c, locale=loc)]
 
     if cs == "ready_for_meeting":
-        a, b, c = soft_meeting_ladder_three(loc)
+        a, b, c = soft_meeting_ladder_triple(loc)
         if near:
-            if loc == "uk":
-                b = _soft_line(f"може якось кава чи прогулянка{near}?")
-            elif loc == "ru":
-                b = _soft_line(f"может как-нибудь кофе или прогулка{near}?")
-            else:
-                b = _soft_line(f"Maybe coffee or a walk{near} sometime?")
+            b = _meeting_walk_line_with_near(loc, near)
         return [_soft_line(a), _soft_line(b), _soft_line(c)]
+
+    if cs == "engaged" and loc != "en":
+        a, b, c = timed_reengage_triple(loc)
+        return [_q_short(a, locale=loc), _q_short(b, locale=loc), _q_short(c, locale=loc)]
+
+    if cs == "high_interest" and loc != "en":
+        a, b, c = timed_revive_triple(loc)
+        return [_q_short(a, locale=loc), _q_short(b, locale=loc), _q_short(c, locale=loc)]
 
     packs_en: dict[str, tuple[str, str, str]] = {
         "opener": (
@@ -190,18 +241,14 @@ def closer_meeting_suggestions_three(locale: str, closer_stage: str, *, city: st
     }
 
     if cs in {"opener", "early_chat"} and loc != "en":
-        try:
-            x, y, z = timed_now_emergency_triple(loc)
-            return [_q_short(x), _q_short(y), _q_short(z)]
-        except Exception:
-            pass
+        x, y, z = timed_now_emergency_triple(loc)
+        return [_q_short(x, locale=loc), _q_short(y, locale=loc), _q_short(z, locale=loc)]
 
     a, b, c = packs_en.get(cs, packs_en["early_chat"])
     return [_q_short(a), _q_short(b), _q_short(c)]
 
 
 def closer_copilot_prompt_addon(closer_stage: str, locale: str | None) -> str:
-    """Safety-forward instructions appended to chat-copilot system prompt."""
     _ = normalize_ai_request_locale(locale or "en")
     cs = (closer_stage or "").strip().lower()
     guides = {
@@ -223,7 +270,6 @@ def closer_copilot_prompt_addon(closer_stage: str, locale: str | None) -> str:
 
 
 def closer_timed_replies_prompt_addon(closer_stage: str, locale: str | None) -> str:
-    """Timed-replies: reuse closer copilot rules + explicit progression toward optional meeting."""
     cs = (closer_stage or "").strip().lower()
     tail = (
         "\nTIMED_REPLIES_PROGRESSION: Advance opener → interest → comfort → light flirt → (only if stage allows) soft meeting hint. "
@@ -238,45 +284,47 @@ def closer_timed_replies_prompt_addon(closer_stage: str, locale: str | None) -> 
 
 
 def closer_copilot_fallback_base_en(closer_stage: str, last_message: str, continue_mode: bool) -> list[str]:
-    """Three English lines for copilot deterministic fallback; translated by caller."""
+    """Deterministic EN copilot fallback (locale == en only)."""
     cs = (closer_stage or "").strip().lower()
     low = (last_message or "").lower()
 
     if cs == "stalled":
         a, b, c = timed_revive_triple("en")
-        return [_q_short(a), _q_short(b), _q_short(c)]
+        return [_q_short(a, locale="en"), _q_short(b, locale="en"), _q_short(c, locale="en")]
 
     if cs == "ready_for_meeting":
-        a, b, c = soft_meeting_ladder_three("en")
+        a, b, c = soft_meeting_ladder_triple("en")
         return [_soft_line(a), _soft_line(b), _soft_line(c)]
 
     if cs == "high_interest":
         return [
-            _q_short("Okay I’m curious — what kind of connection actually makes you feel safe?"),
-            _q_short("If we kept this energy going, would you rather deepen it here first or meet somewhere chill?"),
-            _q_short("What’s your favorite kind of ‘easy’ plan when you’re getting to know someone?"),
+            _q_short("Okay I’m curious — what kind of connection actually makes you feel safe?", locale="en"),
+            _q_short(
+                "If we kept this energy going, would you rather deepen it here first or meet somewhere chill?",
+                locale="en",
+            ),
+            _q_short("What’s your favorite kind of ‘easy’ plan when you’re getting to know someone?", locale="en"),
         ]
 
     if cs == "engaged":
         return [
-            _q_short("What part of that story matters most to you personally?"),
-            _q_short("When you say that, what are you hoping I understand?"),
-            _q_short("What would make this conversation feel even more ‘you’?"),
+            _q_short("What part of that story matters most to you personally?", locale="en"),
+            _q_short("When you say that, what are you hoping I understand?", locale="en"),
+            _q_short("What would make this conversation feel even more ‘you’?", locale="en"),
         ]
 
     if cs == "opener":
         a, b, c = timed_now_emergency_triple("en")
-        return [_q_short(a), _q_short(b), _q_short(c)]
+        return [_q_short(a, locale="en"), _q_short(b, locale="en"), _q_short(c, locale="en")]
 
-    # early_chat default + light hooks from last message
     if continue_mode and ("?" in low or len(low) > 40):
         return [
-            _q_short("That’s a nice detail 🙂 what made you think of it?"),
-            _q_short("I’m curious — what would you want to add if you had one more sentence?"),
-            _q_short("What’s the next tiny step you’d enjoy talking about here?"),
+            _q_short("That’s a nice detail 🙂 what made you think of it?", locale="en"),
+            _q_short("I’m curious — what would you want to add if you had one more sentence?", locale="en"),
+            _q_short("What’s the next tiny step you’d enjoy talking about here?", locale="en"),
         ]
     a, b, c = timed_now_emergency_triple("en")
-    return [_q_short(a), _q_short(b), _q_short(c)]
+    return [_q_short(a, locale="en"), _q_short(b, locale="en"), _q_short(c, locale="en")]
 
 
 def closer_copilot_fallback_lines(
@@ -286,50 +334,41 @@ def closer_copilot_fallback_lines(
     continue_mode: bool,
 ) -> list[str]:
     """
-    Three copilot fallback lines for ``closer_stage``, honoring locale.
+    Three copilot fallback lines for ``closer_stage`` in the viewer's UI locale.
 
-    Ukrainian uses native phrase banks only (no English templates).
-    Other locales reuse English bases (callers may translate elsewhere).
+    Non-English locales never use the English template pack; phrase banks only.
     """
     loc = normalize_ai_request_locale(locale or "en")
+    if loc == "en":
+        return closer_copilot_fallback_base_en(closer_stage, str(last_message or ""), continue_mode)
+
     cs = (closer_stage or "").strip().lower()
     low = (last_message or "").lower()
 
-    if loc != "uk":
-        return closer_copilot_fallback_base_en(cs, str(last_message or ""), continue_mode)
-
     if cs == "stalled":
-        a, b, c = timed_revive_triple("uk")
-        return [_q_short(a), _q_short(b), _q_short(c)]
+        a, b, c = timed_revive_triple(loc)
+        return [_q_short(a, locale=loc), _q_short(b, locale=loc), _q_short(c, locale=loc)]
 
     if cs == "ready_for_meeting":
-        a, b, c = soft_meeting_ladder_three("uk")
+        a, b, c = soft_meeting_ladder_triple(loc)
         return [_soft_line(a), _soft_line(b), _soft_line(c)]
 
     if cs == "high_interest":
-        return [
-            _q_short("Мені цікаво — який зв’язок для тебе справді відчувається безпечним?"),
-            _q_short("Якщо ми й надалі так спілкуватимемось, тобі більше хочеться поглибити це тут чи зустрітися десь спокійно?"),
-            _q_short("Який для тебе найзручніший легкий план, коли знайомишся з кимось новим?"),
-        ]
+        a, b, c = timed_revive_triple(loc)
+        return [_q_short(a, locale=loc), _q_short(b, locale=loc), _q_short(c, locale=loc)]
 
     if cs == "engaged":
-        return [
-            _q_short("Яка частина цієї історії для тебе найважливіша?"),
-            _q_short("Коли ти так кажеш, що ти хочеш, щоб я зрозумів(ла)?"),
-            _q_short("Що зробило б цю розмову ще більш «твоєю»?"),
-        ]
+        a, b, c = timed_reengage_triple(loc)
+        return [_q_short(a, locale=loc), _q_short(b, locale=loc), _q_short(c, locale=loc)]
 
     if cs == "opener":
-        a, b, c = timed_now_emergency_triple("uk")
-        return [_q_short(a), _q_short(b), _q_short(c)]
+        a, b, c = timed_now_emergency_triple(loc)
+        return [_q_short(a, locale=loc), _q_short(b, locale=loc), _q_short(c, locale=loc)]
 
+    # early_chat
     if continue_mode and ("?" in low or len(low) > 40):
-        return [
-            _q_short("Гарний штрих 🙂 що саме наштовхнуло на цю думку?"),
-            _q_short("Цікаво — що б ти хотів(ла) додати, якби мав(ла) ще одне речення?"),
-            _q_short("Який наступний маленький крок тут було б приємно обговорити?"),
-        ]
+        a, b, c = timed_reengage_triple(loc)
+        return [_q_short(a, locale=loc), _q_short(b, locale=loc), _q_short(c, locale=loc)]
 
-    a, b, c = timed_now_emergency_triple("uk")
-    return [_q_short(a), _q_short(b), _q_short(c)]
+    a, b, c = timed_now_emergency_triple(loc)
+    return [_q_short(a, locale=loc), _q_short(b, locale=loc), _q_short(c, locale=loc)]

@@ -18,8 +18,8 @@ from app.services.ai.ai_fallback_phrases import (
     timed_reengage_triple,
     timed_revive_triple,
 )
-from app.services.ai.conversation.contextual_fallback_triples import uk_emergency_fallback_triple
 from app.services.ai.ai_request_locale import normalize_ai_request_locale
+from app.services.ai.english_leak import english_leak_detected, log_ai_english_leak_blocked
 
 logger = logging.getLogger("neyra.ai.fallback")
 
@@ -51,19 +51,25 @@ def sanitize_fallback_lines_for_locale(
     context: str = "",
 ) -> list[str]:
     """
-    For ``locale=uk``, replace lines that look like English leaks with Ukrainian phrase-bank rows.
-    Logs ``fallback_locale_used`` when substitution happens.
+    Replace lines that leak common English product phrases into a non-English UI locale.
+    Uses the locale phrase bank (`timed_now_emergency_triple`) as the safe replacement pool.
     """
     loc = normalize_ai_request_locale(locale or "en")
-    if loc != "uk" or not lines:
+    if loc == "en" or not lines:
         return list(lines)
-    pool = list(uk_emergency_fallback_triple())
+    from app.services.ai.ai_fallback_phrases import timed_now_emergency_triple
+
+    pool = list(timed_now_emergency_triple(loc))
     out: list[str] = []
     replaced = False
     for i, line in enumerate(lines):
         s = (line or "").strip()
-        if _fallback_line_has_english_leak_for_uk(s):
+        leaked = english_leak_detected(s, locale=loc) or (
+            loc == "uk" and _fallback_line_has_english_leak_for_uk(s)
+        )
+        if leaked:
             rep = pool[i % len(pool)]
+            log_ai_english_leak_blocked(locale=loc, surface=context or "sanitize_fallback_lines", snippet=s[:200])
             out.append(rep)
             replaced = True
         else:
@@ -73,7 +79,7 @@ def sanitize_fallback_lines_for_locale(
             "fallback_locale_used",
             extra={
                 "event": "fallback_locale_used",
-                "locale": "uk",
+                "locale": loc,
                 "guard": "english_leak_replace",
                 "context": (context or "")[:120],
             },
@@ -175,7 +181,7 @@ def copilot_suggestion_rows(
     """
     Three copilot options (light / flirty / deep tone) from phrase banks.
     ``last_message`` + ``continue_mode`` tune variation deterministically.
-    When ``closer_stage`` is set, use locale-aware lines (Ukrainian is native; others use EN + translate upstream).
+    When ``closer_stage`` is set, all locales use localized phrase banks (no English shells).
     """
     loc = normalize_ai_request_locale(locale or "en")
     if (closer_stage or "").strip():
@@ -187,16 +193,6 @@ def copilot_suggestion_rows(
             str(last_message or ""),
             bool(continue_mode),
         )
-        if loc == "uk":
-            logger.info(
-                "fallback_locale_used",
-                extra={
-                    "event": "fallback_locale_used",
-                    "locale": "uk",
-                    "source": "copilot_suggestion_closer",
-                    "closer_stage": str(closer_stage or "")[:48],
-                },
-            )
         fixed = sanitize_fallback_lines_for_locale([t0, t1, t2], loc, context="copilot_suggestion_closer")
         t0, t1, t2 = fixed[0], fixed[1], fixed[2]
         lb_l, lb_f, lb_d = copilot_fallback_labels(loc)
@@ -275,10 +271,11 @@ def revive_message_rows(locale: str | None) -> list[dict[str, Any]]:
     """Three revive-style lines for stall UX."""
     loc = normalize_ai_request_locale(locale or "en")
     light, flirty, deep = timed_revive_triple(loc)
+    lb_l, lb_f, lb_d = copilot_fallback_labels(loc)
     return [
-        {"label": "Topic shift", "style": "light", "text": light},
-        {"label": "Playful", "style": "flirty", "text": flirty},
-        {"label": "Go deeper", "style": "deep", "text": deep},
+        {"label": lb_l, "style": "light", "text": light},
+        {"label": lb_f, "style": "flirty", "text": flirty},
+        {"label": lb_d, "style": "deep", "text": deep},
     ]
 
 
