@@ -275,11 +275,11 @@ test("localization audit keys exist in en + uk public bundles", () => {
 
 test("audited pages wire apiFailureToI18nText or translateApiUserMessage (no raw error.message toasts)", () => {
   const rels = [
-    "app/onboarding/page.tsx",
-    "app/profile/page.tsx",
-    "app/discover/page.tsx",
-    "app/founder-welcome/page.tsx",
-    "app/people/[userId]/page.tsx",
+    "app/(main)/onboarding/page.tsx",
+    "app/(main)/profile/page.tsx",
+    "app/(main)/discover/page.tsx",
+    "app/(main)/founder-welcome/page.tsx",
+    "app/(main)/people/[userId]/page.tsx",
     "app/components/PhotoUploader.tsx",
     "lib/chat/useChatInboxController.ts",
   ];
