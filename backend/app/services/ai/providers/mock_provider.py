@@ -5,6 +5,7 @@ from app.services.ai.conversation.conversation_analyzer import ConversationAnaly
 from app.services.ai.conversation.escalation_advisor import EscalationAdvisor
 from app.services.ai.conversation.reply_assistant import improve_draft_locally
 from app.services.ai.conversation.dating_coach import coach_heuristic
+from app.services.ai.ai_fallback_phrases import opener_typed_fallback
 from app.services.ai.ai_request_locale import normalize_ai_request_locale
 
 class MockAIProvider(AIProvider):
@@ -89,33 +90,9 @@ class MockAIProvider(AIProvider):
         city: str = "",
         tags: list[str] | None = None,
     ) -> dict:
-        _ = normalize_ai_request_locale(locale)
-        name = (match_name or "").strip()
-        hook_city = (city or "").strip()
-        tag0 = str((tags or [])[0] or "").strip() if tags else ""
-        greeting = f"Hi{name and f', {name}' or ''}"
-        rows = [
-            {
-                "type": "safe",
-                "text": f"{greeting} — coffee shop calm or busy city energy: which fits you today?".strip(),
-            },
-            {
-                "type": "flirty",
-                "text": f"{greeting or 'Hey'} — be honest: more ‘plans’ or ‘see what happens’?",
-            },
-            {
-                "type": "smart",
-                "text": (
-                    f"You mention {tag0}—what pulled you into it first, curiosity or habit?"
-                    if tag0
-                    else (
-                        f"If {hook_city} had a ‘perfect Saturday’, would it be outdoors or cozy indoors?"
-                        if hook_city
-                        else "If your week had a headline, what would the one-liner be?"
-                    )
-                ),
-            },
-        ]
+        loc = normalize_ai_request_locale(locale)
+        typed = opener_typed_fallback(loc)[:3]
+        rows = [{"type": str(row[0]), "text": str(row[1])[:280]} for row in typed]
         return {
             "suggestions": rows,
             "recommended_index": 1,

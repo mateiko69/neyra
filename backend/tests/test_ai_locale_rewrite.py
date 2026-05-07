@@ -77,19 +77,21 @@ def test_demo_script_not_english(locale_code: str):
         ("fr", "de", "", "", "", "fr", "request_body"),
         ("", "de", "", "uk", "es", "de", "x_app_locale"),
         ("", "", "pt", "uk", "", "pt", "ui_header"),
-        ("", "", "", "pl", "es", "pl", "profile"),
+        ("", "", "", "pl", "es", "es", "accept_language"),
+        ("", "", "", "pl", "", "pl", "profile"),
         ("", "", "", "", "ar", "ar", "accept_language"),
         ("", "", "", "", "", "en", "fallback_en"),
         ("zh-CN", "", "", "", "", "zh", "request_body"),
     ],
 )
 def test_resolve_chain_v3(req, app_hdr, legacy, prof, accept, expect_lang, expect_src):
+    legacy_list = [legacy] if legacy else []
     loc, src = resolve_ai_locale_strict_chain(
         request_locale=req or None,
         app_locale_header=app_hdr or None,
-        legacy_ui_locale=legacy or None,
-        profile_locale=prof or None,
+        legacy_ui_candidates=legacy_list,
         accept_language_header=accept or None,
+        profile_locale=prof or None,
     )
     assert loc == expect_lang
     assert src == expect_src

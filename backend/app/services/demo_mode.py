@@ -1061,11 +1061,19 @@ def get_demo_last_error(db: Session) -> dict | None:
 
 
 def build_demo_reply(profile: Profile | None, user_message: str, context: list[str] | None = None) -> str:
+    from app.services.ai.ai_request_locale import normalize_ai_request_locale
+    from app.services.ai.english_leak import english_leak_detected
+    from app.services.ai.localized_demo_text import localized_demo_smalltalk_reply
+
+    text = (user_message or "").strip().lower()
+    context_count = len([x for x in (context or []) if str(x or "").strip()])
+    ui_loc = getattr(profile, "preferred_language", None) if profile else None
+    loc_nm = normalize_ai_request_locale(str(ui_loc).strip() if ui_loc else None)
+
     # If the user asked a direct question, answer it using the speaker (demo) profile first.
     try:
         from app.services.ai.orchestrator import AIOrchestrator
 
-        ui_loc = getattr(profile, "preferred_language", None) if profile else None
         direct = AIOrchestrator.generate_demo_reply(
             speaker_profile=profile,
             partner_profile=None,
@@ -1073,35 +1081,10 @@ def build_demo_reply(profile: Profile | None, user_message: str, context: list[s
             ui_locale=str(ui_loc).strip() if ui_loc else None,
         )
         if direct:
+            if loc_nm != "en" and english_leak_detected(direct, locale=loc_nm):
+                return localized_demo_smalltalk_reply(loc_nm, user_message_lower=text, context_lines=context_count)
             return direct
     except Exception:
         pass
 
-    name = (getattr(profile, "display_name", "") or "there").strip()
-    text = (user_message or "").strip().lower()
-    context_count = len([x for x in (context or []) if str(x or "").strip()])
-    playful = [
-        f"Haha okay — you’ve got {name}’s attention 🙂 What’s one thing you’re weirdly passionate about?",
-        f"Cheeky question: if we skipped small talk, what would you actually want to talk about?",
-        f"I like that energy. What’s been the highlight of your week so far?",
-    ]
-    curious = [
-        "Interesting — what drew you to say that?",
-        "I’m curious: what does a perfect Sunday look like for you?",
-        "Nice. What are you into lately when you’re not on here?",
-    ]
-    if "coffee" in text or "drink" in text or "meet" in text:
-        pool = [
-            "That sounds fun 🙂 Are you more of a chill café person or a walk-and-talk person?",
-            "Love it. What kind of spot would feel easy for a first meet?",
-        ]
-    elif "music" in text or "film" in text or "movie" in text:
-        pool = [
-            "Good taste — what’s one thing I should watch or listen to this week?",
-            "Nice — what’s your go-to comfort watch or album lately?",
-        ]
-    elif "hi" in text or "hello" in text or context_count == 0:
-        pool = playful + curious
-    else:
-        pool = curious + playful
-    return random.choice(pool)
+    return localized_demo_smalltalk_reply(loc_nm, user_message_lower=text, context_lines=context_count)

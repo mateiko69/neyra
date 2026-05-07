@@ -535,6 +535,17 @@ function finalizeSoftFailPromise<T>(p: Promise<T>, signal: AbortSignal | undefin
   }) as Promise<T>;
 }
 
+/** Test-only cache hooks (set `NEYRA_API_CACHE_TEST_HOOKS=1` before importing this module in tests). */
+export function dangerouslySeedApiCacheEntryForTests(key: string, payload: unknown) {
+  if (process.env.NEYRA_API_CACHE_TEST_HOOKS !== "1") return;
+  getResponseCache.set(key, { expiresAt: Date.now() + 60_000, payload: structuredClone(payload as object) });
+}
+
+export function dangerouslyListApiCacheKeysForTests(): string[] {
+  if (process.env.NEYRA_API_CACHE_TEST_HOOKS !== "1") return [];
+  return [...getResponseCache.keys()];
+}
+
 /** Drop cached GETs (call on logout, token change, or after mutations). */
 export function invalidateApiGetCache(pathPrefix?: string) {
   if (pathPrefix == null || pathPrefix === "") {
@@ -669,10 +680,13 @@ export async function apiFetch<T = any>(path: string, options: ApiFetchOptions =
         if (!headers["X-UI-Locale"]) headers["X-UI-Locale"] = raw;
         if (!headers["X-Locale"]) headers["X-Locale"] = raw;
         if (!headers["X-Neyra-Locale"]) headers["X-Neyra-Locale"] = raw;
-        if (!headers["Accept-Language"]) {
-          const intl = raw === "zh-CN" ? "zh-Hans" : raw === "zh-TW" ? "zh-Hant" : raw.replace(/_/g, "-");
-          headers["Accept-Language"] = `${intl},en;q=0.2`;
-        }
+        const intl =
+          raw === "zh-CN" || raw === "zh"
+            ? "zh-Hans"
+            : raw === "zh-TW"
+              ? "zh-Hant"
+              : raw.replace(/_/g, "-");
+        headers["Accept-Language"] = `${intl},en;q=0.2`;
       }
     }
   } catch {

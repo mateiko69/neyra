@@ -536,8 +536,14 @@ export function setGlobalLocale(next: Locale) {
   try {
     invalidateApiGetCache("/matches");
     invalidateApiGetCache("/messages/conversations");
+    invalidateApiGetCache("/messages");
     invalidateApiGetCache("/discover/feed");
     invalidateApiGetCache("/nav/badges");
+    import("../chat/api")
+      .then(({ emitViewerRefresh }) => emitViewerRefresh("locale-change"))
+      .catch(() => {
+        /* ignore */
+      });
   } catch {
     /* ignore */
   }

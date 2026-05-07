@@ -123,7 +123,46 @@ _COPILOT_LABELS: dict[str, tuple[str, str, str]] = {
 
 def copilot_fallback_labels(locale: str | None) -> tuple[str, str, str]:
     n = normalize_ai_request_locale(locale or "en")
-    return _COPILOT_LABELS.get(n) or _COPILOT_LABELS["en"]
+    if n == "en":
+        return _COPILOT_LABELS["en"]
+    row = _COPILOT_LABELS.get(n)
+    if row:
+        return row
+    for fb in (
+        "uk",
+        "de",
+        "es",
+        "fr",
+        "pt",
+        "it",
+        "pl",
+        "ru",
+        "zh",
+        "zh-TW",
+        "ja",
+        "ko",
+        "nl",
+        "sv",
+        "da",
+        "no",
+        "fi",
+        "cs",
+        "ro",
+        "hu",
+        "el",
+        "bg",
+        "ar",
+        "he",
+        "hi",
+        "id",
+        "th",
+        "vi",
+        "tr",
+    ):
+        alt = _COPILOT_LABELS.get(fb)
+        if alt:
+            return alt
+    return _COPILOT_LABELS["uk"]
 
 
 def copilot_suggestion_rows(

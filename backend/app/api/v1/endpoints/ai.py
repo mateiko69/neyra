@@ -45,6 +45,7 @@ from app.services.ai.locale_pipeline import (
     log_ai_locale_final,
     log_ai_locale_resolved,
     log_ai_response_debug,
+    ordered_legacy_ui_locales_from_request,
     resolve_ai_locale_strict_chain,
 )
 from app.services.ai.locale_prompt_language_names import english_language_name_for_ai_prompt
@@ -2394,19 +2395,16 @@ def _resolve_ai_locale_for_request(
         profile_locale = ""
     app_locale_header = ""
     transport_locale = ""
+    legacy_ordered: list[str] = []
     try:
         if request is not None:
             app_locale_header = str(request.headers.get("X-App-Locale") or "").strip()
-            transport_locale = str(
-                request.headers.get("X-Neyra-Locale")
-                or request.headers.get("X-Locale")
-                or request.headers.get("X-UI-Locale")
-                or request.query_params.get("locale")
-                or ""
-            ).strip()
+            legacy_ordered = ordered_legacy_ui_locales_from_request(request)
+            transport_locale = "|".join(legacy_ordered) if legacy_ordered else ""
     except Exception:
         app_locale_header = ""
         transport_locale = ""
+        legacy_ordered = []
     accept_hdr = ""
     try:
         if request is not None:
@@ -2424,7 +2422,7 @@ def _resolve_ai_locale_for_request(
             req_locale_raw=str(req_locale or "").strip() or None,
             profile_locale_raw=profile_locale or None,
             accept_language=accept_hdr or None,
-            transport_locale=transport_locale or None,
+            transport_locale=f"app={app_locale_header or '-'}|ui_chain={transport_locale or '-'}",
             ai_locale_override=str(ai_locale or "").strip() or None,
             prefer_message_locale=prefer_message_locale,
         )
@@ -2433,9 +2431,9 @@ def _resolve_ai_locale_for_request(
     chain_loc, chain_src = resolve_ai_locale_strict_chain(
         request_locale=req_locale,
         app_locale_header=app_locale_header or None,
-        legacy_ui_locale=transport_locale or None,
-        profile_locale=profile_locale or None,
+        legacy_ui_candidates=legacy_ordered,
         accept_language_header=accept_hdr or None,
+        profile_locale=profile_locale or None,
     )
     msg_detect = None
     if prefer_message_locale and latest_user_message:

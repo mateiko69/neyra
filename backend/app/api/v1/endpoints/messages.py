@@ -5,7 +5,7 @@ import re
 
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from app.api.api_errors import api_error
 from app.api.deps import get_db, get_current_user
 from app.models.user import User
@@ -35,10 +35,15 @@ from app.services.premium_trial import maybe_start_premium_trial
 from app.services.demo_behavior import note_real_user_message_to_demo
 from app.services.demo_behavior import run_demo_behavior_tick
 from app.core.config import settings
+from app.services.ai.locale_pipeline import resolve_http_ai_locale
+from app.services.ai.localized_demo_text import (
+    coerce_demo_partner_message_body,
+    localized_demo_chat_banner,
+    localized_demo_profile_badge,
+    localized_voice_message_stub,
+    three_demo_openers,
+)
 from app.services.demo_mode import (
-    DEMO_CHAT_LABEL,
-    DEMO_PROFILE_DISCLAIMER,
-    DEMO_PROFILE_LABEL,
     build_demo_reply,
     is_demo_live_enabled,
     is_demo_mode_enabled,
@@ -192,6 +197,7 @@ def _log_unmatched_attempt(current_user_id: int, other_user_id: int, action: str
 
 @router.get("/conversations")
 def list_conversations(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     limit: int = 80,
@@ -218,6 +224,7 @@ def list_conversations(
         if partner_ids
         else {}
     )
+    users_map = {u.id: u for u in db.query(User).filter(User.id.in_(partner_ids)).all()} if partner_ids else {}
     read_map = {}
     if partner_ids:
         for r in (
@@ -229,6 +236,8 @@ def list_conversations(
             .all()
         ):
             read_map[r.partner_user_id] = r.last_read_at
+
+    ui_loc = resolve_http_ai_locale(request, db=db, user_id=int(current_user.id))
 
     out = []
     for row in match_rows:
@@ -257,17 +266,27 @@ def list_conversations(
         if cutoff is not None:
             unread_q = unread_q.filter(Message.created_at > cutoff)
         unread_count = unread_q.count()
+        partner_user_row = users_map.get(partner_id)
         preview = ""
         if last:
-            preview = last.content.strip()
+            preview = (last.content or "").strip()
             if not preview and getattr(last, "voice_url", None):
-                preview = "[Voice message]"
+                preview = localized_voice_message_stub(ui_loc)
+            partner_is_demo_pf = is_demo_profile(profile, partner_user_row)
+            if partner_is_demo_pf and last.sender_id == partner_id:
+                preview = coerce_demo_partner_message_body(
+                    raw_db=preview,
+                    locale=ui_loc,
+                    message_id=int(last.id),
+                    sender_is_demo_bot=True,
+                    route="GET /messages/conversations",
+                )
             if len(preview) > 140:
                 preview = preview[:137] + "…"
         partner_is_verified = bool(is_verified_profile(profile)) if profile else False
         partner_quality = compute_profile_quality(profile) if profile else None
         partner_low_quality = bool(partner_quality and partner_quality.quality_flag == "low_quality")
-        partner_is_demo = is_demo_profile(profile)
+        partner_is_demo = is_demo_profile(profile, partner_user_row)
         out.append(
             {
                 "match_id": row.id,
@@ -277,9 +296,13 @@ def list_conversations(
                 "partner_verified": partner_is_verified,
                 "partner_low_quality": partner_low_quality,
                 "partner_is_demo_profile": partner_is_demo,
-                "demo_label": DEMO_PROFILE_LABEL if partner_is_demo else None,
-                "demo_disclaimer": (getattr(profile, "demo_disclaimer", "") or DEMO_PROFILE_DISCLAIMER) if partner_is_demo else None,
-                "demo_chat_label": DEMO_CHAT_LABEL if partner_is_demo else None,
+                "demo_label": localized_demo_profile_badge(ui_loc) if partner_is_demo else None,
+                "demo_disclaimer": (
+                    ((getattr(profile, "demo_disclaimer", "") or "").strip() or localized_demo_profile_badge(ui_loc))
+                    if partner_is_demo
+                    else None
+                ),
+                "demo_chat_label": localized_demo_chat_banner(ui_loc) if partner_is_demo else None,
                 "last_message_preview": preview,
                 "last_message_at": last.created_at.isoformat() if last and last.created_at else None,
                 "unread_count": unread_count,
@@ -297,7 +320,14 @@ def list_conversations(
 
 
 @router.get("/{partner_user_id}")
-def get_thread(partner_user_id: int, limit: int = 50, offset: int = 0, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_thread(
+    request: Request,
+    partner_user_id: int,
+    limit: int = 50,
+    offset: int = 0,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     if is_blocked(db, current_user.id, partner_user_id):
         raise HTTPException(status_code=403, detail=api_error("chat.user_blocked"))
     if not users_are_matched(db, current_user.id, partner_user_id):
@@ -317,7 +347,21 @@ def get_thread(partner_user_id: int, limit: int = 50, offset: int = 0, current_u
         .all()
     )
     rows.reverse()
-    payload = _attach_reactions(db, current_user.id, [_message_to_json(m) for m in rows])
+    ui_loc = resolve_http_ai_locale(request, db=db, user_id=int(current_user.id))
+    partner_profile_t = db.query(Profile).filter(Profile.user_id == int(partner_user_id)).first()
+    partner_user_t = db.query(User).filter(User.id == int(partner_user_id)).first()
+    demo_thread = is_demo_profile(partner_profile_t, partner_user_t)
+    base_msgs = [_message_to_json(m) for m in rows]
+    for p in base_msgs:
+        if demo_thread and int(p.get("sender_id") or 0) == int(partner_user_id):
+            p["content"] = coerce_demo_partner_message_body(
+                raw_db=str(p.get("content") or ""),
+                locale=ui_loc,
+                message_id=int(p.get("id") or 0),
+                sender_is_demo_bot=True,
+                route="GET /messages/partner_thread",
+            )
+    payload = _attach_reactions(db, current_user.id, base_msgs)
     _touch_thread_read(db, current_user.id, partner_user_id)
     a, b = sorted([int(current_user.id), int(partner_user_id)])
     match_row = db.query(Match).filter(Match.user_a_id == a, Match.user_b_id == b).first()
@@ -432,7 +476,8 @@ async def ai_conversation_opener(
     my_profile = db.query(Profile).filter(Profile.user_id == current_user.id).first()
     from app.application.use_cases.ai.wingman_openers import generate_openers
 
-    locale = str(payload.get("locale") or "en").strip() or "en"
+    locale_raw = payload.get("locale") or payload.get("language") or "en"
+    locale = str(locale_raw).strip() or "en"
     suggestions: list = []
     try:
         suggestions = await generate_openers(my_profile, receiver_profile, allow_edgy_mode=False, locale=locale)
@@ -446,8 +491,8 @@ async def ai_conversation_opener(
         elif isinstance(first, str):
             text = first.strip()
     if not text:
-        name = (receiver_profile.display_name or "there").strip().split()[0]
-        text = f"Hey {name} — your profile made me smile. What’s the highlight of your week so far?"
+        o1, _, _ = three_demo_openers(locale)
+        text = o1
     text = text.strip()
     if len(text) > 8000:
         text = text[:8000]
@@ -476,7 +521,12 @@ async def ai_conversation_opener(
 
 @router.post("")
 @router.post("/", include_in_schema=False)
-async def send_message(payload: MessageCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def send_message(
+    payload: MessageCreate,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     receiver_id = payload.receiver_id
     content = (payload.content or "").strip()
     context = payload.conversation_context
@@ -484,6 +534,8 @@ async def send_message(payload: MessageCreate, current_user: User = Depends(get_
     voice_mime = (payload.voice_mime or "").strip() or None
     voice_duration_ms = payload.voice_duration_ms
     idempotency_key = (payload.idempotency_key or "").strip() or None
+    ui_transport_loc = resolve_http_ai_locale(request, db=db, user_id=int(current_user.id))
+
     receiver = db.query(User).filter(User.id == int(receiver_id)).first()
     receiver_profile = db.query(Profile).filter(Profile.user_id == int(receiver_id)).first()
     receiver_is_demo = is_demo_profile(receiver_profile, receiver)
@@ -748,6 +800,13 @@ async def send_message(payload: MessageCreate, current_user: User = Depends(get_
                     )
                     if latest_demo and latest_demo.is_demo_simulation:
                         demo_reply_out = _attach_reactions(db, current_user.id, [_message_to_json(latest_demo)])[0]
+                        demo_reply_out["content"] = coerce_demo_partner_message_body(
+                            raw_db=str(demo_reply_out.get("content") or ""),
+                            locale=ui_transport_loc,
+                            message_id=int(latest_demo.id),
+                            sender_is_demo_bot=True,
+                            route="POST /messages/demo_tick",
+                        )
             else:
                 prior_demo_replies = (
                     db.query(Message)
@@ -767,6 +826,13 @@ async def send_message(payload: MessageCreate, current_user: User = Depends(get_
                 if int(prior_demo_replies or 0) == 0:
                     track_event(db, "demo_chat_started", user_id=current_user.id, payload={"partner_user_id": receiver_id, "source": "message_send"})
                 demo_reply_out = _attach_reactions(db, current_user.id, [_message_to_json(demo_msg)])[0]
+                demo_reply_out["content"] = coerce_demo_partner_message_body(
+                    raw_db=str(demo_reply_out.get("content") or ""),
+                    locale=ui_transport_loc,
+                    message_id=int(demo_msg.id),
+                    sender_is_demo_bot=True,
+                    route="POST /messages/sync_demo_reply",
+                )
         # Best-effort realtime fanout to connected websocket clients.
         try:
             await manager.send_to_user(current_user.id, {"type": "message", **out})
@@ -780,7 +846,7 @@ async def send_message(payload: MessageCreate, current_user: User = Depends(get_
             return {
                 "message": out,
                 "demo_reply": demo_reply_out,
-                "demo_chat_label": DEMO_CHAT_LABEL,
+                "demo_chat_label": localized_demo_chat_banner(ui_transport_loc),
                 "demo_reply_scheduled": True,
                 "demo_partner": True,
                 "expected_reply_delay_seconds": int(max(0, expected_reply_delay_seconds)),
@@ -788,7 +854,7 @@ async def send_message(payload: MessageCreate, current_user: User = Depends(get_
         if receiver_is_demo:
             return {
                 "message": out,
-                "demo_chat_label": DEMO_CHAT_LABEL,
+                "demo_chat_label": localized_demo_chat_banner(ui_transport_loc),
                 "demo_reply_scheduled": bool(demo_reply_scheduled),
                 "demo_partner": True,
                 "expected_reply_delay_seconds": int(max(0, expected_reply_delay_seconds)),
